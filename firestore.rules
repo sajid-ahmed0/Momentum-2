@@ -1,0 +1,142 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    function isRequestOwner() {
+      return isSignedIn() && request.resource.data.uid == request.auth.uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // Domain Validators
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             data.createdAt is number;
+    }
+
+    function isValidHabit(data) {
+      return data.keys().hasAll(['name', 'color', 'type', 'frequency', 'createdAt', 'uid']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.color is string && data.color.size() <= 20 &&
+             data.type in ['checkbox', 'number', 'duration'] &&
+             data.frequency in ['daily', 'weekdays', 'weekends'] &&
+             data.uid == request.auth.uid;
+    }
+
+    function isValidLog(data) {
+      return data.keys().hasAll(['habitId', 'date', 'status', 'uid', 'timestamp']) &&
+             data.habitId is string &&
+             data.date is string && data.date.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
+             data.status in ['completed', 'skipped', 'partial'] &&
+             data.uid == request.auth.uid;
+    }
+
+    function isValidTimeBlock(data) {
+      return data.keys().hasAll(['date', 'startTime', 'endTime', 'activity', 'uid']) &&
+             data.date is string && data.date.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
+             data.startTime is string && data.startTime.matches("^\\d{2}:\\d{2}$") &&
+             data.endTime is string && data.endTime.matches("^\\d{2}:\\d{2}$") &&
+             data.activity is string && data.activity.size() > 0 && data.activity.size() < 200 &&
+             data.uid == request.auth.uid;
+    }
+
+    function isValidOverthinkingLog(data) {
+      return data.keys().hasAll(['date', 'intensity', 'uid', 'timestamp']) &&
+             data.date is string && data.date.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
+             data.intensity is number && data.intensity >= 1 && data.intensity <= 10 &&
+             data.uid == request.auth.uid;
+    }
+
+    function isValidJournalEntry(data) {
+      return data.keys().hasAll(['date', 'title', 'content', 'uid', 'timestamp']) &&
+             data.date is string && data.date.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.content is string && data.content.size() > 0 && data.content.size() < 10000 &&
+             data.uid == request.auth.uid;
+    }
+
+    function isValidUrgeLog(data) {
+      return data.keys().hasAll(['intent', 'willHelpFuture', 'outcome', 'date', 'uid', 'timestamp', 'durationSeconds']) &&
+             data.intent is string && data.intent.size() <= 500 &&
+             data.willHelpFuture is bool &&
+             data.outcome in ["resisted", "given_in", "returned_to_focus", "continued_anyway"] &&
+             data.durationSeconds is number &&
+             data.date is string && data.date.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
+             data.uid == request.auth.uid;
+    }
+
+    // Rules Matches
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidUser(request.resource.data);
+    }
+
+    match /habits/{habitId} {
+      allow read: if isDocOwner();
+      allow create: if isRequestOwner() && isValidHabit(request.resource.data);
+      allow update: if isDocOwner() && isRequestOwner() && isValidHabit(request.resource.data);
+      allow delete: if isDocOwner();
+    }
+
+    match /habitLogs/{logId} {
+      allow read: if isDocOwner();
+      allow create: if isRequestOwner() && isValidLog(request.resource.data);
+      allow update: if isDocOwner() && isRequestOwner() && isValidLog(request.resource.data);
+      allow delete: if isDocOwner();
+    }
+
+    match /timeBlocks/{blockId} {
+      allow read: if isDocOwner();
+      allow create: if isRequestOwner() && isValidTimeBlock(request.resource.data);
+      allow update: if isDocOwner() && isRequestOwner() && isValidTimeBlock(request.resource.data);
+      allow delete: if isDocOwner();
+    }
+
+    match /overthinkingLogs/{logId} {
+      allow read: if isDocOwner();
+      allow create: if isRequestOwner() && isValidOverthinkingLog(request.resource.data);
+      allow update: if isDocOwner() && isRequestOwner() && isValidOverthinkingLog(request.resource.data);
+      allow delete: if isDocOwner();
+    }
+
+    match /journalEntries/{entryId} {
+      allow read: if isDocOwner();
+      allow create: if isRequestOwner() && isValidJournalEntry(request.resource.data);
+      allow update: if isDocOwner() && isRequestOwner() && isValidJournalEntry(request.resource.data);
+      allow delete: if isDocOwner();
+    }
+
+    match /urgeLogs/{logId} {
+      allow read: if isDocOwner();
+      allow create: if isRequestOwner() && isValidUrgeLog(request.resource.data);
+      allow update: if isDocOwner() && isRequestOwner() && isValidUrgeLog(request.resource.data);
+      allow delete: if isDocOwner();
+    }
+  }
+}

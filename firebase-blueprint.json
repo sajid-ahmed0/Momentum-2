@@ -1,0 +1,144 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private user profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "Habit": {
+      "title": "Habit",
+      "description": "A habit defined by the user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "color": { "type": "string" },
+        "type": { "type": "string", "enum": ["checkbox", "number", "duration"] },
+        "frequency": { "type": "string", "enum": ["daily", "weekdays", "weekends"] },
+        "createdAt": { "type": "number" },
+        "uid": { "type": "string" }
+      },
+      "required": ["name", "color", "type", "frequency", "createdAt", "uid"]
+    },
+    "HabitLog": {
+      "title": "HabitLog",
+      "description": "Daily progress log for a habit.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "habitId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["completed", "skipped", "partial"] },
+        "value": { "type": "number", "description": "Numeric value for counts or durations (in minutes)" },
+        "uid": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["habitId", "date", "status", "uid", "timestamp"]
+    },
+    "TimeBlock": {
+      "title": "TimeBlock",
+      "description": "A scheduled block of time for a specific task.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "startTime": { "type": "string", "description": "Format: HH:mm (24h)" },
+        "endTime": { "type": "string", "description": "Format: HH:mm (24h)" },
+        "activity": { "type": "string" },
+        "category": { "type": "string" },
+        "uid": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["date", "startTime", "endTime", "activity", "uid"]
+    },
+    "OverthinkingLog": {
+      "title": "OverthinkingLog",
+      "description": "Log entry for tracking intensity and trigger of overthinking.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "intensity": { "type": "number", "description": "Scale 1-10" },
+        "trigger": { "type": "string" },
+        "thoughts": { "type": "string" },
+        "uid": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["date", "intensity", "uid", "timestamp"]
+    },
+    "JournalEntry": {
+      "title": "JournalEntry",
+      "description": "Daily journal entry with thoughts, mood, and reflections.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "title": { "type": "string" },
+        "mood": { "type": "string" },
+        "content": { "type": "string" },
+        "lostControl": { "type": "string", "description": "Where did you lose control?" },
+        "trigger": { "type": "string", "description": "What triggered it?" },
+        "improvementTomorrow": { "type": "string", "description": "One improvement tomorrow" },
+        "learningFromMistake": { "type": "string", "description": "Today's learning from mistake" },
+        "uid": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["date", "title", "content", "uid", "timestamp"]
+    },
+    "UrgeLog": {
+      "title": "UrgeLog",
+      "description": "Log of an urge surfing session/forced pause.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "intent": { "type": "string" },
+        "willHelpFuture": { "type": "boolean" },
+        "outcome": { "type": "string", "enum": ["resisted", "given_in", "returned_to_focus", "continued_anyway"] },
+        "durationSeconds": { "type": "number" },
+        "date": { "type": "string", "format": "date" },
+        "uid": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["intent", "willHelpFuture", "outcome", "date", "uid", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile data."
+    },
+    "/habits/{habitId}": {
+      "schema": "Habit",
+      "description": "Users individual habits."
+    },
+    "/habitLogs/{logId}": {
+      "schema": "HabitLog",
+      "description": "Daily habit tracking entries."
+    },
+    "/timeBlocks/{blockId}": {
+      "schema": "TimeBlock",
+      "description": "Daily schedule blocks."
+    },
+    "/overthinkingLogs/{logId}": {
+      "schema": "OverthinkingLog",
+      "description": "Overthinking tracking logs."
+    },
+    "/journalEntries/{entryId}": {
+      "schema": "JournalEntry",
+      "description": "Daily journal entries."
+    },
+    "/urgeLogs/{logId}": {
+      "schema": "UrgeLog",
+      "description": "Urge surfing session logs."
+    }
+  }
+}
