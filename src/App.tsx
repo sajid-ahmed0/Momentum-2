@@ -64,7 +64,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail } from './firebase';
+import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail, loginAnonymously } from './firebase';
 import { Habit, HabitLog, TimeBlock, OverthinkingLog, JournalEntry, UrgeLog } from './types';
 import { cn } from './lib/utils';
 
@@ -334,9 +334,19 @@ export default function App() {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      if (!u) {
+        try {
+          // If no user found, sign in anonymously for "guest" session
+          await loginAnonymously();
+        } catch (err) {
+          console.error("Anonymous Sign-in Error:", err);
+          setLoading(false);
+        }
+      } else {
+        setUser(u);
+        setLoading(false);
+      }
     });
     return unsubscribe;
   }, []);
@@ -889,20 +899,7 @@ export default function App() {
         </div>
 
         <div className="pt-8 border-t border-high-line dark:border-zinc-800">
-          {user ? (
-            <>
-              <div className="flex items-center gap-3 mb-6">
-                <img src={user.photoURL || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y'} alt="" className="w-8 h-8 rounded border border-high-line dark:border-zinc-800" referrerPolicy="no-referrer" />
-                <div className="truncate">
-                  <p className="text-[11px] font-bold leading-none truncate mb-1 uppercase tracking-tight dark:text-zinc-200">{user.displayName || 'Momentum User'}</p>
-                  <p className="text-[10px] text-zinc-400 truncate tracking-tight dark:text-zinc-500">{user.email}</p>
-                </div>
-              </div>
-              <button onClick={logout} className="text-[10px] font-bold uppercase tracking-widest text-red-400 hover:text-red-500 transition-colors w-full text-left">
-                Sign Out
-              </button>
-            </>
-          ) : (
+          {!user || user.isAnonymous ? (
             <button 
               onClick={() => setShowAuthModal(true)}
               className="w-full flex items-center justify-between group py-2"
@@ -911,10 +908,37 @@ export default function App() {
                 <div className="w-8 h-8 rounded border border-dashed border-zinc-200 dark:border-zinc-800 flex items-center justify-center">
                   <Plus className="w-3 h-3 text-zinc-400" />
                 </div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors">Sign In / Register</span>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors">Sign In / Sync Data</p>
+                  <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest mt-0.5">Guest Session</p>
+                </div>
               </div>
               <ArrowRight className="w-3 h-3 text-zinc-300 opacity-0 group-hover:opacity-100 transition-all -translate-x-1 group-hover:translate-x-0" />
             </button>
+          ) : (
+            <>
+              <div className="flex items-center gap-3 mb-6">
+                <img 
+                  src={user.photoURL || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y'} 
+                  alt="" 
+                  className="w-8 h-8 rounded border border-high-line dark:border-zinc-800" 
+                  referrerPolicy="no-referrer" 
+                />
+                <div className="truncate">
+                  <p className="text-[11px] font-bold leading-none truncate mb-1 uppercase tracking-tight dark:text-zinc-200">{user.displayName || 'Momentum User'}</p>
+                  <p className="text-[10px] text-zinc-400 truncate tracking-tight dark:text-zinc-500">{user.email || 'Synced'}</p>
+                </div>
+              </div>
+              <button 
+                onClick={async () => {
+                   await logout();
+                   // Signing out will trigger the anonymous login effect in the background
+                }} 
+                className="text-[10px] font-bold uppercase tracking-widest text-red-400 hover:text-red-500 transition-colors w-full text-left"
+              >
+                Sign Out
+              </button>
+            </>
           )}
         </div>
       </aside>
@@ -1055,7 +1079,7 @@ export default function App() {
               >
                 <div className="mb-24">
                   <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-600 mb-4 block">System Status: Active</span>
-                  <h2 className="text-5xl font-black tracking-tighter uppercase dark:text-zinc-100 mb-4">Welcome Back, {user?.displayName?.split(' ')[0] || 'Protege'}</h2>
+                  <h2 className="text-5xl font-black tracking-tighter uppercase dark:text-zinc-100 mb-4">Welcome Back, {(!user || user.isAnonymous) ? 'Protege' : user.displayName?.split(' ')[0]}</h2>
                   <div className="h-0.5 w-24 bg-zinc-900 dark:bg-zinc-100" />
                 </div>
 
@@ -1800,27 +1824,35 @@ export default function App() {
                   </div>
                   
                   <div className="flex items-center gap-4 mb-10 p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl">
-                    {user ? (
-                      <>
-                        <img src={user.photoURL || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y'} alt="" className="w-10 h-10 rounded-lg" referrerPolicy="no-referrer" />
-                        <div className="min-w-0">
-                          <p className="font-bold text-sm truncate dark:text-zinc-200">{user.displayName || 'Momentum User'}</p>
-                          <p className="text-[10px] text-zinc-400 truncate tracking-tight">{user.email}</p>
-                        </div>
-                      </>
-                    ) : (
+                    {!user || user.isAnonymous ? (
                       <button 
                         onClick={() => {
                           setShowAuthModal(true);
                           setIsMenuOpen(false);
                         }}
-                        className="w-full h-12 flex items-center gap-3"
+                        className="w-full flex items-center gap-3"
                       >
                         <div className="w-10 h-10 rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 flex items-center justify-center">
                           <Plus className="w-4 h-4 text-zinc-400" />
                         </div>
-                        <span className="text-xs font-bold uppercase tracking-widest text-zinc-400">Sign In / Register</span>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Sign In / Sync Data</p>
+                          <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest mt-0.5">Guest Session</p>
+                        </div>
                       </button>
+                    ) : (
+                      <>
+                        <img 
+                          src={user.photoURL || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y'} 
+                          alt="" 
+                          className="w-10 h-10 rounded-lg" 
+                          referrerPolicy="no-referrer" 
+                        />
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm truncate dark:text-zinc-200">{user.displayName || 'Momentum User'}</p>
+                          <p className="text-[10px] text-zinc-400 truncate tracking-tight">{user.email || 'Synced'}</p>
+                        </div>
+                      </>
                     )}
                   </div>
 
