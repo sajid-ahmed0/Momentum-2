@@ -99,6 +99,14 @@ service cloud.firestore {
              data.uid == request.auth.uid;
     }
 
+    function isValidExam(data) {
+      return data.keys().hasAll(['title', 'date', 'time', 'uid', 'timestamp']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.date is string && data.date.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
+             data.time is string && data.time.matches("^\\d{2}:\\d{2}$") &&
+             data.uid == request.auth.uid;
+    }
+
     // Rules Matches
     match /users/{userId} {
       allow read: if isOwner(userId);
@@ -151,6 +159,13 @@ service cloud.firestore {
       allow read: if isDocOwner();
       allow create: if isRequestOwner() && isValidTask(request.resource.data);
       allow update: if isDocOwner() && isRequestOwner() && isValidTask(request.resource.data);
+      allow delete: if isDocOwner();
+    }
+
+    match /exams/{examId} {
+      allow read: if isDocOwner();
+      allow create: if isRequestOwner() && isValidExam(request.resource.data);
+      allow update: if isDocOwner() && isRequestOwner() && isValidExam(request.resource.data);
       allow delete: if isDocOwner();
     }
   }

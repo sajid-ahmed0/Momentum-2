@@ -124,6 +124,20 @@
         "timestamp": { "type": "number" }
       },
       "required": ["task", "completed", "date", "uid", "timestamp"]
+    },
+    "Exam": {
+      "title": "Exam",
+      "description": "An upcoming exam with a countdown date and time.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "time": { "type": "string", "description": "Format: HH:mm (24h)" },
+        "uid": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["title", "date", "time", "uid", "timestamp"]
     }
   },
   "firestore": {
@@ -158,6 +172,10 @@
     "/dailyTasks/{taskId}": {
       "schema": "DailyTask",
       "description": "Users daily to-do items."
+    },
+    "/exams/{examId}": {
+      "schema": "Exam",
+      "description": "Upcoming exam countdowns."
     }
   }
 }

@@ -64,11 +64,12 @@ import {
   ArrowRight,
   Download,
   Share2,
-  ListTodo
+  ListTodo,
+  GraduationCap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail, loginAnonymously } from './firebase';
-import { Habit, HabitLog, TimeBlock, OverthinkingLog, DailyTask, JournalEntry, UrgeLog } from './types';
+import { Habit, HabitLog, TimeBlock, OverthinkingLog, DailyTask, JournalEntry, UrgeLog, Exam } from './types';
 import { cn } from './lib/utils';
 
 // --- Components ---
@@ -249,6 +250,86 @@ const Modal = ({ isOpen, onClose, title, children }: { key?: React.Key; isOpen: 
   );
 };
 
+interface ExamCountdownProps {
+  key?: React.Key;
+  exam: Exam;
+  onEdit: (exam: Exam) => void;
+  onDelete: (id: string) => void;
+}
+
+const ExamCountdown = ({ exam, onEdit, onDelete }: ExamCountdownProps) => {
+  const [timeLeft, setTimeLeft] = useState<{ d: number, h: number, m: number, s: number } | null>(null);
+
+  useEffect(() => {
+    const calculate = () => {
+      const target = parse(`${exam.date} ${exam.time}`, 'yyyy-MM-dd HH:mm', new Date());
+      const now = new Date();
+      const diff = target.getTime() - now.getTime();
+
+      if (diff <= 0) {
+        setTimeLeft(null);
+        return;
+      }
+
+      const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+      setTimeLeft({ d, h, m, s });
+    };
+
+    calculate();
+    const timer = setInterval(calculate, 1000);
+    return () => clearInterval(timer);
+  }, [exam.date, exam.time]);
+
+  if (!timeLeft) return null;
+
+  return (
+    <div className="relative group overflow-hidden bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-2xl p-6 shadow-xl border border-zinc-800 dark:border-zinc-200">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <GraduationCap className="w-4 h-4 text-emerald-500" />
+          <h3 className="text-xs font-black uppercase tracking-widest">{exam.title}</h3>
+        </div>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={() => onEdit(exam)} className="p-1 hover:bg-zinc-800 dark:hover:bg-zinc-200 rounded">
+            <Edit className="w-3 h-3 text-zinc-400" />
+          </button>
+          <button onClick={() => onDelete(exam.id)} className="p-1 hover:bg-red-900/30 dark:hover:bg-red-100 rounded">
+            <Trash2 className="w-3 h-3 text-red-500/70 hover:text-red-500" />
+          </button>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-4 gap-2 text-center">
+        <div>
+          <p className="text-2xl font-mono font-black">{timeLeft.d}</p>
+          <p className="text-[8px] font-bold uppercase tracking-widest opacity-40">Days</p>
+        </div>
+        <div>
+          <p className="text-2xl font-mono font-black">{timeLeft.h}</p>
+          <p className="text-[8px] font-bold uppercase tracking-widest opacity-40">Hours</p>
+        </div>
+        <div>
+          <p className="text-2xl font-mono font-black">{timeLeft.m}</p>
+          <p className="text-[8px] font-bold uppercase tracking-widest opacity-40">Mins</p>
+        </div>
+        <div>
+          <p className="text-2xl font-mono font-black animate-pulse">{timeLeft.s}</p>
+          <p className="text-[8px] font-bold uppercase tracking-widest opacity-40">Secs</p>
+        </div>
+      </div>
+      <div className="mt-4 pt-4 border-t border-zinc-800 dark:border-zinc-200 flex items-center justify-between">
+        <span className="text-[9px] font-mono font-black opacity-40 tracking-widest uppercase">
+          {format(parseISO(exam.date), 'MMM dd, yyyy')} @ {exam.time}
+        </span>
+      </div>
+    </div>
+  );
+};
+
 // --- App ---
 
 export default function App() {
@@ -261,6 +342,7 @@ export default function App() {
   const [tasks, setTasks] = useState<DailyTask[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [urgeLogs, setUrgeLogs] = useState<UrgeLog[]>([]);
+  const [exams, setExams] = useState<Exam[]>([]);
   const [activeTab, setActiveTab] = useState<'home' | 'habits' | 'tasks' | 'schedule' | 'overthinking' | 'journal' | 'urge'>(() => {
     if (typeof window !== 'undefined' && window.location.hash) {
       const hash = window.location.hash.replace('#', '') as any;
@@ -279,9 +361,11 @@ export default function App() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showOverthinkingModal, setShowOverthinkingModal] = useState(false);
   const [showJournalModal, setShowJournalModal] = useState(false);
+  const [showExamModal, setShowExamModal] = useState(false);
   const [editingTimeBlock, setEditingTimeBlock] = useState<TimeBlock | null>(null);
   const [editingTask, setEditingTask] = useState<DailyTask | null>(null);
   const [editingJournalEntry, setEditingJournalEntry] = useState<JournalEntry | null>(null);
+  const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
   // Urge Surfing State
@@ -500,6 +584,12 @@ export default function App() {
       setUrgeLogs(data);
     });
 
+    const qExams = query(collection(db, 'exams'), where('uid', '==', user.uid), orderBy('date', 'asc'));
+    const unsubExams = onSnapshot(qExams, (snap) => {
+      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Exam[];
+      setExams(data);
+    });
+
     return () => {
       unsubHabits();
       unsubLogs();
@@ -508,6 +598,7 @@ export default function App() {
       unsubJournal();
       unsubTasks();
       unsubUrge();
+      unsubExams();
     };
   }, [user]);
 
@@ -612,6 +703,41 @@ export default function App() {
   const handleDeleteTask = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'dailyTasks', id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddExam = async (data: { title: string, date: string, time: string }) => {
+    if (!user) return;
+    try {
+      await addDoc(collection(db, 'exams'), {
+        ...data,
+        uid: user.uid,
+        timestamp: Date.now()
+      });
+      setShowExamModal(false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleUpdateExam = async (id: string, data: Partial<Exam>) => {
+    try {
+      await updateDoc(doc(db, 'exams', id), {
+        ...data,
+        timestamp: Date.now()
+      });
+      setShowExamModal(false);
+      setEditingExam(null);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteExam = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'exams', id));
     } catch (err) {
       console.error(err);
     }
@@ -1401,6 +1527,47 @@ export default function App() {
                     </div>
                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Sessions Tracked</p>
                   </div>
+                </div>
+
+                {/* --- Milestones Section --- */}
+                <div className="mt-16">
+                  <div className="flex items-center justify-between mb-8">
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 mb-1">Target Tracking</h4>
+                      <h3 className="text-xl font-black uppercase tracking-tighter dark:text-zinc-100">Upcoming Milestones</h3>
+                    </div>
+                    <Button 
+                      variant="secondary" 
+                      onClick={() => { setEditingExam(null); setShowExamModal(true); }}
+                      className="text-[10px] font-bold uppercase tracking-widest px-4 border-dashed border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 h-9"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Milestone
+                    </Button>
+                  </div>
+
+                  {exams.length === 0 ? (
+                    <div className="p-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-zinc-300 dark:text-zinc-700">
+                      <GraduationCap className="w-12 h-12 mb-4 opacity-20" />
+                      <p className="font-bold uppercase tracking-widest text-[10px]">No active countdowns</p>
+                      <button 
+                        onClick={() => { setEditingExam(null); setShowExamModal(true); }}
+                        className="mt-4 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+                      >
+                        Set your first exam goal
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {exams.map(exam => (
+                        <ExamCountdown 
+                          key={exam.id} 
+                          exam={exam} 
+                          onEdit={(e) => { setEditingExam(e); setShowExamModal(true); }}
+                          onDelete={handleDeleteExam}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             ) : activeTab === 'habits' ? (
@@ -2687,6 +2854,70 @@ export default function App() {
                 }} className="flex-1 text-xs dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 h-10">Cancel</Button>
                 <Button type="submit" className="flex-[2] text-xs font-bold dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white h-10">
                   {editingJournalEntry ? "Update Entry" : "Save Entry"}
+                </Button>
+              </div>
+            </form>
+          </Modal>
+        )}
+
+        {showExamModal && (
+          <Modal key="exam-modal" isOpen={showExamModal} onClose={() => { setShowExamModal(false); setEditingExam(null); }} title={editingExam ? "Edit Milestone" : "Add Milestone"}>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const d = new FormData(e.currentTarget);
+              const data = {
+                title: d.get('title') as string,
+                date: d.get('date') as string,
+                time: d.get('time') as string
+              };
+              if (editingExam) {
+                handleUpdateExam(editingExam.id, data);
+              } else {
+                handleAddExam(data);
+              }
+            }} className="space-y-6">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Milestone Title</label>
+                <input 
+                  name="title"
+                  type="text" 
+                  required
+                  defaultValue={editingExam?.title || ''}
+                  placeholder="Final Exam / Project Due..."
+                  className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Target Date</label>
+                  <input 
+                    name="date"
+                    type="date" 
+                    required
+                    defaultValue={editingExam?.date || format(new Date(), 'yyyy-MM-dd')}
+                    className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Target Time</label>
+                  <input 
+                    name="time"
+                    type="time" 
+                    required
+                    defaultValue={editingExam?.time || '09:00'}
+                    className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100 uppercase"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <Button type="button" variant="secondary" onClick={() => {
+                  setShowExamModal(false);
+                  setEditingExam(null);
+                }} className="flex-1 text-xs dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 h-10">Cancel</Button>
+                <Button type="submit" className="flex-[2] text-xs font-bold dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white h-10">
+                  {editingExam ? "Update Milestone" : "Start Countdown"}
                 </Button>
               </div>
             </form>

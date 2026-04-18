@@ -82,3 +82,12 @@ export interface UrgeLog {
   uid: string;
   timestamp: number;
 }
+
+export interface Exam {
+  id: string;
+  title: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  uid: string;
+  timestamp: number;
+}
