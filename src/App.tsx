@@ -594,7 +594,7 @@ export default function App() {
   const { habitComp, currentBlock, nextBlock, urgeSuccess } = getStats();
 
   const navItems = [
-    { id: 'home', icon: Home, label: 'Home' },
+    { id: 'overthinking', icon: Activity, label: 'Tracker' },
     { id: 'habits', icon: Flame, label: 'Habits' },
     { id: 'schedule', icon: Clock, label: 'Schedule' },
     { id: 'journal', icon: BookOpen, label: 'Journal' },
@@ -1872,15 +1872,15 @@ export default function App() {
                         </button>
                         <button 
                           onClick={() => {
-                            setActiveTab('overthinking');
+                            setActiveTab('home');
                             setIsMenuOpen(false);
                           }}
                           className={cn(
                             "w-full flex items-center px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-tight",
-                            activeTab === 'overthinking' ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                            activeTab === 'home' ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
                           )}
                         >
-                          <Activity className="w-4 h-4 mr-4" /> Overthinking
+                          <Home className="w-4 h-4 mr-4" /> Momentum Home
                         </button>
                       </div>
                     </div>
