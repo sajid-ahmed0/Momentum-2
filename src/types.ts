@@ -48,6 +48,16 @@ export interface OverthinkingLog {
   timestamp: number;
 }
 
+export interface DailyTask {
+  id: string;
+  task: string;
+  completed: boolean;
+  date: string; // YYYY-MM-DD
+  time?: string; // HH:mm
+  uid: string;
+  timestamp: number;
+}
+
 export interface JournalEntry {
   id: string;
   date: string; // YYYY-MM-DD

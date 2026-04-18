@@ -109,6 +109,21 @@
         "timestamp": { "type": "number" }
       },
       "required": ["intent", "willHelpFuture", "outcome", "date", "uid", "timestamp"]
+    },
+    "DailyTask": {
+      "title": "DailyTask",
+      "description": "A single to-do item for a specific day.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "task": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "date": { "type": "string", "format": "date" },
+        "time": { "type": "string", "description": "Optional time HH:mm" },
+        "uid": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["task", "completed", "date", "uid", "timestamp"]
     }
   },
   "firestore": {
@@ -139,6 +154,10 @@
     "/urgeLogs/{logId}": {
       "schema": "UrgeLog",
       "description": "Urge surfing session logs."
+    },
+    "/dailyTasks/{taskId}": {
+      "schema": "DailyTask",
+      "description": "Users daily to-do items."
     }
   }
 }

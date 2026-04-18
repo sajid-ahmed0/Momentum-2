@@ -63,11 +63,12 @@ import {
   Wind,
   ArrowRight,
   Download,
-  Share2
+  Share2,
+  ListTodo
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail, loginAnonymously } from './firebase';
-import { Habit, HabitLog, TimeBlock, OverthinkingLog, JournalEntry, UrgeLog } from './types';
+import { Habit, HabitLog, TimeBlock, OverthinkingLog, DailyTask, JournalEntry, UrgeLog } from './types';
 import { cn } from './lib/utils';
 
 // --- Components ---
@@ -257,19 +258,22 @@ export default function App() {
   const [logs, setLogs] = useState<HabitLog[]>([]);
   const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([]);
   const [overthinkingLogs, setOverthinkingLogs] = useState<OverthinkingLog[]>([]);
+  const [tasks, setTasks] = useState<DailyTask[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [urgeLogs, setUrgeLogs] = useState<UrgeLog[]>([]);
-  const [activeTab, setActiveTab] = useState<'home' | 'habits' | 'schedule' | 'overthinking' | 'journal' | 'urge'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'habits' | 'tasks' | 'schedule' | 'overthinking' | 'journal' | 'urge'>('home');
   const [globalAuthError, setGlobalAuthError] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showOverthinkingModal, setShowOverthinkingModal] = useState(false);
   const [showJournalModal, setShowJournalModal] = useState(false);
   const [editingTimeBlock, setEditingTimeBlock] = useState<TimeBlock | null>(null);
+  const [editingTask, setEditingTask] = useState<DailyTask | null>(null);
   const [editingJournalEntry, setEditingJournalEntry] = useState<JournalEntry | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
@@ -430,6 +434,12 @@ export default function App() {
       setJournalEntries(data);
     });
 
+    const qTasks = query(collection(db, 'dailyTasks'), where('uid', '==', user.uid), orderBy('timestamp', 'desc'));
+    const unsubTasks = onSnapshot(qTasks, (snap) => {
+      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as DailyTask[];
+      setTasks(data);
+    });
+
     const qUrge = query(collection(db, 'urgeLogs'), where('uid', '==', user.uid), orderBy('timestamp', 'desc'));
     const unsubUrge = onSnapshot(qUrge, (snap) => {
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UrgeLog[];
@@ -442,6 +452,7 @@ export default function App() {
       unsubBlocks();
       unsubOverthinking();
       unsubJournal();
+      unsubTasks();
       unsubUrge();
     };
   }, [user]);
@@ -501,6 +512,54 @@ export default function App() {
         timestamp: Date.now()
       });
       setShowOverthinkingModal(false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddTask = async (data: { task: string, time?: string, date?: string }) => {
+    if (!user) return;
+    try {
+      await addDoc(collection(db, 'dailyTasks'), {
+        task: data.task,
+        time: data.time || "",
+        date: data.date || format(startOfToday(), 'yyyy-MM-dd'),
+        completed: false,
+        uid: user.uid,
+        timestamp: Date.now()
+      });
+      setShowTaskModal(false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleUpdateTask = async (id: string, data: Partial<DailyTask>) => {
+    try {
+      await updateDoc(doc(db, 'dailyTasks', id), {
+        ...data,
+        timestamp: Date.now()
+      });
+      setShowTaskModal(false);
+      setEditingTask(null);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteTask = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'dailyTasks', id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleToggleTask = async (task: DailyTask) => {
+    try {
+      await updateDoc(doc(db, 'dailyTasks', task.id), {
+        completed: !task.completed
+      });
     } catch (err) {
       console.error(err);
     }
@@ -880,6 +939,17 @@ export default function App() {
                 <Layout className="w-4 h-4 mr-3" /> Habits
               </button>
               <button 
+                onClick={() => setActiveTab('tasks')}
+                className={cn(
+                  "w-full flex items-center px-3 py-2 rounded transition-all text-xs font-bold uppercase tracking-tight",
+                  activeTab === 'tasks' 
+                    ? "bg-zinc-900 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900" 
+                    : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                )}
+              >
+                <ListTodo className="w-4 h-4 mr-3" /> Daily Tasks
+              </button>
+              <button 
                 onClick={() => setActiveTab('schedule')}
                 className={cn(
                   "w-full flex items-center px-3 py-2 rounded transition-all text-xs font-bold uppercase tracking-tight",
@@ -1037,7 +1107,8 @@ export default function App() {
                activeTab === 'habits' ? 'Habit Database' : 
                activeTab === 'schedule' ? 'Daily Schedule' : 
                activeTab === 'overthinking' ? 'Overthinking Tracker' : 
-               activeTab === 'journal' ? 'Daily Journal' : 'The Circuit Breaker'}
+               activeTab === 'journal' ? 'Daily Journal' : 
+               activeTab === 'tasks' ? 'Daily Tasks' : 'The Circuit Breaker'}
             </h1>
             {activeTab === 'habits' && (
               <span className="ml-2 px-1.5 py-0.5 bg-zinc-100 rounded text-[10px] font-mono font-bold text-zinc-400 dark:bg-zinc-900 dark:text-zinc-500">{habits.length}</span>
@@ -1123,6 +1194,17 @@ export default function App() {
                 >
                   <Button onClick={() => setShowJournalModal(true)} className="h-9 py-0 rounded px-4 text-xs tracking-tight font-bold">
                     <Pen className="w-3.5 h-3.5" /> Write Entry
+                  </Button>
+                </motion.div>
+              ) : activeTab === 'tasks' ? (
+                <motion.div
+                  key="add-task-btn"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                >
+                  <Button onClick={() => { setEditingTask(null); setShowTaskModal(true); }} className="h-9 py-0 rounded px-4 text-xs tracking-tight font-bold underline decoration-zinc-900/10 dark:decoration-white/10 underline-offset-4">
+                    <Plus className="w-4 h-4" /> Add Task
                   </Button>
                 </motion.div>
               ) : (
@@ -1368,6 +1450,101 @@ export default function App() {
                     </div>
                   );
                 })}
+              </motion.div>
+            ) : activeTab === 'tasks' ? (
+              <motion.div 
+                key="tasks-tab"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="p-10 max-w-4xl mx-auto"
+              >
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h2 className="text-2xl font-black uppercase tracking-tighter dark:text-zinc-100">Daily Tasks</h2>
+                    <p className="text-sm text-zinc-400 font-medium dark:text-zinc-500">Stay organized. One task at a time.</p>
+                  </div>
+                  <Button 
+                    onClick={() => {
+                      setEditingTask(null);
+                      setShowTaskModal(true);
+                    }}
+                    className="h-10 px-6 font-black uppercase tracking-widest text-[10px] flex items-center gap-2"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Task
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  {tasks.length === 0 ? (
+                    <div className="p-20 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-zinc-300 dark:text-zinc-700">
+                      <ListTodo className="w-12 h-12 mb-4 opacity-20" />
+                      <p className="font-bold uppercase tracking-[0.2em] text-[10px]">Your task list is empty</p>
+                    </div>
+                  ) : (
+                    tasks.map(task => (
+                      <div 
+                        key={task.id} 
+                        className={cn(
+                          "group p-4 rounded-xl border transition-all flex items-center justify-between",
+                          task.completed 
+                            ? "bg-zinc-50/50 dark:bg-zinc-900/30 border-zinc-100 dark:border-zinc-800 opacity-60" 
+                            : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm"
+                        )}
+                      >
+                        <div className="flex items-center gap-4 flex-1">
+                          <button 
+                            onClick={() => handleToggleTask(task)}
+                            className={cn(
+                              "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all shrink-0",
+                              task.completed 
+                                ? "bg-zinc-900 border-zinc-900 dark:bg-zinc-100 dark:border-zinc-100 text-white dark:text-zinc-900" 
+                                : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-900 dark:hover:border-zinc-100"
+                            )}
+                          >
+                            {task.completed && <Check className="w-3 h-3" />}
+                          </button>
+                          <div className="min-w-0 flex-1">
+                            <p className={cn(
+                              "text-sm font-bold tracking-tight dark:text-zinc-100 transition-all truncate",
+                              task.completed && "line-through text-zinc-400 dark:text-zinc-600"
+                            )}>
+                              {task.task}
+                            </p>
+                            <div className="flex items-center gap-3 mt-1">
+                              {task.time && (
+                                <span className="flex items-center gap-1 text-[9px] font-mono font-bold text-zinc-400 uppercase">
+                                  <Clock className="w-3 h-3" /> {formatTime12h(task.time)}
+                                </span>
+                              )}
+                              <span className="text-[9px] font-mono font-bold text-zinc-400 uppercase">
+                                {format(parseISO(task.date), 'MMM d')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => {
+                              setEditingTask(task);
+                              setShowTaskModal(true);
+                            }}
+                            className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteTask(task.id)}
+                            className="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-md text-zinc-400 hover:text-red-500"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </motion.div>
             ) : activeTab === 'schedule' ? (
               <motion.div 
@@ -1974,6 +2151,18 @@ export default function App() {
                         </button>
                         <button 
                           onClick={() => {
+                            setActiveTab('tasks');
+                            setIsMenuOpen(false);
+                          }}
+                          className={cn(
+                            "w-full flex items-center px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-tight",
+                            activeTab === 'tasks' ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                          )}
+                        >
+                          <ListTodo className="w-4 h-4 mr-4" /> Daily Tasks
+                        </button>
+                        <button 
+                          onClick={() => {
                             setActiveTab('home');
                             setIsMenuOpen(false);
                           }}
@@ -2107,6 +2296,75 @@ export default function App() {
           </form>
         </Modal>
       )}
+
+      {showTaskModal && (
+          <Modal 
+            key="add-task-modal" 
+            isOpen={showTaskModal} 
+            onClose={() => {
+              setShowTaskModal(false);
+              setEditingTask(null);
+            }} 
+            title={editingTask ? "Edit Task" : "New Daily Task"}
+          >
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              const data = {
+                task: fd.get('task') as string,
+                time: fd.get('time') as string,
+                date: fd.get('date') as string
+              };
+              
+              if (editingTask) {
+                handleUpdateTask(editingTask.id, data);
+              } else {
+                handleAddTask(data);
+              }
+            }} className="space-y-8">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">What needs to be done?</label>
+                <input 
+                  name="task"
+                  type="text" 
+                  required
+                  autoFocus
+                  defaultValue={editingTask?.task || ''}
+                  placeholder="e.g. Finish project proposal, Buy groceries"
+                  className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-8">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Due Date</label>
+                  <input 
+                    name="date"
+                    type="date" 
+                    required
+                    defaultValue={editingTask?.date || format(startOfToday(), 'yyyy-MM-dd')}
+                    className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Time (Optional)</label>
+                  <input 
+                    name="time"
+                    type="time" 
+                    defaultValue={editingTask?.time || ''}
+                    className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
+                  />
+                </div>
+              </div>
+              <div className="pt-6 flex gap-3 sticky bottom-0 bg-white dark:bg-zinc-950 pb-2">
+                <Button type="button" variant="secondary" onClick={() => {
+                  setShowTaskModal(false);
+                  setEditingTask(null);
+                }} className="flex-1 text-xs dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 h-10">Cancel</Button>
+                <Button type="submit" className="flex-[2] text-xs font-bold dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white h-10">{editingTask ? "Update Task" : "Save Task"}</Button>
+              </div>
+            </form>
+          </Modal>
+        )}
 
       {showScheduleModal && (
           <Modal 
