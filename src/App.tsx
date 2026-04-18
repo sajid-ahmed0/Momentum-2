@@ -64,7 +64,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { auth, db, signInWithGoogle, logout } from './firebase';
+import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail } from './firebase';
 import { Habit, HabitLog, TimeBlock, OverthinkingLog, JournalEntry, UrgeLog } from './types';
 import { cn } from './lib/utils';
 
@@ -704,29 +704,37 @@ export default function App() {
     }
   };
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-white">
-      <div className="w-1.5 h-1.5 bg-zinc-900 rounded-full animate-ping" />
-    </div>
-  );
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
-  if (!user) return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-zinc-50 font-sans">
-      <motion.div 
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-sm bg-white p-12 rounded border border-high-line shadow-sm text-center"
-      >
-        <div className="w-12 h-12 bg-zinc-900 rounded flex items-center justify-center mx-auto mb-8 shadow-lg">
-          <Flame className="w-6 h-6 text-white" />
-        </div>
-        <h1 className="text-xl font-extrabold tracking-tighter text-zinc-900 mb-2">MOMENTUM</h1>
-        <p className="text-zinc-500 text-sm mb-10">Minimalist habits for focused people.</p>
-        
-        <Button onClick={signInWithGoogle} className="w-full py-3 h-auto font-bold tracking-tight">
-          Continue with Google
-        </Button>
-      </motion.div>
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    try {
+      if (authMode === 'login') {
+        await loginWithEmail(email, password);
+      } else {
+        await registerWithEmail(email, password);
+      }
+      setShowAuthModal(false);
+    } catch (err: any) {
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+        setAuthError('Email or password is incorrect');
+      } else if (err.code === 'auth/email-already-in-use') {
+        setAuthError('User already exists. Please sign in');
+        setAuthMode('login');
+      } else {
+        setAuthError(err.message);
+      }
+    }
+  };
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-white dark:bg-zinc-950">
+      <div className="w-1.5 h-1.5 bg-zinc-900 rounded-full animate-ping dark:bg-zinc-100" />
     </div>
   );
 
@@ -857,16 +865,33 @@ export default function App() {
         </div>
 
         <div className="pt-8 border-t border-high-line dark:border-zinc-800">
-          <div className="flex items-center gap-3 mb-6">
-            <img src={user.photoURL || ''} alt="" className="w-8 h-8 rounded border border-high-line dark:border-zinc-800" referrerPolicy="no-referrer" />
-            <div className="truncate">
-              <p className="text-[11px] font-bold leading-none truncate mb-1 uppercase tracking-tight dark:text-zinc-200">{user.displayName}</p>
-              <p className="text-[10px] text-zinc-400 truncate tracking-tight dark:text-zinc-500">{user.email}</p>
-            </div>
-          </div>
-          <button onClick={logout} className="text-[10px] font-bold uppercase tracking-widest text-red-400 hover:text-red-500 transition-colors w-full text-left">
-            Sign Out
-          </button>
+          {user ? (
+            <>
+              <div className="flex items-center gap-3 mb-6">
+                <img src={user.photoURL || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y'} alt="" className="w-8 h-8 rounded border border-high-line dark:border-zinc-800" referrerPolicy="no-referrer" />
+                <div className="truncate">
+                  <p className="text-[11px] font-bold leading-none truncate mb-1 uppercase tracking-tight dark:text-zinc-200">{user.displayName || 'Momentum User'}</p>
+                  <p className="text-[10px] text-zinc-400 truncate tracking-tight dark:text-zinc-500">{user.email}</p>
+                </div>
+              </div>
+              <button onClick={logout} className="text-[10px] font-bold uppercase tracking-widest text-red-400 hover:text-red-500 transition-colors w-full text-left">
+                Sign Out
+              </button>
+            </>
+          ) : (
+            <button 
+              onClick={() => setShowAuthModal(true)}
+              className="w-full flex items-center justify-between group py-2"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded border border-dashed border-zinc-200 dark:border-zinc-800 flex items-center justify-center">
+                  <Plus className="w-3 h-3 text-zinc-400" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors">Sign In / Register</span>
+              </div>
+              <ArrowRight className="w-3 h-3 text-zinc-300 opacity-0 group-hover:opacity-100 transition-all -translate-x-1 group-hover:translate-x-0" />
+            </button>
+          )}
         </div>
       </aside>
 
@@ -1006,7 +1031,7 @@ export default function App() {
               >
                 <div className="mb-24">
                   <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-600 mb-4 block">System Status: Active</span>
-                  <h2 className="text-5xl font-black tracking-tighter uppercase dark:text-zinc-100 mb-4">Welcome Back, {user?.displayName?.split(' ')[0]}</h2>
+                  <h2 className="text-5xl font-black tracking-tighter uppercase dark:text-zinc-100 mb-4">Welcome Back, {user?.displayName?.split(' ')[0] || 'Protege'}</h2>
                   <div className="h-0.5 w-24 bg-zinc-900 dark:bg-zinc-100" />
                 </div>
 
@@ -1751,11 +1776,28 @@ export default function App() {
                   </div>
                   
                   <div className="flex items-center gap-4 mb-10 p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl">
-                    <img src={user.photoURL || ''} alt="" className="w-10 h-10 rounded-lg" referrerPolicy="no-referrer" />
-                    <div className="min-w-0">
-                      <p className="font-bold text-sm truncate dark:text-zinc-200">{user.displayName}</p>
-                      <p className="text-[10px] text-zinc-400 truncate tracking-tight">{user.email}</p>
-                    </div>
+                    {user ? (
+                      <>
+                        <img src={user.photoURL || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y'} alt="" className="w-10 h-10 rounded-lg" referrerPolicy="no-referrer" />
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm truncate dark:text-zinc-200">{user.displayName || 'Momentum User'}</p>
+                          <p className="text-[10px] text-zinc-400 truncate tracking-tight">{user.email}</p>
+                        </div>
+                      </>
+                    ) : (
+                      <button 
+                        onClick={() => {
+                          setShowAuthModal(true);
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full h-12 flex items-center gap-3"
+                      >
+                        <div className="w-10 h-10 rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 flex items-center justify-center">
+                          <Plus className="w-4 h-4 text-zinc-400" />
+                        </div>
+                        <span className="text-xs font-bold uppercase tracking-widest text-zinc-400">Sign In / Register</span>
+                      </button>
+                    )}
                   </div>
 
                   <div className="space-y-6 flex-1">
@@ -2122,6 +2164,75 @@ export default function App() {
                 </Button>
               </div>
             </form>
+          </Modal>
+        )}
+
+        {showAuthModal && (
+          <Modal key="auth-modal" isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} title={authMode === 'login' ? 'Initiate Session' : 'Create Account'}>
+            <div className="w-12 h-12 bg-zinc-900 rounded flex items-center justify-center mx-auto mb-8 shadow-lg dark:bg-zinc-100">
+              <Flame className="w-6 h-6 text-white dark:text-zinc-900" />
+            </div>
+            <h1 className="text-xl font-extrabold tracking-tighter text-zinc-900 dark:text-white mb-2 text-center uppercase">MOMENTUM</h1>
+            <p className="text-zinc-500 text-[10px] mb-8 text-center uppercase tracking-widest font-bold">Focused protocol for the high performer.</p>
+            
+            <form onSubmit={handleAuth} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-2 tracking-widest">Email Address</label>
+                <input 
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-high-line dark:border-zinc-800 rounded font-bold text-xs focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all"
+                  placeholder="name@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-2 tracking-widest">Password</label>
+                <input 
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-high-line dark:border-zinc-800 rounded font-bold text-xs focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              {authError && (
+                <p className="text-[10px] text-red-500 font-bold bg-red-50 dark:bg-red-950/20 p-3 rounded border border-red-100 dark:border-red-900/50">
+                  {authError}
+                </p>
+              )}
+
+              <Button type="submit" className="w-full py-3 h-auto font-bold tracking-tight text-xs uppercase">
+                {authMode === 'login' ? 'Initiate Session' : 'Create Account'}
+              </Button>
+            </form>
+
+            <div className="mt-8 pt-6 border-t border-high-line dark:border-zinc-800 text-center">
+              <button 
+                onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}
+                className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+              >
+                {authMode === 'login' ? 'New User? Register here' : 'Already have an account? Log in'}
+              </button>
+            </div>
+
+            <div className="mt-6">
+              <button 
+                onClick={signInWithGoogle}
+                className="w-full flex items-center justify-center gap-2 py-3 border border-high-line dark:border-zinc-800 rounded hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all text-[10px] font-bold uppercase tracking-widest text-zinc-400 focus:outline-none"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
+                  <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+                Sign in with Google
+              </button>
+            </div>
           </Modal>
         )}
       </AnimatePresence>
