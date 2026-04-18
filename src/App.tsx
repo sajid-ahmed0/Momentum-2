@@ -691,11 +691,12 @@ export default function App() {
     const currentBlock = timeBlocks.find(b => b.startTime <= now && b.endTime >= now);
     const nextBlock = timeBlocks.find(b => b.startTime > now);
     
-    const urgeSuccess = urgeLogs.length > 0 
-      ? Math.round((urgeLogs.filter(l => l.outcome === 'resisted' || l.outcome === 'returned_to_focus').length / urgeLogs.length) * 100) 
+    const todayUrgeLogs = urgeLogs.filter(l => l.date === today);
+    const urgeSuccess = todayUrgeLogs.length > 0 
+      ? Math.round((todayUrgeLogs.filter(l => l.outcome === 'resisted' || l.outcome === 'returned_to_focus').length / todayUrgeLogs.length) * 100) 
       : 0;
 
-    return { habitComp, currentBlock, nextBlock, urgeSuccess };
+    return { habitComp, currentBlock, nextBlock, urgeSuccess, todayUrgeCount: todayUrgeLogs.length };
   };
 
   const quotes = [
@@ -710,7 +711,7 @@ export default function App() {
   // Using a stable random seed for the session
   const quote = useMemo(() => quotes[Math.floor(Math.random() * quotes.length)], []);
 
-  const { habitComp, currentBlock, nextBlock, urgeSuccess } = getStats();
+  const { habitComp, currentBlock, nextBlock, urgeSuccess, todayUrgeCount } = getStats();
 
   const navItems = [
     { id: 'overthinking', icon: Activity, label: 'Tracker' },
@@ -1291,7 +1292,7 @@ export default function App() {
                     </div>
                     <div>
                       <p className="text-4xl font-mono font-black mb-1">{urgeSuccess}%</p>
-                      <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Success Rate</p>
+                      <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Today's Success Rate</p>
                     </div>
                   </div>
                 </div>
@@ -1808,9 +1809,11 @@ export default function App() {
                         <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 mb-6 border-b border-zinc-100 dark:border-zinc-800 pb-2">Recent Sessions</h4>
                         <div className="grid grid-cols-2 gap-4 mb-8">
                           <div className="p-6 bg-zinc-50/50 dark:bg-zinc-900/50 rounded-xl border border-zinc-100 dark:border-zinc-800 text-center">
-                            <p className="text-[9px] font-bold uppercase text-zinc-400 mb-1">Success Rate</p>
+                            <p className="text-[9px] font-bold uppercase text-zinc-400 mb-1">Success Rate (All-Time)</p>
                             <p className="stat-value text-emerald-500">
-                              {Math.round((urgeLogs.filter(l => l.outcome === 'resisted' || l.outcome === 'returned_to_focus').length / urgeLogs.length) * 100)}%
+                              {urgeLogs.length > 0 
+                                ? Math.round((urgeLogs.filter(l => l.outcome === 'resisted' || l.outcome === 'returned_to_focus').length / urgeLogs.length) * 100)
+                                : 0}%
                             </p>
                           </div>
                           <div className="p-6 bg-zinc-50/50 dark:bg-zinc-900/50 rounded-xl border border-zinc-100 dark:border-zinc-800 text-center">
