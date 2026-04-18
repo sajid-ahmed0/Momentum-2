@@ -1012,6 +1012,12 @@ export default function App() {
               </button>
             </div>
           )}
+          
+          <div className="mt-8 pt-6 border-t border-zinc-50 dark:border-zinc-900 opacity-40">
+            <p className="text-[8px] font-mono font-bold uppercase tracking-[0.2em] text-zinc-400">
+              Developed by <span className="text-zinc-900 dark:text-zinc-100 italic">Sajid Ahmed</span>
+            </p>
+          </div>
         </div>
       </aside>
 
@@ -2003,6 +2009,12 @@ export default function App() {
                   >
                     <LogOut className="w-5 h-5 mr-4" /> Sign Out
                   </button>
+
+                  <div className="mt-auto pt-8 text-center opacity-40">
+                    <p className="text-[9px] font-mono font-bold uppercase tracking-[0.3em] text-zinc-400">
+                      Developed by <span className="text-zinc-900 dark:text-zinc-100">Sajid Ahmed</span>
+                    </p>
+                  </div>
                 </motion.aside>
               </div>
             )}
