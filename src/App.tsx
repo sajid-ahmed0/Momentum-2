@@ -705,11 +705,25 @@ export default function App() {
     { text: "We are what we repeatedly do. Excellence, then, is not an act, but a habit.", author: "Aristotle" },
     { text: "Your focus determines your reality.", author: "Qui-Gon Jinn" },
     { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
-    { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" }
+    { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" },
+    { text: "He who has a why to live can bear almost any how.", author: "Friedrich Nietzsche" },
+    { text: "The master has failed more times than the beginner has even tried.", author: "Stephen McCranie" },
+    { text: "You don't have to be great to start, but you have to start to be great.", author: "Zig Ziglar" },
+    { text: "Amateurs sit and wait for inspiration, the rest of us just get up and go to work.", author: "Stephen King" },
+    { text: "Hard work betrays none.", author: "Hachiman Hikigaya" },
+    { text: "Suffer the pain of discipline or suffer the pain of regret.", author: "Jim Rohn" },
+    { text: "Motivation is what gets you started. Habit is what keeps you going.", author: "Jim Ryun" },
+    { text: "Small daily improvements are the key to staggering long-term results.", author: "Robin Sharma" },
+    { text: "Your future is created by what you do today, not tomorrow.", author: "Robert Kiyosaki" }
   ];
 
-  // Using a stable random seed for the session
-  const quote = useMemo(() => quotes[Math.floor(Math.random() * quotes.length)], []);
+  // Daily quote selection based on date (rotates every 24h)
+  const quote = useMemo(() => {
+    const today = format(startOfToday(), 'yyyyMMdd');
+    const dayAsNumber = parseInt(today);
+    const index = dayAsNumber % quotes.length;
+    return quotes[index];
+  }, [quotes.length]);
 
   const { habitComp, currentBlock, nextBlock, urgeSuccess, todayUrgeCount } = getStats();
 
