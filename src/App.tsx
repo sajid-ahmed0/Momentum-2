@@ -340,10 +340,14 @@ export default function App() {
       await loginAnonymously();
     } catch (err: any) {
       console.error("Anonymous Sign-in Error:", err);
+      const errorCode = err.code || 'unknown-error';
+      
       if (err.code === 'auth/admin-restricted-operation') {
-        setGlobalAuthError('Anonymous login is restricted. I have fixed the project configuration mismatch, but you may still need to enable "Anonymous" in your Firebase console (Authentication > Sign-in method).');
+        setGlobalAuthError(`[${errorCode}] Anonymous login restricted. Check Firebase Authentication > Sign-in method and enable Anonymous.`);
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setGlobalAuthError(`[${errorCode}] Domain blocked. You must add "sajid-ahmed0.github.io" to Firebase > Authentication > Settings > Authorized domains.`);
       } else {
-        setGlobalAuthError(err.message || 'Failed to start a guest session');
+        setGlobalAuthError(`[${errorCode}] ${err.message || 'Failed to start a guest session'}`);
       }
       setLoading(false);
     }
