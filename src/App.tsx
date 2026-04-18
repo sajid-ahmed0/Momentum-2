@@ -261,7 +261,14 @@ export default function App() {
   const [tasks, setTasks] = useState<DailyTask[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [urgeLogs, setUrgeLogs] = useState<UrgeLog[]>([]);
-  const [activeTab, setActiveTab] = useState<'home' | 'habits' | 'tasks' | 'schedule' | 'overthinking' | 'journal' | 'urge'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'habits' | 'tasks' | 'schedule' | 'overthinking' | 'journal' | 'urge'>(() => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hash = window.location.hash.replace('#', '') as any;
+      const validTabs = ['home', 'habits', 'tasks', 'schedule', 'overthinking', 'journal', 'urge'];
+      if (validTabs.includes(hash)) return hash;
+    }
+    return 'home';
+  });
   const [globalAuthError, setGlobalAuthError] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
@@ -311,6 +318,44 @@ export default function App() {
     }
     localStorage.setItem('momentum-app-theme', theme);
   }, [theme]);
+
+  // Handle Browser Back Button & History Navigation
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state && event.state.tab) {
+        setActiveTab(event.state.tab);
+      } else {
+        // Fallback to hash or home
+        const hash = window.location.hash.replace('#', '') as any;
+        const validTabs = ['habits', 'tasks', 'schedule', 'overthinking', 'journal', 'urge'];
+        if (validTabs.includes(hash)) {
+          setActiveTab(hash);
+        } else {
+          setActiveTab('home');
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Update URL history when tab changes
+  useEffect(() => {
+    const hash = activeTab === 'home' ? '' : `#${activeTab}`;
+    const currentHash = window.location.hash;
+    
+    // Only push if it's a real change and not already in sync
+    if (currentHash !== hash) {
+      // If we are going TO home, we use replaceState or just let it go
+      // to avoid infinite back stacks of home -> tab -> home
+      if (activeTab === 'home') {
+        window.history.pushState({ tab: 'home' }, '', window.location.pathname);
+      } else {
+        window.history.pushState({ tab: activeTab }, '', hash);
+      }
+    }
+  }, [activeTab]);
 
   // Generate all months for the current year
   const monthsOfYear = useMemo(() => {
