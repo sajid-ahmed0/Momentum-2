@@ -61,7 +61,9 @@ import {
   ShieldAlert,
   Timer,
   Wind,
-  ArrowRight
+  ArrowRight,
+  Download,
+  Share2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail, loginAnonymously } from './firebase';
@@ -259,6 +261,9 @@ export default function App() {
   const [urgeLogs, setUrgeLogs] = useState<UrgeLog[]>([]);
   const [activeTab, setActiveTab] = useState<'home' | 'habits' | 'schedule' | 'overthinking' | 'journal' | 'urge'>('home');
   const [globalAuthError, setGlobalAuthError] = useState<string | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -332,6 +337,32 @@ export default function App() {
     setExpandedMonths(prev => 
       prev.includes(monthKey) ? prev.filter(m => m !== monthKey) : [...prev, monthKey]
     );
+  };
+
+  useEffect(() => {
+    const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+    setIsStandalone(!!isStandaloneMode);
+
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+      }
+    } else {
+      // For iOS or browsers that don't support beforeinstallprompt
+      setShowInstallHelp(true);
+    }
   };
 
   const handleAnonymousSignIn = async () => {
@@ -960,6 +991,26 @@ export default function App() {
                 Sign Out
               </button>
             </>
+          )}
+
+          {!isStandalone && (
+            <div className="mt-8 pt-8 border-t border-zinc-100 dark:border-zinc-900">
+              <button 
+                onClick={handleInstallClick}
+                className="w-full flex items-center justify-between group py-2"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded bg-zinc-900 dark:bg-zinc-100 flex items-center justify-center shadow-lg shadow-black/10 dark:shadow-white/5">
+                    <Download className="w-3.5 h-3.5 text-white dark:text-zinc-900" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-900 dark:text-zinc-100 transition-colors">Install App</p>
+                    <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest mt-0.5">Use as Native</p>
+                  </div>
+                </div>
+                <ArrowRight className="w-3 h-3 text-zinc-300 opacity-0 group-hover:opacity-100 transition-all -translate-x-1 group-hover:translate-x-0" />
+              </button>
+            </div>
           )}
         </div>
       </aside>
@@ -2337,6 +2388,57 @@ export default function App() {
               </button>
             </div>
           </Modal>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showInstallHelp && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white dark:bg-zinc-950 border-2 border-zinc-900 dark:border-zinc-100 p-8 rounded-lg max-w-sm w-full shadow-2xl relative"
+            >
+              <button 
+                onClick={() => setShowInstallHelp(false)}
+                className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded bg-zinc-900 dark:bg-zinc-100 flex items-center justify-center shrink-0">
+                  <Share2 className="w-6 h-6 text-white dark:text-zinc-900" />
+                </div>
+                <h3 className="text-xl font-black uppercase tracking-tighter dark:text-white">Install Momentum</h3>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex gap-4">
+                    <div className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-[10px] font-black shrink-0">1</div>
+                    <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Tap the <span className="font-bold text-zinc-900 dark:text-zinc-100 underline decoration-zinc-300">Share button</span> in your browser's toolbar.</p>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-[10px] font-black shrink-0">2</div>
+                    <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Scroll down and select <span className="font-bold text-zinc-900 dark:text-zinc-100">"Add to Home Screen"</span>.</p>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-[10px] font-black shrink-0">3</div>
+                    <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Tap <span className="font-bold text-zinc-900 dark:text-zinc-100">"Add"</span> to finish. Reclaim your focus instantly.</p>
+                  </div>
+                </div>
+                
+                <Button 
+                  onClick={() => setShowInstallHelp(false)}
+                  className="w-full h-12 font-black uppercase tracking-widest text-xs"
+                >
+                  Got It
+                </Button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>
