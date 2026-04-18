@@ -1750,7 +1750,7 @@ export default function App() {
                           </button>
                           <div className="min-w-0 flex-1">
                             <p className={cn(
-                              "text-sm font-bold tracking-tight dark:text-zinc-100 transition-all truncate",
+                              "text-sm font-bold tracking-tight dark:text-zinc-100 transition-all break-words whitespace-normal",
                               task.completed && "line-through text-zinc-400 dark:text-zinc-600"
                             )}>
                               {task.task}
