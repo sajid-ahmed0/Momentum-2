@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   collection, 
   query, 
@@ -301,6 +301,7 @@ export default function App() {
   });
   const [expandedMonths, setExpandedMonths] = useState<string[]>([format(new Date(), 'MMMM yyyy')]);
   const [zoom, setZoom] = useState(1);
+  const previousTabRef = useRef<'home' | 'habits' | 'tasks' | 'schedule' | 'overthinking' | 'journal' | 'urge'>(activeTab);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('momentum-app-theme');
@@ -345,16 +346,24 @@ export default function App() {
     const hash = activeTab === 'home' ? '' : `#${activeTab}`;
     const currentHash = window.location.hash;
     
-    // Only push if it's a real change and not already in sync
+    // Only update if it's a real change and not already in sync
     if (currentHash !== hash) {
-      // If we are going TO home, we use replaceState or just let it go
-      // to avoid infinite back stacks of home -> tab -> home
       if (activeTab === 'home') {
+        // If we are navigating to home, we push home so user can potentially exit on next back
         window.history.pushState({ tab: 'home' }, '', window.location.pathname);
       } else {
-        window.history.pushState({ tab: activeTab }, '', hash);
+        // Going to a sub-tab
+        if (previousTabRef.current === 'home') {
+          // From home -> Sub-tab: Push new entry
+          window.history.pushState({ tab: activeTab }, '', hash);
+        } else {
+          // From sub-tab -> Another sub-tab: Replace current sub-tab entry
+          // This ensures "Back" always returns to Home
+          window.history.replaceState({ tab: activeTab }, '', hash);
+        }
       }
     }
+    previousTabRef.current = activeTab;
   }, [activeTab]);
 
   // Generate all months for the current year
