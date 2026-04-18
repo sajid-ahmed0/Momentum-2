@@ -1,10 +1,10 @@
-const CACHE_NAME = 'momentum-v2';
-const OFFLINE_URL = '/index.html';
+const CACHE_NAME = 'momentum-v3';
+const OFFLINE_URL = 'index.html';
 
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/manifest.json'
+  './',
+  'index.html',
+  'manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
