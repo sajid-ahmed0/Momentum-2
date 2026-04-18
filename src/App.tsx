@@ -1982,6 +1982,21 @@ export default function App() {
                     </div>
                   </div>
 
+                  {!isStandalone && (
+                    <div className="mb-6">
+                      <h5 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 mb-4">APPLICATION</h5>
+                      <button 
+                        onClick={() => {
+                          handleInstallClick();
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full flex items-center px-4 py-3 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 transition-all text-sm font-bold uppercase tracking-tight shadow-lg shadow-black/10 dark:shadow-white/5"
+                      >
+                        <Download className="w-4 h-4 mr-4" /> Install Momentum
+                      </button>
+                    </div>
+                  )}
+
                   <button 
                     onClick={logout}
                     className="w-full flex items-center px-4 py-4 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors text-sm font-bold uppercase tracking-tight"
