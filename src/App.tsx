@@ -1391,7 +1391,7 @@ export default function App() {
                                         {zoom > 0.7 && (
                                           <button 
                                             onClick={(e) => { e.stopPropagation(); handleDeleteHabit(habit.id, habit.name); }}
-                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-sm"
+                                            className="lg:opacity-0 lg:group-hover:opacity-100 opacity-100 transition-opacity p-1.5 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-sm"
                                             title="Delete Property"
                                           >
                                             <X className="w-3.5 h-3.5 text-zinc-400 hover:text-red-500 transition-colors" />
@@ -1532,7 +1532,7 @@ export default function App() {
                           </div>
                         </div>
                         
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 opacity-100 transition-opacity">
                           <button 
                             onClick={() => {
                               setEditingTask(task);
@@ -1600,13 +1600,13 @@ export default function App() {
                                   setEditingTimeBlock(block);
                                   setShowScheduleModal(true);
                                 }}
-                                className="opacity-0 group-hover:opacity-100 p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-all"
+                                className="lg:opacity-0 lg:group-hover:opacity-100 opacity-100 p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-all"
                               >
                                 <Settings className="w-4 h-4 text-zinc-300 hover:text-zinc-600 dark:hover:text-zinc-400" />
                               </button>
                               <button 
                                 onClick={() => handleDeleteTimeBlock(block.id)}
-                                className="opacity-0 group-hover:opacity-100 p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-md transition-all"
+                                className="lg:opacity-0 lg:group-hover:opacity-100 opacity-100 p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-md transition-all"
                               >
                                 <Trash2 className="w-4 h-4 text-zinc-300 hover:text-red-500" />
                               </button>
@@ -1660,7 +1660,7 @@ export default function App() {
                             </div>
                             <button 
                               onClick={() => handleDeleteOverthinking(log.id)}
-                              className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-50 dark:hover:bg-red-500/10 rounded transition-all"
+                              className="lg:opacity-0 lg:group-hover:opacity-100 opacity-100 p-1.5 hover:bg-red-50 dark:hover:bg-red-500/10 rounded transition-all"
                             >
                               <Trash2 className="w-3.5 h-3.5 text-zinc-300 hover:text-red-500" />
                             </button>
