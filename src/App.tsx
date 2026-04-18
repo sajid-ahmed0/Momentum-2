@@ -908,11 +908,11 @@ export default function App() {
   const { habitComp, currentBlock, nextBlock, urgeSuccess, todayUrgeCount } = getStats();
 
   const navItems = [
-    { id: 'overthinking', icon: Activity, label: 'Tracker' },
-    { id: 'habits', icon: Flame, label: 'Habits' },
-    { id: 'schedule', icon: Clock, label: 'Schedule' },
-    { id: 'journal', icon: BookOpen, label: 'Journal' },
     { id: 'urge', icon: Zap, label: 'Circuit' },
+    { id: 'schedule', icon: Clock, label: 'Schedule' },
+    { id: 'overthinking', icon: Activity, label: 'Thinking' },
+    { id: 'habits', icon: Flame, label: 'Habits' },
+    { id: 'journal', icon: BookOpen, label: 'Journal' },
   ];
 
   const handleAddHabit = async (e: React.FormEvent) => {
@@ -1131,26 +1131,15 @@ export default function App() {
             <h5 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 mb-5">NAVIGATION</h5>
             <div className="space-y-1">
               <button 
-                onClick={() => setActiveTab('habits')}
+                onClick={() => setActiveTab('urge')}
                 className={cn(
                   "w-full flex items-center px-3 py-2 rounded transition-all text-xs font-bold uppercase tracking-tight",
-                  activeTab === 'habits' 
-                    ? "bg-zinc-900 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900" 
+                  activeTab === 'urge' 
+                    ? "bg-amber-500 text-white shadow-lg dark:bg-amber-500 dark:text-white" 
                     : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 )}
               >
-                <Layout className="w-4 h-4 mr-3" /> Habits
-              </button>
-              <button 
-                onClick={() => setActiveTab('tasks')}
-                className={cn(
-                  "w-full flex items-center px-3 py-2 rounded transition-all text-xs font-bold uppercase tracking-tight",
-                  activeTab === 'tasks' 
-                    ? "bg-zinc-900 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900" 
-                    : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                )}
-              >
-                <ListTodo className="w-4 h-4 mr-3" /> Daily Tasks
+                <Zap className="w-4 h-4 mr-3" /> Circuit Breaker
               </button>
               <button 
                 onClick={() => setActiveTab('schedule')}
@@ -1175,6 +1164,17 @@ export default function App() {
                 <Activity className="w-4 h-4 mr-3" /> Overthinking
               </button>
               <button 
+                onClick={() => setActiveTab('habits')}
+                className={cn(
+                  "w-full flex items-center px-3 py-2 rounded transition-all text-xs font-bold uppercase tracking-tight",
+                  activeTab === 'habits' 
+                    ? "bg-zinc-900 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900" 
+                    : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                )}
+              >
+                <Layout className="w-4 h-4 mr-3" /> Habits
+              </button>
+              <button 
                 onClick={() => setActiveTab('journal')}
                 className={cn(
                   "w-full flex items-center px-3 py-2 rounded transition-all text-xs font-bold uppercase tracking-tight",
@@ -1186,15 +1186,15 @@ export default function App() {
                 <BookOpen className="w-4 h-4 mr-3" /> Daily Journal
               </button>
               <button 
-                onClick={() => setActiveTab('urge')}
+                onClick={() => setActiveTab('tasks')}
                 className={cn(
                   "w-full flex items-center px-3 py-2 rounded transition-all text-xs font-bold uppercase tracking-tight",
-                  activeTab === 'urge' 
-                    ? "bg-amber-500 text-white shadow-lg dark:bg-amber-500 dark:text-white" 
+                  activeTab === 'tasks' 
+                    ? "bg-zinc-900 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900" 
                     : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 )}
               >
-                <Zap className="w-4 h-4 mr-3" /> Circuit Breaker
+                <ListTodo className="w-4 h-4 mr-3" /> Daily Tasks
               </button>
             </div>
           </div>
@@ -1492,15 +1492,6 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  <div className="p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer" onClick={() => setActiveTab('habits')}>
-                    <Layout className="w-5 h-5 mb-4 text-zinc-400" />
-                    <p className="text-sm font-bold uppercase tracking-tight mb-2 dark:text-zinc-200">Habits</p>
-                    <div className="flex items-baseline gap-2">
-                       <span className="text-3xl font-mono font-black">{habitComp}%</span>
-                    </div>
-                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Today's Progress</p>
-                  </div>
-
                   <div className="p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer" onClick={() => setActiveTab('schedule')}>
                     <Clock className="w-5 h-5 mb-4 text-zinc-400" />
                     <p className="text-sm font-bold uppercase tracking-tight mb-2 dark:text-zinc-200">Schedule</p>
@@ -1510,15 +1501,6 @@ export default function App() {
                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Active Blocks</p>
                   </div>
 
-                  <div className="p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer" onClick={() => setActiveTab('journal')}>
-                    <BookOpen className="w-5 h-5 mb-4 text-zinc-400" />
-                    <p className="text-sm font-bold uppercase tracking-tight mb-2 dark:text-zinc-200">Journal</p>
-                    <div className="flex items-baseline gap-2">
-                       <span className="text-3xl font-mono font-black">{journalEntries.length}</span>
-                    </div>
-                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Total Entries</p>
-                  </div>
-
                   <div className="p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer" onClick={() => setActiveTab('overthinking')}>
                     <Activity className="w-5 h-5 mb-4 text-zinc-400" />
                     <p className="text-sm font-bold uppercase tracking-tight mb-2 dark:text-zinc-200">Mental Map</p>
@@ -1526,6 +1508,24 @@ export default function App() {
                        <span className="text-3xl font-mono font-black">{overthinkingLogs.length}</span>
                     </div>
                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Sessions Tracked</p>
+                  </div>
+
+                  <div className="p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer" onClick={() => setActiveTab('habits')}>
+                    <Layout className="w-5 h-5 mb-4 text-zinc-400" />
+                    <p className="text-sm font-bold uppercase tracking-tight mb-2 dark:text-zinc-200">Habits</p>
+                    <div className="flex items-baseline gap-2">
+                       <span className="text-3xl font-mono font-black">{habitComp}%</span>
+                    </div>
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Today's Progress</p>
+                  </div>
+
+                  <div className="p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer" onClick={() => setActiveTab('journal')}>
+                    <BookOpen className="w-5 h-5 mb-4 text-zinc-400" />
+                    <p className="text-sm font-bold uppercase tracking-tight mb-2 dark:text-zinc-200">Journal</p>
+                    <div className="flex items-baseline gap-2">
+                       <span className="text-3xl font-mono font-black">{journalEntries.length}</span>
+                    </div>
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Total Entries</p>
                   </div>
                 </div>
 
@@ -2407,18 +2407,6 @@ export default function App() {
                         </button>
                         <button 
                           onClick={() => {
-                            setActiveTab('tasks');
-                            setIsMenuOpen(false);
-                          }}
-                          className={cn(
-                            "w-full flex items-center px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-tight",
-                            activeTab === 'tasks' ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
-                          )}
-                        >
-                          <ListTodo className="w-4 h-4 mr-4" /> Daily Tasks
-                        </button>
-                        <button 
-                          onClick={() => {
                             setActiveTab('home');
                             setIsMenuOpen(false);
                           }}
@@ -2428,6 +2416,78 @@ export default function App() {
                           )}
                         >
                           <Home className="w-4 h-4 mr-4" /> Momentum Home
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setActiveTab('urge');
+                            setIsMenuOpen(false);
+                          }}
+                          className={cn(
+                            "w-full flex items-center px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-tight",
+                            activeTab === 'urge' ? "bg-amber-500 text-white shadow-lg" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                          )}
+                        >
+                          <Zap className="w-4 h-4 mr-4" /> Circuit Breaker
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setActiveTab('schedule');
+                            setIsMenuOpen(false);
+                          }}
+                          className={cn(
+                            "w-full flex items-center px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-tight",
+                            activeTab === 'schedule' ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                          )}
+                        >
+                          <Clock className="w-4 h-4 mr-4" /> Schedule
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setActiveTab('overthinking');
+                            setIsMenuOpen(false);
+                          }}
+                          className={cn(
+                            "w-full flex items-center px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-tight",
+                            activeTab === 'overthinking' ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                          )}
+                        >
+                          <Activity className="w-4 h-4 mr-4" /> Overthinking
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setActiveTab('habits');
+                            setIsMenuOpen(false);
+                          }}
+                          className={cn(
+                            "w-full flex items-center px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-tight",
+                            activeTab === 'habits' ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                          )}
+                        >
+                          <Layout className="w-4 h-4 mr-4" /> Habits
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setActiveTab('journal');
+                            setIsMenuOpen(false);
+                          }}
+                          className={cn(
+                            "w-full flex items-center px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-tight",
+                            activeTab === 'journal' ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                          )}
+                        >
+                          <BookOpen className="w-4 h-4 mr-4" /> Daily Journal
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setActiveTab('tasks');
+                            setIsMenuOpen(false);
+                          }}
+                          className={cn(
+                            "w-full flex items-center px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-tight",
+                            activeTab === 'tasks' ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                          )}
+                        >
+                          <ListTodo className="w-4 h-4 mr-4" /> Daily Tasks
                         </button>
                       </div>
                     </div>
