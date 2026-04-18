@@ -258,6 +258,7 @@ export default function App() {
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [urgeLogs, setUrgeLogs] = useState<UrgeLog[]>([]);
   const [activeTab, setActiveTab] = useState<'home' | 'habits' | 'schedule' | 'overthinking' | 'journal' | 'urge'>('home');
+  const [globalAuthError, setGlobalAuthError] = useState<string | null>(null);
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -333,18 +334,28 @@ export default function App() {
     );
   };
 
+  const handleAnonymousSignIn = async () => {
+    try {
+      setGlobalAuthError(null);
+      await loginAnonymously();
+    } catch (err: any) {
+      console.error("Anonymous Sign-in Error:", err);
+      if (err.code === 'auth/admin-restricted-operation') {
+        setGlobalAuthError('Anonymous login is restricted. I have fixed the project configuration mismatch, but you may still need to enable "Anonymous" in your Firebase console (Authentication > Sign-in method).');
+      } else {
+        setGlobalAuthError(err.message || 'Failed to start a guest session');
+      }
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       if (!u) {
-        try {
-          // If no user found, sign in anonymously for "guest" session
-          await loginAnonymously();
-        } catch (err) {
-          console.error("Anonymous Sign-in Error:", err);
-          setLoading(false);
-        }
+        await handleAnonymousSignIn();
       } else {
         setUser(u);
+        setGlobalAuthError(null);
         setLoading(false);
       }
     });
@@ -521,7 +532,13 @@ export default function App() {
   };
 
   const handleUrgeOutcome = async (outcome: UrgeLog['outcome']) => {
-    if (!user || !urgeSession) return;
+    if (!urgeSession) return;
+
+    if (!user) {
+      // If auth failed, still allow closing the session but warn
+      setUrgeSession(null);
+      return;
+    }
     
     try {
       await addDoc(collection(db, 'urgeLogs'), {
@@ -1068,6 +1085,30 @@ export default function App() {
         </header>
 
         <div className="flex-1 overflow-auto bg-white dark:bg-zinc-950 custom-scrollbar relative pb-24 lg:pb-0">
+          <AnimatePresence>
+            {globalAuthError && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="bg-red-50 dark:bg-red-500/10 border-b border-red-100 dark:border-red-900/50 px-10 py-3 flex items-center justify-between gap-4"
+              >
+                <div className="flex items-center gap-3">
+                  <ShieldAlert className="w-4 h-4 text-red-500 shrink-0" />
+                  <p className="text-[11px] font-bold text-red-600 dark:text-red-400 uppercase tracking-tight leading-tight">
+                    {globalAuthError}
+                  </p>
+                </div>
+                <button 
+                  onClick={handleAnonymousSignIn}
+                  className="px-3 py-1 bg-red-600 text-white rounded text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-colors shrink-0"
+                >
+                  Retry Guest Session
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <AnimatePresence mode="wait">
             {activeTab === 'home' ? (
               <motion.div 

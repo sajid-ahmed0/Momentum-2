@@ -9,19 +9,10 @@ import {
   signInAnonymously
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyBoaj92GEII9BlRMlUc77p6sBS78liM0TM",
-  authDomain: "momentum-8a2ea.firebaseapp.com",
-  projectId: "momentum-8a2ea",
-  storageBucket: "momentum-8a2ea.firebasestorage.app",
-  messagingSenderId: "30079248942",
-  appId: "1:30079248942:web:c0c8f70bfb417ffebc0dbf"
-};
+import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
