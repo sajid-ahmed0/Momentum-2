@@ -517,6 +517,14 @@ export default function App() {
     }
   };
 
+  const handleDeleteOverthinking = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'overthinkingLogs', id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleAddTask = async (data: { task: string, time?: string, date?: string }) => {
     if (!user) return;
     try {
@@ -1632,20 +1640,30 @@ export default function App() {
                     </div>
                   ) : (
                     overthinkingLogs.map(log => (
-                      <div key={log.id} className="p-6 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-xl hover:shadow-lg transition-all border-l-4" 
+                      <div key={log.id} className="p-6 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-xl hover:shadow-lg transition-all border-l-4 group relative" 
                            style={{ borderLeftColor: log.intensity > 7 ? '#ef4444' : log.intensity > 4 ? '#f59e0b' : '#10b981' }}>
                         <div className="flex items-center justify-between mb-4">
-                          <span className="text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-600 tracking-widest lowercase">
-                            {format(new Date(log.timestamp), 'MMM d, h:mm a')}
-                          </span>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-black dark:text-zinc-200">Level {log.intensity}</span>
-                            <div className="w-12 h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-zinc-900 dark:bg-zinc-100" 
-                                style={{ width: `${log.intensity * 10}%` }} 
-                              />
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-600 tracking-widest lowercase">
+                              {format(new Date(log.timestamp), 'MMM d, h:mm a')}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-black dark:text-zinc-200">Level {log.intensity}</span>
+                              <div className="w-12 h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-zinc-900 dark:bg-zinc-100" 
+                                  style={{ width: `${log.intensity * 10}%` }} 
+                                />
+                              </div>
                             </div>
+                            <button 
+                              onClick={() => handleDeleteOverthinking(log.id)}
+                              className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-50 dark:hover:bg-red-500/10 rounded transition-all"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-zinc-300 hover:text-red-500" />
+                            </button>
                           </div>
                         </div>
                         {log.trigger && (
