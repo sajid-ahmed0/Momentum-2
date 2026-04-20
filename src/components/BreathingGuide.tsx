@@ -12,6 +12,39 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
   const [timeLeft, setTimeLeft] = useState(4);
   const [sessionTimeLeft, setSessionTimeLeft] = useState(120); // 2 minutes session
 
+  // Screen Wake Lock Logic
+  useEffect(() => {
+    let wakeLock: any = null;
+
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request('screen');
+        }
+      } catch (err) {
+        console.error('Wake Lock request failed:', err);
+      }
+    };
+
+    requestWakeLock();
+
+    // Re-request wake lock when page becomes visible again
+    const handleVisibilityChange = () => {
+      if (wakeLock !== null && document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (wakeLock !== null) {
+        wakeLock.release().catch(() => {});
+      }
+    };
+  }, []);
+
   // Sync timers with phases
   useEffect(() => {
     const timer = setInterval(() => {
