@@ -1805,7 +1805,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {timeBlocks.filter(b => b.date === format(startOfToday(), 'yyyy-MM-dd')).length === 0 ? (
                     <div className="p-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-xl flex flex-col items-center justify-center text-zinc-300 dark:text-zinc-700">
                       <Clock className="w-12 h-12 mb-4 opacity-20" />
@@ -1815,17 +1815,17 @@ export default function App() {
                     timeBlocks
                       .filter(b => b.date === format(startOfToday(), 'yyyy-MM-dd'))
                       .map(block => (
-                        <div key={block.id} className="flex gap-6 group">
-                          <div className="w-24 pt-1">
-                            <p className="text-xs font-mono font-bold text-zinc-400 dark:text-zinc-600 lowercase">{formatTime12h(block.startTime)}</p>
-                            <div className="w-px h-full bg-zinc-100 dark:bg-zinc-800 mx-auto my-1" />
-                            <p className="text-xs font-mono font-bold text-zinc-400 dark:text-zinc-600 lowercase">{formatTime12h(block.endTime)}</p>
+                        <div key={block.id} className="flex gap-6 group min-h-[80px]">
+                          <div className="w-20 pt-1 flex flex-col justify-between items-end pb-1 shrink-0">
+                            <p className="text-[10px] font-mono font-black text-zinc-400 dark:text-zinc-600 lowercase tabular-nums leading-none">{formatTime12h(block.startTime)}</p>
+                            <div className="w-px flex-1 bg-zinc-100 dark:bg-zinc-800 mr-4 my-2" />
+                            <p className="text-[10px] font-mono font-black text-zinc-400 dark:text-zinc-600 lowercase tabular-nums leading-none">{formatTime12h(block.endTime)}</p>
                           </div>
-                          <div className="flex-1 p-4 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-lg group-hover:bg-white dark:group-hover:bg-zinc-800/50 group-hover:shadow-md group-hover:border-zinc-200 dark:group-hover:border-zinc-700 transition-all flex items-center justify-between">
+                          <div className="flex-1 p-5 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 transition-all flex items-center justify-between">
                             <div>
-                              <h4 className="font-bold text-zinc-900 dark:text-zinc-100">{block.activity}</h4>
-                              {block.category && (
-                                <span className="inline-block mt-1 px-2 py-0.5 bg-zinc-200 dark:bg-zinc-800 text-[9px] font-bold uppercase tracking-widest rounded-full text-zinc-500 dark:text-zinc-400">
+                               <h4 className="font-black uppercase tracking-tight text-sm dark:text-zinc-100">{block.activity}</h4>
+                               {block.category && (
+                                <span className="inline-block mt-2 px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-[8px] font-black uppercase tracking-widest rounded-full text-zinc-400 dark:text-zinc-500">
                                   {block.category}
                                 </span>
                               )}
@@ -1836,13 +1836,13 @@ export default function App() {
                                   setEditingTimeBlock(block);
                                   setShowScheduleModal(true);
                                 }}
-                                className="lg:opacity-0 lg:group-hover:opacity-100 opacity-100 p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-all"
+                                className="lg:opacity-0 lg:group-hover:opacity-100 opacity-100 p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all"
                               >
                                 <Settings className="w-4 h-4 text-zinc-300 hover:text-zinc-600 dark:hover:text-zinc-400" />
                               </button>
                               <button 
                                 onClick={() => handleDeleteTimeBlock(block.id)}
-                                className="lg:opacity-0 lg:group-hover:opacity-100 opacity-100 p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-md transition-all"
+                                className="lg:opacity-0 lg:group-hover:opacity-100 opacity-100 p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all"
                               >
                                 <Trash2 className="w-4 h-4 text-zinc-300 hover:text-red-500" />
                               </button>
