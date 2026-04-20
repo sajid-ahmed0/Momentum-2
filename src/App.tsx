@@ -1817,9 +1817,9 @@ export default function App() {
                       .map(block => (
                         <div key={block.id} className="flex gap-6 group min-h-[80px]">
                           <div className="w-20 pt-1 flex flex-col justify-between items-end pb-1 shrink-0">
-                            <p className="text-[10px] font-mono font-black text-zinc-400 dark:text-zinc-600 lowercase tabular-nums leading-none">{formatTime12h(block.startTime)}</p>
-                            <div className="w-px flex-1 bg-zinc-100 dark:bg-zinc-800 mr-4 my-2" />
-                            <p className="text-[10px] font-mono font-black text-zinc-400 dark:text-zinc-600 lowercase tabular-nums leading-none">{formatTime12h(block.endTime)}</p>
+                            <p className="text-[10px] font-mono font-black text-zinc-900 dark:text-zinc-100 lowercase tabular-nums leading-none">{formatTime12h(block.startTime)}</p>
+                            <div className="w-px flex-1 bg-zinc-200 dark:bg-zinc-800 mr-4 my-2" />
+                            <p className="text-[10px] font-mono font-black text-zinc-900 dark:text-zinc-100 lowercase tabular-nums leading-none">{formatTime12h(block.endTime)}</p>
                           </div>
                           <div className="flex-1 p-5 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 transition-all flex items-center justify-between">
                             <div>
