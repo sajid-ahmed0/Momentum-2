@@ -813,29 +813,29 @@ export default function App() {
     });
   };
 
-  const handleUrgeOutcome = async (outcome: UrgeLog['outcome']) => {
+  const handleUrgeOutcome = (outcome: UrgeLog['outcome']) => {
     if (!urgeSession) return;
 
-    if (!user) {
-      // If auth failed, still allow closing the session but warn
-      setUrgeSession(null);
-      return;
-    }
+    // Capture session data before clearing
+    const sessionData = { ...urgeSession };
     
-    try {
-      await addDoc(collection(db, 'urgeLogs'), {
-        intent: urgeSession.intent,
-        willHelpFuture: urgeSession.willHelpFuture ?? false,
-        outcome,
-        durationSeconds: Math.floor((Date.now() - urgeSession.startTime) / 1000),
-        date: format(startOfToday(), 'yyyy-MM-dd'),
-        uid: user.uid,
-        timestamp: Date.now()
-      });
-      setUrgeSession(null);
-    } catch (err) {
-      console.error(err);
-    }
+    // Optimistic UI: Close the session immediately
+    setUrgeSession(null);
+
+    if (!user) return;
+    
+    // Perform data logging in background
+    addDoc(collection(db, 'urgeLogs'), {
+      intent: sessionData.intent,
+      willHelpFuture: sessionData.willHelpFuture ?? false,
+      outcome,
+      durationSeconds: Math.floor((Date.now() - sessionData.startTime) / 1000),
+      date: format(startOfToday(), 'yyyy-MM-dd'),
+      uid: user.uid,
+      timestamp: Date.now()
+    }).catch(err => {
+      console.error("Failed to log urge outcome:", err);
+    });
   };
 
   const formatDurationSeconds = (sec: number) => {
@@ -2177,40 +2177,52 @@ export default function App() {
                         >
                           <h3 className="text-xl font-black uppercase tracking-tighter">Choose your action</h3>
                           
-                          <div className="grid gap-3">
-                            <button 
-                              onClick={handleLevelUp}
-                              className="w-full p-4 rounded bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-amber-500 hover:bg-amber-500/5 transition-all group flex items-center justify-between"
-                            >
-                              <div className="flex items-center gap-3">
-                                <Wind className="w-5 h-5 text-zinc-400 group-hover:text-amber-500" />
-                                <span className="font-bold text-sm">Ride the Urge</span>
-                              </div>
-                              <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </button>
+                            <div className="grid gap-4">
+                              <motion.button 
+                                whileHover={{ scale: 1.01, x: 5 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={handleLevelUp}
+                                className="w-full p-5 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-amber-500 hover:bg-amber-500/5 transition-all group flex items-center justify-between"
+                              >
+                                <div className="flex items-center gap-4">
+                                  <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
+                                    <Wind className="w-5 h-5" />
+                                  </div>
+                                  <span className="font-black uppercase tracking-tight text-sm">Ride the Urge</span>
+                                </div>
+                                <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </motion.button>
 
-                            <button 
-                              onClick={() => handleUrgeOutcome('returned_to_focus')}
-                              className="w-full p-4 rounded bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-emerald-500 hover:bg-emerald-500/5 transition-all group flex items-center justify-between"
-                            >
-                              <div className="flex items-center gap-3">
-                                <ChevronLeft className="w-5 h-5 text-zinc-400 group-hover:text-emerald-500" />
-                                <span className="font-bold text-sm">Return to Focus</span>
-                              </div>
-                              <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </button>
+                              <motion.button 
+                                whileHover={{ scale: 1.01, x: 5 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => handleUrgeOutcome('returned_to_focus')}
+                                className="w-full p-5 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-emerald-500 hover:bg-emerald-500/5 transition-all group flex items-center justify-between"
+                              >
+                                <div className="flex items-center gap-4">
+                                  <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                                    <ChevronLeft className="w-5 h-5" />
+                                  </div>
+                                  <span className="font-black uppercase tracking-tight text-sm">Return to Focus</span>
+                                </div>
+                                <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </motion.button>
 
-                            <button 
-                              onClick={() => handleUrgeOutcome('continued_anyway')}
-                              className="w-full p-4 rounded bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-red-500 hover:bg-red-500/5 transition-all group flex items-center justify-between"
-                            >
-                              <div className="flex items-center gap-3">
-                                <X className="w-5 h-5 text-zinc-400 group-hover:text-red-500" />
-                                <span className="font-bold text-sm">Continue Anyway</span>
-                              </div>
-                              <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </button>
-                          </div>
+                              <motion.button 
+                                whileHover={{ scale: 1.01, x: 5 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => handleUrgeOutcome('continued_anyway')}
+                                className="w-full p-5 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-red-500 hover:bg-red-500/5 transition-all group flex items-center justify-between"
+                              >
+                                <div className="flex items-center gap-4">
+                                  <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500">
+                                    <X className="w-5 h-5" />
+                                  </div>
+                                  <span className="font-black uppercase tracking-tight text-sm">Continue Anyway</span>
+                                </div>
+                                <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </motion.button>
+                            </div>
                         </motion.div>
                       )}
 
@@ -2254,13 +2266,15 @@ export default function App() {
                           </div>
 
                           <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                             <button 
+                             <motion.button 
+                               whileHover={{ scale: 1.02 }}
+                               whileTap={{ scale: 0.98 }}
                                onClick={() => handleUrgeOutcome('given_in')}
                                className="w-full p-4 rounded border-2 border-red-500/20 text-red-500 font-bold hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 group"
                              >
                                <ShieldAlert className="w-5 h-5 opacity-50 group-hover:opacity-100" />
                                I Gave Up
-                             </button>
+                             </motion.button>
                              <p className="mt-4 text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-700 tracking-widest">Survive the timer to win.</p>
                           </div>
                         </motion.div>
@@ -2282,12 +2296,14 @@ export default function App() {
                              <p className="text-zinc-500 font-medium">You rode the wave. The loop is broken.</p>
                            </div>
 
-                           <button 
+                           <motion.button 
+                             whileHover={{ scale: 1.02 }}
+                             whileTap={{ scale: 0.95 }}
                              onClick={() => handleUrgeOutcome('resisted')}
                              className="w-full p-6 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-xl font-black uppercase tracking-widest text-sm hover:scale-[1.02] active:scale-95 transition-all shadow-xl flex items-center justify-center gap-3"
                            >
                              Return to Focus <ArrowRight className="w-5 h-5" />
-                           </button>
+                           </motion.button>
                         </motion.div>
                       )}
                     </AnimatePresence>
