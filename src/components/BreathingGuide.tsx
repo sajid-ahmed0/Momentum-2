@@ -10,6 +10,7 @@ interface BreathingGuideProps {
 export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
   const [phase, setPhase] = useState<'in' | 'hold' | 'out'>('in');
   const [timeLeft, setTimeLeft] = useState(4);
+  const [sessionTimeLeft, setSessionTimeLeft] = useState(120); // 2 minutes session
 
   // Sync timers with phases
   useEffect(() => {
@@ -29,10 +30,19 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
         }
         return prev - 1;
       });
+      
+      // Update session timer
+      setSessionTimeLeft((prev) => {
+        if (prev <= 1) {
+          onBack(); // Auto completion
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [phase]);
+  }, [phase, onBack]);
 
   const getPhaseText = () => {
     switch (phase) {
@@ -46,6 +56,12 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
     if (phase === 'in') return 4;
     if (phase === 'hold') return 7;
     return 8;
+  };
+
+  const formatSessionTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -84,7 +100,9 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
         </motion.button>
         <div className="flex flex-col items-center">
             <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white opacity-40">Immersion Mode</span>
-            <div className="w-8 h-0.5 bg-emerald-500/50 mt-1 rounded-full" />
+            <div className="text-[10px] font-mono font-black text-emerald-500 mt-1 tabular-nums animate-pulse">
+                {formatSessionTime(sessionTimeLeft)}
+            </div>
         </div>
         <button className="p-3 hover:bg-white/10 rounded-full transition-colors">
           <Info className="w-5 h-5 opacity-40" />
