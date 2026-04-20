@@ -66,24 +66,24 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
 
   return (
     <div className="fixed inset-0 z-[60] bg-zinc-950 flex flex-col items-center justify-center p-6 text-white overflow-hidden">
-      {/* Background Atmosphere */}
+      {/* Background Atmosphere - Optimized for performance */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div 
           animate={{
-            scale: phase === 'in' ? [1, 1.2, 1.4] : phase === 'out' ? [1.4, 1.2, 1] : 1.4,
-            opacity: phase === 'in' ? [0.1, 0.2] : phase === 'out' ? [0.2, 0.1] : 0.2,
-            rotate: [0, 90, 180, 270, 360]
+            scale: phase === 'in' ? [1, 1.1, 1.2] : phase === 'out' ? [1.2, 1.1, 1] : 1.2,
+            opacity: phase === 'in' ? [0.1, 0.15] : phase === 'out' ? [0.15, 0.1] : 0.15,
+            rotate: [0, 360]
           }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-tr from-emerald-500/20 via-transparent to-blue-500/20 rounded-full blur-[120px]"
+          transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-tr from-emerald-500/10 via-transparent to-blue-500/10 rounded-full blur-[60px] transform-gpu will-change-transform"
         />
         <motion.div 
           animate={{
-            x: [0, 50, 0, -50, 0],
-            y: [0, -30, 0, 30, 0],
+            x: [0, 30, 0, -30, 0],
+            y: [0, -20, 0, 20, 0],
           }}
-          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-teal-500/10 rounded-full blur-[100px]"
+          transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-teal-500/5 rounded-full blur-[40px] transform-gpu will-change-transform"
         />
       </div>
 
@@ -95,7 +95,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
           onClick={onBack}
           className="p-3 hover:bg-white/10 rounded-full transition-colors flex items-center gap-3 group"
         >
-          <ChevronLeft className="w-5 h-5" />
+          <ChevronLeft className="w-5 h-5 text-white/40 group-hover:text-white" />
           <span className="text-[10px] font-black uppercase tracking-[0.3em] opacity-0 group-hover:opacity-100 transition-all">Back</span>
         </motion.button>
         <div className="flex flex-col items-center">
@@ -105,7 +105,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
             </div>
         </div>
         <button className="p-3 hover:bg-white/10 rounded-full transition-colors">
-          <Info className="w-5 h-5 opacity-40" />
+          <Info className="w-5 h-5 opacity-20" />
         </button>
       </div>
 
@@ -113,14 +113,14 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
       <div className="relative flex flex-col items-center justify-center space-y-20">
         {/* The Orb System */}
         <div className="relative flex items-center justify-center">
-            {/* Pulsing Aura */}
+            {/* Pulsing Aura - Simplified */}
             <motion.div 
                animate={{
-                 scale: phase === 'in' ? [1, 1.3] : phase === 'out' ? [1.3, 1] : 1.3,
-                 opacity: phase === 'in' ? [0.2, 0.5] : phase === 'out' ? [0.5, 0.2] : [0.5, 0.45, 0.5]
+                 scale: phase === 'in' ? [1, 1.25] : phase === 'out' ? [1.25, 1] : 1.25,
+                 opacity: phase === 'in' ? [0.1, 0.3] : phase === 'out' ? [0.3, 0.1] : [0.3, 0.25, 0.3]
                }}
                transition={{ duration: getDuration(), ease: "easeInOut" }}
-               className="absolute w-80 h-80 rounded-full bg-emerald-500/10 blur-3xl"
+               className="absolute w-80 h-80 rounded-full bg-emerald-500/5 blur-2xl transform-gpu will-change-transform"
             />
 
             {/* Rotating Track */}
@@ -136,7 +136,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                   cx="160" cy="160" r="150" 
                   fill="none" 
                   stroke="currentColor" 
-                  className="text-emerald-500/40"
+                  className="text-emerald-500/30"
                   strokeWidth="2"
                   strokeDasharray="942"
                   animate={{
@@ -150,9 +150,9 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
             <motion.div 
               animate={{ rotate: 360 }}
               transition={{ duration: getDuration(), ease: "linear", repeat: Infinity }}
-              className="absolute w-[300px] h-[300px] flex items-center justify-end"
+              className="absolute w-[300px] h-[300px] flex items-center justify-end transform-gpu will-change-transform"
             >
-                <div className="w-3 h-3 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,1)] z-20" />
+                <div className="w-2.5 h-2.5 bg-white rounded-full shadow-[0_0_15px_rgba(255,255,255,0.8)] z-20" />
             </motion.div>
 
             {/* Central Orb */}
@@ -164,14 +164,13 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                   }}
                   transition={{ 
                     duration: getDuration(), 
-                    ease: phase === 'hold' ? "easeInOut" : "easeInOut",
+                    ease: "easeInOut",
                     repeat: phase === 'hold' ? Infinity : 0
                   }}
-                  className="w-full h-full rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-blue-600 shadow-[0_0_80px_rgba(16,185,129,0.3)] relative overflow-hidden"
+                  className="w-full h-full rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-blue-600 shadow-[0_0_60px_rgba(16,185,129,0.2)] relative overflow-hidden transform-gpu will-change-transform"
                 >
-                    {/* Inner light glint */}
-                    <div className="absolute top-[10%] left-[10%] w-[40%] h-[40%] bg-white/20 rounded-full blur-xl" />
-                    <div className="absolute bottom-[20%] right-[20%] w-[30%] h-[30%] bg-black/20 rounded-full blur-xl" />
+                    {/* Inner light glint - Fixed position for performance */}
+                    <div className="absolute top-[10%] left-[10%] w-[40%] h-[40%] bg-white/10 rounded-full blur-xl" />
                 </motion.div>
             </div>
         </div>
@@ -182,13 +181,13 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
             <AnimatePresence mode="wait">
                 <motion.div 
                     key={phase}
-                    initial={{ opacity: 0, filter: 'blur(10px)', y: 10 }}
-                    animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
-                    exit={{ opacity: 0, filter: 'blur(10px)', y: -10 }}
-                    transition={{ duration: 0.5, ease: "easeOut" }}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.4, ease: "easeOut" }}
                     className="flex flex-col items-center"
                 >
-                    <h2 className="text-4xl font-black uppercase tracking-[0.2em] text-white brightness-125">
+                    <h2 className="text-4xl font-black uppercase tracking-[0.2em] text-white">
                         {getPhaseText()}
                     </h2>
                 </motion.div>
@@ -196,7 +195,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
           </div>
           
           <div className="flex flex-col items-center space-y-2">
-            <span className="text-[12px] font-mono font-black tabular-nums text-white opacity-20 tracking-[0.8em]">
+            <span className="text-[12px] font-mono font-black tabular-nums text-white/30 tracking-[0.8em]">
                 {timeLeft.toString().padStart(2, '0')}
             </span>
             <div className="flex gap-1.5 mt-2">
@@ -204,8 +203,8 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                     <div 
                         key={i} 
                         className={cn(
-                            "h-1 rounded-full transition-all duration-500",
-                            i < (getDuration() - timeLeft) ? "w-4 bg-emerald-500" : "w-1 bg-white/10"
+                            "h-1 rounded-full transition-all duration-300",
+                            i < (getDuration() - timeLeft) ? "w-4 bg-emerald-500" : "w-1 bg-white/5"
                         )} 
                     />
                 ))}
