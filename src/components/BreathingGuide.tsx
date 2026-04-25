@@ -11,10 +11,10 @@ type Atmosphere = 'none' | 'rain' | 'waves' | 'forest' | 'white-noise';
 
 const ATMOSPHERES: Record<Atmosphere, { name: string, icon: any, color: string, url: string }> = {
   'none': { name: 'Silence', icon: Volume2, color: 'emerald', url: '' },
-  'rain': { name: 'Rain', icon: CloudRain, color: 'blue', url: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3' },
-  'waves': { name: 'Ocean', icon: Waves, color: 'cyan', url: 'https://assets.mixkit.co/active_storage/sfx/2384/2384-preview.mp3' },
-  'forest': { name: 'Forest', icon: TreePine, color: 'teal', url: 'https://assets.mixkit.co/active_storage/sfx/2380/2380-preview.mp3' },
-  'white-noise': { name: 'Noise', icon: Wind, color: 'zinc', url: 'https://assets.mixkit.co/active_storage/sfx/2400/2400-preview.mp3' },
+  'rain': { name: 'Rain', icon: CloudRain, color: 'blue', url: 'https://cdn.pixabay.com/audio/2021/11/25/audio_82c2358f22.mp3' },
+  'waves': { name: 'Ocean', icon: Waves, color: 'cyan', url: 'https://cdn.pixabay.com/audio/2022/03/10/audio_f574d754f1.mp3' },
+  'forest': { name: 'Forest', icon: TreePine, color: 'teal', url: 'https://cdn.pixabay.com/audio/2022/03/10/audio_5594685ef0.mp3' },
+  'white-noise': { name: 'Noise', icon: Wind, color: 'zinc', url: 'https://cdn.pixabay.com/audio/2022/03/10/audio_c0c4587a32.mp3' },
 };
 
 export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
