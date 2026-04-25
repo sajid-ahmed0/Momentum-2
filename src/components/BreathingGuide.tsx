@@ -11,6 +11,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
   const [phase, setPhase] = useState<'in' | 'hold' | 'out'>('in');
   const [timeLeft, setTimeLeft] = useState(4);
   const [sessionTimeLeft, setSessionTimeLeft] = useState(120); // 2 minutes session
+  const [wakeLockActive, setWakeLockActive] = useState(false);
 
   // Screen Wake Lock Logic
   useEffect(() => {
@@ -20,9 +21,12 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
       try {
         if ('wakeLock' in navigator) {
           wakeLock = await (navigator as any).wakeLock.request('screen');
+          setWakeLockActive(true);
+          console.log('Wake Lock active');
         }
       } catch (err) {
-        console.error('Wake Lock request failed:', err);
+        console.warn('Wake Lock request failed:', err);
+        setWakeLockActive(false);
       }
     };
 
@@ -30,7 +34,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
 
     // Re-request wake lock when page becomes visible again
     const handleVisibilityChange = () => {
-      if (wakeLock !== null && document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible') {
         requestWakeLock();
       }
     };
@@ -132,7 +136,10 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
           <span className="text-[10px] font-black uppercase tracking-[0.3em] opacity-0 group-hover:opacity-100 transition-all">Back</span>
         </motion.button>
         <div className="flex flex-col items-center">
-            <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white opacity-40">Immersion Mode</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white opacity-40">Immersion Mode</span>
+              {wakeLockActive && <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" title="Screen will stay awake" />}
+            </div>
             <div className="text-[10px] font-mono font-black text-emerald-500 mt-1 tabular-nums animate-pulse">
                 {formatSessionTime(sessionTimeLeft)}
             </div>

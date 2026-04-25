@@ -368,6 +368,7 @@ export default function App() {
   const [editingJournalEntry, setEditingJournalEntry] = useState<JournalEntry | null>(null);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
   
   // Urge Surfing State
   const [urgeSession, setUrgeSession] = useState<{
@@ -1878,8 +1879,19 @@ export default function App() {
                     </div>
                   ) : (
                     overthinkingLogs.map(log => (
-                      <div key={log.id} className="p-6 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-xl hover:shadow-lg transition-all border-l-4 group relative" 
-                           style={{ borderLeftColor: log.intensity > 7 ? '#ef4444' : log.intensity > 4 ? '#f59e0b' : '#10b981' }}>
+                      <div 
+                        key={log.id} 
+                        onClick={() => {
+                          setExpandedLogs(prev => {
+                            const next = new Set(prev);
+                            if (next.has(log.id)) next.delete(log.id);
+                            else next.add(log.id);
+                            return next;
+                          });
+                        }}
+                        className="p-6 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-xl hover:shadow-lg transition-all border-l-4 group relative cursor-pointer" 
+                        style={{ borderLeftColor: log.intensity > 7 ? '#ef4444' : log.intensity > 4 ? '#f59e0b' : '#10b981' }}
+                      >
                         <div className="flex items-center justify-between mb-4">
                           <div className="flex flex-col">
                             <span className="text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-600 tracking-widest lowercase">
@@ -1897,7 +1909,10 @@ export default function App() {
                               </div>
                             </div>
                             <button 
-                              onClick={() => handleDeleteOverthinking(log.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteOverthinking(log.id);
+                              }}
                               className="lg:opacity-0 lg:group-hover:opacity-100 opacity-100 p-1.5 hover:bg-red-50 dark:hover:bg-red-500/10 rounded transition-all"
                             >
                               <Trash2 className="w-3.5 h-3.5 text-zinc-300 hover:text-red-500" />
@@ -1913,7 +1928,13 @@ export default function App() {
                         {log.thoughts && (
                           <div>
                             <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600 mb-1">Current Thoughts</p>
-                            <p className="text-sm text-zinc-600 dark:text-zinc-400 line-clamp-3 italic">"{log.thoughts}"</p>
+                            <p className={cn(
+                              "text-sm text-zinc-600 dark:text-zinc-400 italic",
+                              !expandedLogs.has(log.id) && "line-clamp-3"
+                            )}>"{log.thoughts}"</p>
+                            {!expandedLogs.has(log.id) && log.thoughts.length > 100 && (
+                              <p className="text-[8px] font-bold uppercase tracking-widest text-emerald-500 mt-2">Click to expand</p>
+                            )}
                           </div>
                         )}
                       </div>
