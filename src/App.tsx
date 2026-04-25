@@ -370,6 +370,7 @@ export default function App() {
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
+  const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
   
   // Urge Surfing State
   const [urgeSession, setUrgeSession] = useState<{
@@ -2003,7 +2004,18 @@ export default function App() {
                     </div>
                   ) : (
                     journalEntries.map(entry => (
-                      <div key={entry.id} className="p-8 bg-zinc-50/50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:bg-white dark:hover:bg-zinc-900 hover:shadow-xl hover:border-zinc-200 dark:hover:border-zinc-700 transition-all group">
+                      <div 
+                        key={entry.id} 
+                        onClick={() => {
+                          setExpandedEntries(prev => {
+                            const next = new Set(prev);
+                            if (next.has(entry.id)) next.delete(entry.id);
+                            else next.add(entry.id);
+                            return next;
+                          });
+                        }}
+                        className="p-8 bg-zinc-50/50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:bg-white dark:hover:bg-zinc-900 hover:shadow-xl hover:border-zinc-200 dark:hover:border-zinc-700 transition-all group cursor-pointer"
+                      >
                         <div className="flex items-start justify-between mb-6">
                           <div>
                             <div className="flex items-center gap-3 mb-2">
@@ -2020,7 +2032,8 @@ export default function App() {
                           </div>
                           <div className="flex gap-2">
                             <button 
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setEditingJournalEntry(entry);
                                 setShowJournalModal(true);
                               }}
@@ -2029,16 +2042,26 @@ export default function App() {
                               <Edit className="w-4 h-4 text-zinc-400" />
                             </button>
                             <button 
-                              onClick={() => handleDeleteJournalEntry(entry.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteJournalEntry(entry.id);
+                              }}
                               className="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors group/del"
                             >
                               <Trash2 className="w-4 h-4 text-zinc-400 group-hover/del:text-red-500" />
                             </button>
                           </div>
                         </div>
-                        <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed whitespace-pre-wrap selection:bg-zinc-900 selection:text-white dark:selection:bg-zinc-100 dark:selection:text-zinc-900">{entry.content}</p>
+                        <p className={cn(
+                          "text-zinc-600 dark:text-zinc-400 leading-relaxed whitespace-pre-wrap selection:bg-zinc-900 selection:text-white dark:selection:bg-zinc-100 dark:selection:text-zinc-900",
+                          !expandedEntries.has(entry.id) && "line-clamp-4"
+                        )}>{entry.content}</p>
                         
-                        {(entry.lostControl || entry.trigger || entry.improvementTomorrow || entry.learningFromMistake) && (
+                        {!expandedEntries.has(entry.id) && (entry.content.length > 200) && (
+                          <p className="text-[8px] font-bold uppercase tracking-widest text-emerald-500 mt-4">Click to expand</p>
+                        )}
+
+                        {expandedEntries.has(entry.id) && (entry.lostControl || entry.trigger || entry.improvementTomorrow || entry.learningFromMistake) && (
                           <div className="mt-8 pt-8 border-t border-zinc-100 dark:border-zinc-800 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                             {entry.lostControl && (
                               <div>
