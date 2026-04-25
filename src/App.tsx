@@ -617,6 +617,8 @@ export default function App() {
 
   const handleAddTimeBlock = async (data: { startTime: string, endTime: string, activity: string }) => {
     if (!user) return;
+    // Close modal immediately for better UX
+    setShowScheduleModal(false);
     try {
       await addDoc(collection(db, 'timeBlocks'), {
         ...data,
@@ -624,20 +626,21 @@ export default function App() {
         uid: user.uid,
         timestamp: Date.now()
       });
-      setShowScheduleModal(false);
     } catch (err) {
       console.error(err);
+      // If error, we might want to re-open or show error, but user requested auto-close
     }
   };
 
   const handleEditTimeBlock = async (id: string, data: { startTime: string, endTime: string, activity: string }) => {
+    // Close modal immediately
+    setShowScheduleModal(false);
+    setEditingTimeBlock(null);
     try {
       await updateDoc(doc(db, 'timeBlocks', id), {
         ...data,
         timestamp: Date.now()
       });
-      setShowScheduleModal(false);
-      setEditingTimeBlock(null);
     } catch (err) {
       console.error(err);
     }
@@ -653,6 +656,8 @@ export default function App() {
 
   const handleAddOverthinking = async (data: { intensity: number, trigger: string, thoughts: string }) => {
     if (!user) return;
+    // Close modal immediately
+    setShowOverthinkingModal(false);
     try {
       await addDoc(collection(db, 'overthinkingLogs'), {
         ...data,
@@ -660,20 +665,20 @@ export default function App() {
         uid: user.uid,
         timestamp: Date.now()
       });
-      setShowOverthinkingModal(false);
     } catch (err) {
       console.error(err);
     }
   };
 
   const handleUpdateOverthinking = async (id: string, data: { intensity: number, trigger: string, thoughts: string }) => {
+    // Close modal immediately
+    setShowOverthinkingModal(false);
+    setEditingOverthinkingLog(null);
     try {
       await updateDoc(doc(db, 'overthinkingLogs', id), {
         ...data,
         updatedAt: Date.now()
       });
-      setShowOverthinkingModal(false);
-      setEditingOverthinkingLog(null);
     } catch (error) {
       console.error('Error updating log:', error);
     }
@@ -689,6 +694,8 @@ export default function App() {
 
   const handleAddTask = async (data: { task: string, time?: string, date?: string }) => {
     if (!user) return;
+    // Close modal immediately
+    setShowTaskModal(false);
     try {
       await addDoc(collection(db, 'dailyTasks'), {
         task: data.task,
@@ -698,20 +705,20 @@ export default function App() {
         uid: user.uid,
         timestamp: Date.now()
       });
-      setShowTaskModal(false);
     } catch (err) {
       console.error(err);
     }
   };
 
   const handleUpdateTask = async (id: string, data: Partial<DailyTask>) => {
+    // Close modal immediately
+    setShowTaskModal(false);
+    setEditingTask(null);
     try {
       await updateDoc(doc(db, 'dailyTasks', id), {
         ...data,
         timestamp: Date.now()
       });
-      setShowTaskModal(false);
-      setEditingTask(null);
     } catch (err) {
       console.error(err);
     }
@@ -727,26 +734,28 @@ export default function App() {
 
   const handleAddExam = async (data: { title: string, date: string, time: string }) => {
     if (!user) return;
+    // Close modal immediately
+    setShowExamModal(false);
     try {
       await addDoc(collection(db, 'exams'), {
         ...data,
         uid: user.uid,
         timestamp: Date.now()
       });
-      setShowExamModal(false);
     } catch (err) {
       console.error(err);
     }
   };
 
   const handleUpdateExam = async (id: string, data: Partial<Exam>) => {
+    // Close modal immediately
+    setShowExamModal(false);
+    setEditingExam(null);
     try {
       await updateDoc(doc(db, 'exams', id), {
         ...data,
         timestamp: Date.now()
       });
-      setShowExamModal(false);
-      setEditingExam(null);
     } catch (err) {
       console.error(err);
     }
@@ -780,6 +789,9 @@ export default function App() {
     learningFromMistake?: string
   }) => {
     if (!user) return;
+    // Close modal immediately
+    setShowJournalModal(false);
+    setEditingJournalEntry(null);
     try {
       if (editingJournalEntry) {
         await updateDoc(doc(db, 'journalEntries', editingJournalEntry.id), {
@@ -794,8 +806,6 @@ export default function App() {
           timestamp: Date.now()
         });
       }
-      setShowJournalModal(false);
-      setEditingJournalEntry(null);
     } catch (err) {
       console.error(err);
     }
@@ -936,14 +946,18 @@ export default function App() {
     e.preventDefault();
     if (!user || !newHabit.name) return;
 
+    // Close modal immediately
+    setShowAddModal(false);
+    const habitData = { ...newHabit };
+    // Clear draft state
+    setNewHabit({ name: '', color: '#18181b', frequency: 'daily', type: 'checkbox' });
+
     try {
       await addDoc(collection(db, 'habits'), {
-        ...newHabit,
+        ...habitData,
         uid: user.uid,
         createdAt: Date.now(),
       });
-      setShowAddModal(false);
-      setNewHabit({ name: '', color: '#18181b', frequency: 'daily', type: 'checkbox' });
     } catch (err) {
       console.error(err);
     }
