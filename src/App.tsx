@@ -366,6 +366,7 @@ export default function App() {
   const [editingTimeBlock, setEditingTimeBlock] = useState<TimeBlock | null>(null);
   const [editingTask, setEditingTask] = useState<DailyTask | null>(null);
   const [editingJournalEntry, setEditingJournalEntry] = useState<JournalEntry | null>(null);
+  const [editingOverthinkingLog, setEditingOverthinkingLog] = useState<OverthinkingLog | null>(null);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
@@ -662,6 +663,19 @@ export default function App() {
       setShowOverthinkingModal(false);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleUpdateOverthinking = async (id: string, data: { intensity: number, trigger: string, thoughts: string }) => {
+    try {
+      await updateDoc(doc(db, 'overthinkingLogs', id), {
+        ...data,
+        updatedAt: Date.now()
+      });
+      setShowOverthinkingModal(false);
+      setEditingOverthinkingLog(null);
+    } catch (error) {
+      console.error('Error updating log:', error);
     }
   };
 
@@ -1917,6 +1931,16 @@ export default function App() {
                             >
                               <Trash2 className="w-3.5 h-3.5 text-zinc-300 hover:text-red-500" />
                             </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingOverthinkingLog(log);
+                                setShowOverthinkingModal(true);
+                              }}
+                              className="lg:opacity-0 lg:group-hover:opacity-100 opacity-100 p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-all"
+                            >
+                              <Edit className="w-3.5 h-3.5 text-zinc-300 hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-zinc-400" />
+                            </button>
                           </div>
                         </div>
                         {log.trigger && (
@@ -2785,18 +2809,31 @@ export default function App() {
               </div>
             </form>
           </Modal>
-      )}
-
+        )}
         {showOverthinkingModal && (
-          <Modal key="add-overthinking-modal" isOpen={showOverthinkingModal} onClose={() => setShowOverthinkingModal(false)} title="Log Overthinking">
+          <Modal 
+            key="add-overthinking-modal" 
+            isOpen={showOverthinkingModal} 
+            onClose={() => {
+              setShowOverthinkingModal(false);
+              setEditingOverthinkingLog(null);
+            }} 
+            title={editingOverthinkingLog ? "Edit Overthinking Log" : "Log Overthinking"}
+          >
             <form onSubmit={(e) => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
-              handleAddOverthinking({
+              const data = {
                 intensity: parseInt(fd.get('intensity') as string),
                 trigger: fd.get('trigger') as string,
                 thoughts: fd.get('thoughts') as string
-              });
+              };
+
+              if (editingOverthinkingLog) {
+                handleUpdateOverthinking(editingOverthinkingLog.id, data);
+              } else {
+                handleAddOverthinking(data);
+              }
             }} className="space-y-8">
               <div>
                 <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Intensity (1-10)</label>
@@ -2805,7 +2842,7 @@ export default function App() {
                   type="range" 
                   min="1" 
                   max="10" 
-                  defaultValue="5"
+                  defaultValue={editingOverthinkingLog?.intensity || "5"}
                   className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-zinc-900 dark:accent-zinc-100"
                 />
                 <div className="flex justify-between text-[8px] font-bold text-zinc-300 dark:text-zinc-700 mt-2 tracking-widest uppercase">
@@ -2818,6 +2855,7 @@ export default function App() {
                 <input 
                   name="trigger"
                   type="text" 
+                  defaultValue={editingOverthinkingLog?.trigger || ""}
                   placeholder="e.g. Work deadline, Social situation"
                   className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
                 />
@@ -2827,17 +2865,21 @@ export default function App() {
                 <textarea 
                   name="thoughts"
                   rows={3}
+                  defaultValue={editingOverthinkingLog?.thoughts || ""}
                   placeholder="What's spinning in your head?"
                   className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
                 />
               </div>
               <div className="pt-6 flex gap-3 sticky bottom-0 bg-white dark:bg-zinc-950 pb-2">
-                <Button type="button" variant="secondary" onClick={() => setShowOverthinkingModal(false)} className="flex-1 text-xs dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 h-10">Cancel</Button>
-                <Button type="submit" className="flex-[2] text-xs font-bold dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white h-10">Log Entry</Button>
+                <Button type="button" variant="secondary" onClick={() => {
+                  setShowOverthinkingModal(false);
+                  setEditingOverthinkingLog(null);
+                }} className="flex-1 text-xs dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 h-10">Cancel</Button>
+                <Button type="submit" className="flex-[2] text-xs font-bold dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white h-10">{editingOverthinkingLog ? "Update Entry" : "Log Entry"}</Button>
               </div>
             </form>
           </Modal>
-        )}
+      )}
 
         {showJournalModal && (
           <Modal 
