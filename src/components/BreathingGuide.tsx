@@ -11,10 +11,10 @@ type Atmosphere = 'none' | 'rain' | 'waves' | 'forest' | 'white-noise';
 
 const ATMOSPHERES: Record<Atmosphere, { name: string, icon: any, color: string, url: string }> = {
   'none': { name: 'Silence', icon: Volume2, color: 'emerald', url: '' },
-  'rain': { name: 'Rain', icon: CloudRain, color: 'blue', url: 'https://cdn.pixabay.com/audio/2021/11/25/audio_82c2358f22.mp3' },
-  'waves': { name: 'Ocean', icon: Waves, color: 'cyan', url: 'https://cdn.pixabay.com/audio/2022/03/10/audio_f574d754f1.mp3' },
-  'forest': { name: 'Forest', icon: TreePine, color: 'teal', url: 'https://cdn.pixabay.com/audio/2022/03/10/audio_5594685ef0.mp3' },
-  'white-noise': { name: 'Noise', icon: Wind, color: 'zinc', url: 'https://cdn.pixabay.com/audio/2022/03/10/audio_c0c4587a32.mp3' },
+  'rain': { name: 'Rain', icon: CloudRain, color: 'blue', url: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3' },
+  'waves': { name: 'Ocean', icon: Waves, color: 'cyan', url: 'https://assets.mixkit.co/active_storage/sfx/2384/2384-preview.mp3' },
+  'forest': { name: 'Forest', icon: TreePine, color: 'teal', url: 'https://assets.mixkit.co/active_storage/sfx/2380/2380-preview.mp3' },
+  'white-noise': { name: 'Noise', icon: Wind, color: 'zinc', url: 'https://assets.mixkit.co/active_storage/sfx/2400/2400-preview.mp3' },
 };
 
 export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
@@ -23,6 +23,8 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
   const [sessionTimeLeft, setSessionTimeLeft] = useState(120); // 2 minutes session
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [atmosphere, setAtmosphere] = useState<Atmosphere>('none');
+  const [volume, setVolume] = useState(0.4);
+  const [isAudioBlocked, setIsAudioBlocked] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Audio Logic
@@ -32,19 +34,55 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
         audioRef.current.pause();
         audioRef.current = null;
       }
+      setIsAudioBlocked(false);
       return;
     }
 
-    const audio = new Audio(ATMOSPHERES[atmosphere].url);
-    audio.loop = true;
-    audio.volume = 0.4;
-    audio.play().catch(e => console.log('Audio play failed:', e));
-    audioRef.current = audio;
+    const playAudio = async () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+
+      const audio = new Audio(ATMOSPHERES[atmosphere].url);
+      audio.loop = true;
+      audio.volume = volume;
+      
+      try {
+        await audio.play();
+        setIsAudioBlocked(false);
+      } catch (e) {
+        console.error('Audio play blocked or failed:', e);
+        setIsAudioBlocked(true);
+      }
+      audioRef.current = audio;
+    };
+
+    playAudio();
 
     return () => {
-      audio.pause();
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
     };
   }, [atmosphere]);
+
+  // Handle Volume Change
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume]);
+
+  const handleRetryPlay = async () => {
+    if (audioRef.current) {
+      try {
+        await audioRef.current.play();
+        setIsAudioBlocked(false);
+      } catch (e) {
+        console.error('Retry failed:', e);
+      }
+    }
+  };
 
   // Screen Wake Lock Logic
   useEffect(() => {
@@ -189,28 +227,59 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
             </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {Object.entries(ATMOSPHERES).map(([key, value]) => {
-            const Icon = value.icon;
-            return (
-              <motion.button
-                key={key}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setAtmosphere(key as Atmosphere)}
-                className={cn(
-                  "p-2.5 rounded-full transition-all border",
-                  atmosphere === key 
-                    ? "bg-white text-zinc-950 border-white shadow-xl scale-110" 
-                    : "bg-white/5 text-white/40 border-transparent hover:bg-white/10 hover:text-white"
-                )}
-                title={value.name}
-              >
-                <Icon className="w-3.5 h-3.5" />
-              </motion.button>
-            );
-          })}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5 bg-white/5 backdrop-blur-md rounded-full px-4 py-2 border border-white/5">
+            <Volume2 className="w-3.5 h-3.5 text-white/40" />
+            <input 
+              type="range" 
+              min="0" 
+              max="1" 
+              step="0.01" 
+              value={volume}
+              onChange={(e) => setVolume(parseFloat(e.target.value))}
+              className="w-20 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-white"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            {Object.entries(ATMOSPHERES).map(([key, value]) => {
+              const Icon = value.icon;
+              return (
+                <motion.button
+                  key={key}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setAtmosphere(key as Atmosphere)}
+                  className={cn(
+                    "p-2.5 rounded-full transition-all border",
+                    atmosphere === key 
+                      ? "bg-white text-zinc-950 border-white shadow-xl scale-110" 
+                      : "bg-white/5 text-white/40 border-transparent hover:bg-white/10 hover:text-white"
+                  )}
+                  title={value.name}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                </motion.button>
+              );
+            })}
+          </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {isAudioBlocked && atmosphere !== 'none' && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="absolute top-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-amber-500 text-zinc-950 text-[10px] font-black uppercase tracking-widest rounded-full shadow-2xl flex items-center gap-3 cursor-pointer"
+            onClick={handleRetryPlay}
+          >
+            <span>Sound Blocked by Browser</span>
+            <div className="w-px h-3 bg-zinc-950/20" />
+            <span>Click to Enable</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       <div className="relative flex flex-col items-center justify-center space-y-20">

@@ -34,8 +34,7 @@ import {
   X, 
   ChevronLeft, 
   ChevronRight, 
-  BarChart2, 
-  Calendar as CalendarIcon, 
+  Calendar as CalendarIcon,
   Settings, 
   LogOut, 
   Target,
@@ -1227,17 +1226,6 @@ export default function App() {
                 )}
               >
                 <ListTodo className="w-4 h-4 mr-3" /> Daily Tasks
-              </button>
-              <button 
-                onClick={() => setActiveTab('insights')}
-                className={cn(
-                  "w-full flex items-center px-3 py-2 rounded transition-all text-xs font-bold uppercase tracking-tight",
-                  activeTab === 'insights' 
-                    ? "bg-zinc-900 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900" 
-                    : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                )}
-              >
-                <BarChart2 className="w-4 h-4 mr-3" /> Progress Insights
               </button>
             </div>
           </div>
