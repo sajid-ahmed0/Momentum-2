@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, Info } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface BreathingGuideProps {
