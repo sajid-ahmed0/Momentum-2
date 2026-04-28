@@ -11,8 +11,8 @@ type Atmosphere = 'none' | 'rain' | 'white-noise';
 
 const ATMOSPHERES: Record<Atmosphere, { name: string, icon: any, color: string, url: string }> = {
   'none': { name: 'Silence', icon: Volume2, color: 'emerald', url: '' },
-  'rain': { name: 'Rain', icon: CloudRain, color: 'blue', url: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3' },
-  'white-noise': { name: 'White Noise', icon: Wind, color: 'white', url: 'https://assets.mixkit.co/active_storage/sfx/2400/2400-preview.mp3' },
+  'rain': { name: 'Rain', icon: CloudRain, color: 'blue', url: 'https://cdn.pixabay.com/audio/2021/11/25/audio_82c2358f22.mp3' },
+  'white-noise': { name: 'White Noise', icon: Wind, color: 'white', url: 'https://cdn.pixabay.com/audio/2022/03/10/audio_c0c4587a32.mp3' },
 };
 
 export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
@@ -246,100 +246,102 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
       </AnimatePresence>
 
       {/* Main Content - Robust centering */}
-      <div className="flex-1 flex flex-col items-center justify-center space-y-24 w-full h-full relative">
-        <div className="relative flex items-center justify-center">
-            <motion.div 
-               animate={{
-                 scale: phase === 'in' ? [1, 1.4] : phase === 'out' ? [1.4, 1] : 1.4,
-                 opacity: phase === 'in' ? [0.1, 0.4] : phase === 'out' ? [0.4, 0.1] : 0.4
-               }}
-               transition={{ duration: getDuration(), ease: "easeInOut" }}
-               className={cn(
-                 "absolute w-[400px] h-[400px] rounded-full blur-[60px] transform-gpu will-change-transform",
-                 atmosphere === 'none' ? 'bg-emerald-500/20' : 
-                 atmosphere === 'rain' ? 'bg-blue-500/30' : 'bg-white/20'
-               )}
-            />
+      <div className="flex-1 flex flex-col items-center justify-center w-full max-w-2xl mx-auto px-6 relative z-0">
+        <div className="w-full flex flex-col items-center justify-center space-y-16 lg:space-y-20">
+          <div className="relative flex items-center justify-center scale-90 lg:scale-100">
+              <motion.div 
+                 animate={{
+                   scale: phase === 'in' ? [1, 1.4] : phase === 'out' ? [1.4, 1] : 1.4,
+                   opacity: phase === 'in' ? [0.1, 0.4] : phase === 'out' ? [0.4, 0.1] : 0.4
+                 }}
+                 transition={{ duration: getDuration(), ease: "easeInOut" }}
+                 className={cn(
+                   "absolute w-[400px] h-[400px] rounded-full blur-[60px] transform-gpu will-change-transform",
+                   atmosphere === 'none' ? 'bg-emerald-500/20' : 
+                   atmosphere === 'rain' ? 'bg-blue-500/30' : 'bg-white/20'
+                 )}
+              />
 
-            <svg className="absolute w-[340px] h-[340px] -rotate-90 pointer-events-none">
-                <circle cx="170" cy="170" r="160" fill="none" stroke="currentColor" className="text-white/5" strokeWidth="1" />
-                <motion.circle 
-                  cx="170" cy="170" r="160" 
-                  fill="none" stroke="currentColor" 
-                  className={cn(
-                    "transition-colors duration-1000",
-                    atmosphere === 'none' ? 'text-emerald-500/40' : 
-                    atmosphere === 'rain' ? 'text-blue-400/40' : 'text-white/40'
-                  )}
-                  strokeWidth="3"
-                  strokeDasharray="1005"
-                  animate={{ strokeDashoffset: [1005, 0] }}
-                  transition={{ duration: getDuration(), ease: "linear", key: phase }}
-                />
-            </svg>
+              <svg className="absolute w-[340px] h-[340px] -rotate-90 pointer-events-none">
+                  <circle cx="170" cy="170" r="160" fill="none" stroke="currentColor" className="text-white/5" strokeWidth="1" />
+                  <motion.circle 
+                    cx="170" cy="170" r="160" 
+                    fill="none" stroke="currentColor" 
+                    className={cn(
+                      "transition-colors duration-1000",
+                      atmosphere === 'none' ? 'text-emerald-500/40' : 
+                      atmosphere === 'rain' ? 'text-blue-400/40' : 'text-white/40'
+                    )}
+                    strokeWidth="3"
+                    strokeDasharray="1005"
+                    animate={{ strokeDashoffset: [1005, 0] }}
+                    transition={{ duration: getDuration(), ease: "linear", key: phase }}
+                  />
+              </svg>
 
-            <motion.div 
-              animate={{ rotate: 360 }}
-              transition={{ duration: getDuration(), ease: "linear", repeat: Infinity }}
-              className="absolute w-[320px] h-[320px] flex items-center justify-end transform-gpu will-change-transform"
-            >
-                <div className="w-3 h-3 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.9)] z-20" />
-            </motion.div>
+              <motion.div 
+                animate={{ rotate: 360 }}
+                transition={{ duration: getDuration(), ease: "linear", repeat: Infinity }}
+                className="absolute w-[320px] h-[320px] flex items-center justify-end transform-gpu will-change-transform"
+              >
+                  <div className="w-3 h-3 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.9)] z-20" />
+              </motion.div>
 
-            <div className="relative w-72 h-72 flex items-center justify-center">
-                <motion.div 
-                  initial={{ scale: 0.8 }}
-                  animate={{
-                    scale: phase === 'in' ? [0.8, 1.15] : phase === 'out' ? [1.15, 0.8] : [1.15, 1.1, 1.15],
-                  }}
-                  transition={{ 
-                    duration: getDuration(), 
-                    ease: "easeInOut",
-                    repeat: phase === 'hold' ? Infinity : 0
-                  }}
-                  className={cn(
-                    "w-full h-full rounded-full shadow-2xl relative overflow-hidden transform-gpu will-change-transform transition-all duration-1000",
-                    atmosphere === 'none' ? 'bg-gradient-to-br from-emerald-400 via-teal-500 to-blue-600' : 
-                    atmosphere === 'rain' ? 'bg-gradient-to-br from-blue-400 via-indigo-600 to-zinc-950' : 'bg-gradient-to-br from-zinc-700 via-zinc-800 to-zinc-950'
-                  )}
-                >
-                    <div className="absolute top-[10%] left-[10%] w-[40%] h-[40%] bg-white/20 rounded-full blur-2xl" />
-                </motion.div>
-            </div>
-        </div>
-
-        <div className="text-center space-y-10">
-          <div className="relative h-16 flex items-center justify-center">
-            <AnimatePresence mode="wait">
-                <motion.div 
-                    key={phase}
-                    initial={{ opacity: 0, scale: 0.8, filter: 'blur(10px)' }}
-                    animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                    exit={{ opacity: 0, scale: 1.2, filter: 'blur(11px)' }}
-                    transition={{ duration: 0.6, ease: "easeOut" }}
-                    className="flex flex-col items-center"
-                >
-                    <h2 className="text-5xl font-black uppercase tracking-[0.3em] text-white drop-shadow-2xl">
-                        {getPhaseText()}
-                    </h2>
-                </motion.div>
-            </AnimatePresence>
+              <div className="relative w-72 h-72 flex items-center justify-center">
+                  <motion.div 
+                    initial={{ scale: 0.8 }}
+                    animate={{
+                      scale: phase === 'in' ? [0.8, 1.15] : phase === 'out' ? [1.15, 0.8] : [1.15, 1.1, 1.15],
+                    }}
+                    transition={{ 
+                      duration: getDuration(), 
+                      ease: "easeInOut",
+                      repeat: phase === 'hold' ? Infinity : 0
+                    }}
+                    className={cn(
+                      "w-full h-full rounded-full shadow-2xl relative overflow-hidden transform-gpu will-change-transform transition-all duration-1000",
+                      atmosphere === 'none' ? 'bg-gradient-to-br from-emerald-400 via-teal-500 to-blue-600' : 
+                      atmosphere === 'rain' ? 'bg-gradient-to-br from-blue-400 via-indigo-600 to-zinc-950' : 'bg-gradient-to-br from-zinc-700 via-zinc-800 to-zinc-950'
+                    )}
+                  >
+                      <div className="absolute top-[10%] left-[10%] w-[40%] h-[40%] bg-white/20 rounded-full blur-2xl" />
+                  </motion.div>
+              </div>
           </div>
-          
-          <div className="flex flex-col items-center space-y-4">
-            <span className="text-[14px] font-mono font-black tabular-nums text-white/40 tracking-[1em]">
-                {timeLeft.toString().padStart(2, '0')}
-            </span>
-            <div className="flex gap-2">
-                {[...Array(getDuration())].map((_, i) => (
-                    <div 
-                        key={i} 
-                        className={cn(
-                            "h-1.5 rounded-full transition-all duration-500",
-                            i < (getDuration() - timeLeft) ? "w-6 bg-white" : "w-1.5 bg-white/10"
-                        )} 
-                    />
-                ))}
+
+          <div className="text-center space-y-10">
+            <div className="relative h-16 flex items-center justify-center">
+              <AnimatePresence mode="wait">
+                  <motion.div 
+                      key={phase}
+                      initial={{ opacity: 0, scale: 0.8, filter: 'blur(10px)' }}
+                      animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, scale: 1.2, filter: 'blur(11px)' }}
+                      transition={{ duration: 0.6, ease: "easeOut" }}
+                      className="flex flex-col items-center"
+                  >
+                      <h2 className="text-4xl lg:text-5xl font-black uppercase tracking-[0.3em] text-white drop-shadow-2xl">
+                          {getPhaseText()}
+                      </h2>
+                  </motion.div>
+              </AnimatePresence>
+            </div>
+            
+            <div className="flex flex-col items-center space-y-4">
+              <span className="text-[14px] font-mono font-black tabular-nums text-white/40 tracking-[1em]">
+                  {timeLeft.toString().padStart(2, '0')}
+              </span>
+              <div className="flex gap-2">
+                  {[...Array(getDuration())].map((_, i) => (
+                      <div 
+                          key={i} 
+                          className={cn(
+                              "h-1.5 rounded-full transition-all duration-500",
+                              i < (getDuration() - timeLeft) ? "w-6 bg-white" : "w-1.5 bg-white/10"
+                          )} 
+                      />
+                  ))}
+              </div>
             </div>
           </div>
         </div>
