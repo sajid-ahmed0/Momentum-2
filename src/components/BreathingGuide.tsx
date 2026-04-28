@@ -11,8 +11,8 @@ type Atmosphere = 'none' | 'rain' | 'white-noise';
 
 const ATMOSPHERES: Record<Atmosphere, { name: string, icon: any, color: string, url: string }> = {
   'none': { name: 'Silence', icon: Volume2, color: 'emerald', url: '' },
-  'rain': { name: 'Rain', icon: CloudRain, color: 'blue', url: 'https://cdn.pixabay.com/audio/2022/01/21/audio_0313175735.mp3' },
-  'white-noise': { name: 'White Noise', icon: Wind, color: 'white', url: 'https://cdn.pixabay.com/audio/2022/03/15/audio_2e6304856f.mp3' },
+  'rain': { name: 'Rain', icon: CloudRain, color: 'blue', url: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3' },
+  'white-noise': { name: 'White Noise', icon: Wind, color: 'white', url: 'https://assets.mixkit.co/active_storage/sfx/2392/2392-preview.mp3' },
 };
 
 export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
@@ -34,7 +34,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
     };
   }, []);
 
-  const toggleAtmosphere = async (key: Atmosphere) => {
+  const toggleAtmosphere = (key: Atmosphere) => {
     if (key === 'none' || atmosphere === key) {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -45,7 +45,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
       return;
     }
 
-    // Direct play on user gesture
+    // Direct play on user gesture - MUST BE SYNC for mobile
     if (audioRef.current) {
       audioRef.current.pause();
     }
@@ -53,37 +53,43 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
     const audio = new Audio(ATMOSPHERES[key].url);
     audio.loop = true;
     audio.volume = 0.5;
-    audioRef.current = audio;
-
-    try {
-      await audio.play();
-      setAtmosphere(key);
-      setIsAudioBlocked(false);
-    } catch (e) {
-      console.error('Audio play blocked:', e);
-      setAtmosphere(key);
-      setIsAudioBlocked(true);
-    }
+    
+    // Attempt play immediately
+    audio.play()
+      .then(() => {
+        audioRef.current = audio;
+        setAtmosphere(key);
+        setIsAudioBlocked(false);
+      })
+      .catch((e) => {
+        console.error('Audio play blocked:', e);
+        setAtmosphere(key);
+        setIsAudioBlocked(true);
+        audioRef.current = audio;
+      });
   };
 
-  const handleRetryPlay = async (e: React.MouseEvent) => {
+  const handleRetryPlay = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
-    if (atmosphere === 'none') return;
+    if (atmosphere === 'none' || !audioRef.current) return;
     
-    // Create fresh instance on this click gesture
-    const audio = new Audio(ATMOSPHERES[atmosphere].url);
-    audio.loop = true;
-    audio.volume = 0.5;
-    audioRef.current = audio;
-
-    try {
-      await audio.play();
-      setIsAudioBlocked(false);
-    } catch (e) {
-      console.error('Retry failed:', e);
-    }
+    // Try to play existing or fresh one
+    audioRef.current.play()
+      .then(() => {
+        setIsAudioBlocked(false);
+      })
+      .catch(() => {
+        // Force fresh instance if previous failed hard
+        const audio = new Audio(ATMOSPHERES[atmosphere].url);
+        audio.loop = true;
+        audio.volume = 0.5;
+        audio.play().then(() => {
+          audioRef.current = audio;
+          setIsAudioBlocked(false);
+        });
+      });
   };
 
   // Screen Wake Lock Logic
