@@ -7,23 +7,20 @@ interface BreathingGuideProps {
   onBack: () => void;
 }
 
-type Atmosphere = 'none' | 'rain' | 'waves' | 'forest' | 'white-noise';
+type Atmosphere = 'none' | 'rain' | 'white-noise';
 
 const ATMOSPHERES: Record<Atmosphere, { name: string, icon: any, color: string, url: string }> = {
   'none': { name: 'Silence', icon: Volume2, color: 'emerald', url: '' },
   'rain': { name: 'Rain', icon: CloudRain, color: 'blue', url: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3' },
-  'waves': { name: 'Ocean', icon: Waves, color: 'cyan', url: 'https://assets.mixkit.co/active_storage/sfx/2384/2384-preview.mp3' },
-  'forest': { name: 'Forest', icon: TreePine, color: 'teal', url: 'https://assets.mixkit.co/active_storage/sfx/2380/2380-preview.mp3' },
-  'white-noise': { name: 'Noise', icon: Wind, color: 'zinc', url: 'https://assets.mixkit.co/active_storage/sfx/2400/2400-preview.mp3' },
+  'white-noise': { name: 'White Noise', icon: Wind, color: 'white', url: 'https://assets.mixkit.co/active_storage/sfx/2400/2400-preview.mp3' },
 };
 
 export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
   const [phase, setPhase] = useState<'in' | 'hold' | 'out'>('in');
   const [timeLeft, setTimeLeft] = useState(4);
-  const [sessionTimeLeft, setSessionTimeLeft] = useState(120); // 2 minutes session
+  const [sessionTimeLeft, setSessionTimeLeft] = useState(120); 
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [atmosphere, setAtmosphere] = useState<Atmosphere>('none');
-  const [volume, setVolume] = useState(0.4);
   const [isAudioBlocked, setIsAudioBlocked] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -45,13 +42,13 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
 
       const audio = new Audio(ATMOSPHERES[atmosphere].url);
       audio.loop = true;
-      audio.volume = volume;
+      audio.volume = 0.5; // Fixed volume, manageable by device
       
       try {
         await audio.play();
         setIsAudioBlocked(false);
       } catch (e) {
-        console.error('Audio play blocked or failed:', e);
+        console.error('Audio play blocked:', e);
         setIsAudioBlocked(true);
       }
       audioRef.current = audio;
@@ -65,13 +62,6 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
       }
     };
   }, [atmosphere]);
-
-  // Handle Volume Change
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-    }
-  }, [volume]);
 
   const handleRetryPlay = async () => {
     if (audioRef.current) {
@@ -156,9 +146,9 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
     }
   };
 
-  const getDuration = () => {
+    const getDuration = () => {
     if (phase === 'in') return 4;
-    if (phase === 'hold') return 7;
+    if (phase === 'hold') return 4;
     return 8;
   };
 
@@ -182,26 +172,15 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div 
           animate={{
-            scale: phase === 'in' ? [1, 1.4, 1.6] : phase === 'out' ? [1.6, 1.4, 1] : 1.6,
-            opacity: phase === 'in' ? [0.1, 0.2] : phase === 'out' ? [0.2, 0.1] : 0.2,
-            rotate: [0, 360]
+            scale: phase === 'in' ? [1, 1.2, 1.3] : phase === 'out' ? [1.3, 1.2, 1] : 1.3,
+            opacity: phase === 'in' ? [0.05, 0.1] : phase === 'out' ? [0.1, 0.05] : 0.1,
           }}
-          transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+          transition={{ duration: getDuration(), ease: "easeInOut" }}
           className={cn(
-            "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full blur-[100px] transform-gpu will-change-transform",
+            "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120vh] h-[120vh] rounded-full blur-[80px] transform-gpu will-change-transform",
             atmosphere === 'none' ? 'bg-gradient-to-tr from-emerald-500/20 to-blue-500/20' : 
-            atmosphere === 'rain' ? 'bg-gradient-to-tr from-blue-500/30 to-indigo-500/30' : 
-            atmosphere === 'waves' ? 'bg-gradient-to-tr from-cyan-500/30 to-blue-600/30' : 
-            atmosphere === 'forest' ? 'bg-gradient-to-tr from-emerald-600/30 to-teal-800/30' : 'bg-white/10'
+            atmosphere === 'rain' ? 'bg-gradient-to-tr from-blue-500/30 to-indigo-500/30' : 'bg-white/10'
           )}
-        />
-        <motion.div 
-          animate={{
-            x: [0, 40, 0, -40, 0],
-            y: [0, -30, 0, 30, 0],
-          }}
-          transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-white/5 rounded-full blur-[60px] transform-gpu will-change-transform"
         />
       </div>
 
@@ -227,75 +206,58 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
             </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5 bg-white/5 backdrop-blur-md rounded-full px-4 py-2 border border-white/5">
-            <Volume2 className="w-3.5 h-3.5 text-white/40" />
-            <input 
-              type="range" 
-              min="0" 
-              max="1" 
-              step="0.01" 
-              value={volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
-              className="w-20 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-white"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            {Object.entries(ATMOSPHERES).map(([key, value]) => {
-              const Icon = value.icon;
-              return (
-                <motion.button
-                  key={key}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => setAtmosphere(key as Atmosphere)}
-                  className={cn(
-                    "p-2.5 rounded-full transition-all border",
-                    atmosphere === key 
-                      ? "bg-white text-zinc-950 border-white shadow-xl scale-110" 
-                      : "bg-white/5 text-white/40 border-transparent hover:bg-white/10 hover:text-white"
-                  )}
-                  title={value.name}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                </motion.button>
-              );
-            })}
-          </div>
+        <div className="flex items-center gap-2">
+          {Object.entries(ATMOSPHERES).map(([key, value]) => {
+            const Icon = value.icon;
+            return (
+              <motion.button
+                key={key}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setAtmosphere(key as Atmosphere)}
+                className={cn(
+                  "p-2.5 rounded-full transition-all border",
+                  atmosphere === key 
+                    ? "bg-white text-zinc-950 border-white shadow-xl scale-110" 
+                    : "bg-white/5 text-white/40 border-transparent hover:bg-white/10 hover:text-white"
+                )}
+                title={value.name}
+              >
+                <Icon className="w-3.5 h-3.5" />
+              </motion.button>
+            );
+          })}
         </div>
       </div>
 
       <AnimatePresence>
         {isAudioBlocked && atmosphere !== 'none' && (
           <motion.div 
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="absolute top-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-amber-500 text-zinc-950 text-[10px] font-black uppercase tracking-widest rounded-full shadow-2xl flex items-center gap-3 cursor-pointer"
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-emerald-500 text-zinc-950 text-[10px] font-black uppercase tracking-widest rounded-full shadow-2xl flex items-center gap-3 cursor-pointer"
             onClick={handleRetryPlay}
           >
-            <span>Sound Blocked by Browser</span>
+            <span>Activate Atmosphere Sound</span>
             <div className="w-px h-3 bg-zinc-950/20" />
             <span>Click to Enable</span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Main Content */}
-      <div className="relative flex flex-col items-center justify-center space-y-20">
+      {/* Main Content - Robust centering */}
+      <div className="flex-1 flex flex-col items-center justify-center space-y-24 w-full h-full relative">
         <div className="relative flex items-center justify-center">
             <motion.div 
                animate={{
-                 scale: phase === 'in' ? [1, 1.3] : phase === 'out' ? [1.3, 1] : 1.3,
-                 opacity: phase === 'in' ? [0.1, 0.4] : phase === 'out' ? [0.4, 0.1] : [0.4, 0.35, 0.4]
+                 scale: phase === 'in' ? [1, 1.4] : phase === 'out' ? [1.4, 1] : 1.4,
+                 opacity: phase === 'in' ? [0.1, 0.4] : phase === 'out' ? [0.4, 0.1] : 0.4
                }}
                transition={{ duration: getDuration(), ease: "easeInOut" }}
                className={cn(
-                 "absolute w-96 h-96 rounded-full blur-3xl transform-gpu will-change-transform",
-                 atmosphere === 'none' ? 'bg-emerald-500/10' : 
-                 atmosphere === 'rain' ? 'bg-blue-500/20' : 
-                 atmosphere === 'waves' ? 'bg-cyan-500/20' : 
-                 atmosphere === 'forest' ? 'bg-teal-500/20' : 'bg-white/10'
+                 "absolute w-[400px] h-[400px] rounded-full blur-[60px] transform-gpu will-change-transform",
+                 atmosphere === 'none' ? 'bg-emerald-500/20' : 
+                 atmosphere === 'rain' ? 'bg-blue-500/30' : 'bg-white/20'
                )}
             />
 
@@ -307,9 +269,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                   className={cn(
                     "transition-colors duration-1000",
                     atmosphere === 'none' ? 'text-emerald-500/40' : 
-                    atmosphere === 'rain' ? 'text-blue-400/40' : 
-                    atmosphere === 'waves' ? 'text-cyan-400/40' : 
-                    atmosphere === 'forest' ? 'text-teal-400/40' : 'text-white/40'
+                    atmosphere === 'rain' ? 'text-blue-400/40' : 'text-white/40'
                   )}
                   strokeWidth="3"
                   strokeDasharray="1005"
@@ -340,9 +300,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                   className={cn(
                     "w-full h-full rounded-full shadow-2xl relative overflow-hidden transform-gpu will-change-transform transition-all duration-1000",
                     atmosphere === 'none' ? 'bg-gradient-to-br from-emerald-400 via-teal-500 to-blue-600' : 
-                    atmosphere === 'rain' ? 'bg-gradient-to-br from-blue-400 via-indigo-600 to-zinc-950' : 
-                    atmosphere === 'waves' ? 'bg-gradient-to-br from-cyan-400 via-blue-600 to-sky-900' : 
-                    atmosphere === 'forest' ? 'bg-gradient-to-br from-emerald-500 via-teal-800 to-zinc-950' : 'bg-gradient-to-br from-zinc-700 via-zinc-800 to-zinc-950'
+                    atmosphere === 'rain' ? 'bg-gradient-to-br from-blue-400 via-indigo-600 to-zinc-950' : 'bg-gradient-to-br from-zinc-700 via-zinc-800 to-zinc-950'
                   )}
                 >
                     <div className="absolute top-[10%] left-[10%] w-[40%] h-[40%] bg-white/20 rounded-full blur-2xl" />
@@ -350,14 +308,14 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
             </div>
         </div>
 
-        <div className="text-center space-y-8">
+        <div className="text-center space-y-10">
           <div className="relative h-16 flex items-center justify-center">
             <AnimatePresence mode="wait">
                 <motion.div 
                     key={phase}
                     initial={{ opacity: 0, scale: 0.8, filter: 'blur(10px)' }}
                     animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                    exit={{ opacity: 0, scale: 1.2, filter: 'blur(10px)' }}
+                    exit={{ opacity: 0, scale: 1.2, filter: 'blur(11px)' }}
                     transition={{ duration: 0.6, ease: "easeOut" }}
                     className="flex flex-col items-center"
                 >
