@@ -24,62 +24,65 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
   const [isAudioBlocked, setIsAudioBlocked] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Audio Logic
+  // Clean up audio on unmount
   useEffect(() => {
-    if (atmosphere === 'none') {
+    return () => {
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;
       }
+    };
+  }, []);
+
+  const toggleAtmosphere = async (key: Atmosphere) => {
+    if (key === 'none' || atmosphere === key) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      setAtmosphere('none');
       setIsAudioBlocked(false);
       return;
     }
 
-    const playAudio = async () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
+    // Direct play on user gesture
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
 
-      const audio = new Audio(ATMOSPHERES[atmosphere].url);
-      audio.loop = true;
-      audio.volume = 0.5;
-      audioRef.current = audio;
-      
-      try {
-        await audio.play();
-        setIsAudioBlocked(false);
-      } catch (e) {
-        console.error('Audio play blocked:', e);
-        setIsAudioBlocked(true);
-      }
-    };
+    const audio = new Audio(ATMOSPHERES[key].url);
+    audio.loop = true;
+    audio.volume = 0.5;
+    audioRef.current = audio;
 
-    playAudio();
-
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-    };
-  }, [atmosphere]);
+    try {
+      await audio.play();
+      setAtmosphere(key);
+      setIsAudioBlocked(false);
+    } catch (e) {
+      console.error('Audio play blocked:', e);
+      setAtmosphere(key);
+      setIsAudioBlocked(true);
+    }
+  };
 
   const handleRetryPlay = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (audioRef.current) {
-      try {
-        await audioRef.current.play();
-        setIsAudioBlocked(false);
-      } catch (e) {
-        console.error('Retry failed:', e);
-        // Force fresh instance on click
-        const audio = new Audio(ATMOSPHERES[atmosphere].url);
-        audio.loop = true;
-        audio.volume = 0.5;
-        audioRef.current = audio;
-        await audio.play();
-        setIsAudioBlocked(false);
-      }
+    
+    if (atmosphere === 'none') return;
+    
+    // Create fresh instance on this click gesture
+    const audio = new Audio(ATMOSPHERES[atmosphere].url);
+    audio.loop = true;
+    audio.volume = 0.5;
+    audioRef.current = audio;
+
+    try {
+      await audio.play();
+      setIsAudioBlocked(false);
+    } catch (e) {
+      console.error('Retry failed:', e);
     }
   };
 
@@ -222,7 +225,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                 whileTap={{ scale: 0.9 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setAtmosphere(prev => prev === key ? 'none' : key as Atmosphere);
+                  toggleAtmosphere(key as Atmosphere);
                 }}
                 className={cn(
                   "p-2.5 rounded-full transition-all border",
@@ -255,10 +258,10 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
         )}
       </AnimatePresence>
 
-      {/* Main Content - Robust centering */}
-      <div className="flex-1 flex flex-col items-center justify-center w-full max-w-2xl mx-auto px-6 relative z-0">
-        <div className="w-full flex flex-col items-center justify-center space-y-16 lg:space-y-20">
-          <div className="relative flex items-center justify-center scale-90 lg:scale-100">
+      {/* Main Content - Improved centering for all viewports */}
+      <div className="flex-1 w-full h-full flex flex-col items-center justify-center relative z-0 min-h-0">
+        <div className="flex flex-col items-center justify-center space-y-12 lg:space-y-16">
+          <div className="relative flex items-center justify-center scale-[0.8] sm:scale-90 lg:scale-100 mb-4">
               <motion.div 
                  animate={{
                    scale: phase === 'in' ? [1, 1.4] : phase === 'out' ? [1.4, 1] : 1.4,
