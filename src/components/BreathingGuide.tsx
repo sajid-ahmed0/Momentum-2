@@ -7,12 +7,11 @@ interface BreathingGuideProps {
   onBack: () => void;
 }
 
-type Atmosphere = 'none' | 'rain' | 'white-noise';
+type Atmosphere = 'rain' | 'white-noise';
 
 const ATMOSPHERES: Record<Atmosphere, { name: string, icon: any, color: string, url: string }> = {
-  'none': { name: 'Silence', icon: Volume2, color: 'emerald', url: '' },
-  'rain': { name: 'Rain', icon: CloudRain, color: 'blue', url: 'https://cdn.pixabay.com/audio/2021/11/25/audio_82c2358f22.mp3' },
-  'white-noise': { name: 'White Noise', icon: Wind, color: 'white', url: 'https://cdn.pixabay.com/audio/2022/03/10/audio_c0c4587a32.mp3' },
+  'rain': { name: 'Rain', icon: CloudRain, color: 'blue', url: 'https://cdn.pixabay.com/audio/2022/01/21/audio_0313175735.mp3' },
+  'white-noise': { name: 'White Noise', icon: Wind, color: 'white', url: 'https://cdn.pixabay.com/audio/2022/03/15/audio_2e6304856f.mp3' },
 };
 
 export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
@@ -20,21 +19,12 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
   const [timeLeft, setTimeLeft] = useState(4);
   const [sessionTimeLeft, setSessionTimeLeft] = useState(120); 
   const [wakeLockActive, setWakeLockActive] = useState(false);
-  const [atmosphere, setAtmosphere] = useState<Atmosphere>('none');
+  const [atmosphere, setAtmosphere] = useState<Atmosphere>('rain');
   const [isAudioBlocked, setIsAudioBlocked] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Audio Logic
   useEffect(() => {
-    if (atmosphere === 'none') {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-      setIsAudioBlocked(false);
-      return;
-    }
-
     const playAudio = async () => {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -42,7 +32,8 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
 
       const audio = new Audio(ATMOSPHERES[atmosphere].url);
       audio.loop = true;
-      audio.volume = 0.5; // Fixed volume, manageable by device
+      audio.volume = 0.5;
+      audioRef.current = audio;
       
       try {
         await audio.play();
@@ -51,7 +42,6 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
         console.error('Audio play blocked:', e);
         setIsAudioBlocked(true);
       }
-      audioRef.current = audio;
     };
 
     playAudio();
@@ -63,13 +53,22 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
     };
   }, [atmosphere]);
 
-  const handleRetryPlay = async () => {
+  const handleRetryPlay = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (audioRef.current) {
       try {
         await audioRef.current.play();
         setIsAudioBlocked(false);
       } catch (e) {
         console.error('Retry failed:', e);
+        // Force fresh instance on click
+        const audio = new Audio(ATMOSPHERES[atmosphere].url);
+        audio.loop = true;
+        audio.volume = 0.5;
+        audioRef.current = audio;
+        await audio.play();
+        setIsAudioBlocked(false);
       }
     }
   };
@@ -161,12 +160,9 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
   const currentAtmColor = ATMOSPHERES[atmosphere].color;
 
   return (
-    <div className={cn(
+      <div className={cn(
       "fixed inset-0 z-[60] flex flex-col items-center justify-center p-6 text-white overflow-hidden transition-colors duration-1000",
-      atmosphere === 'none' ? 'bg-zinc-950' : 
-      atmosphere === 'rain' ? 'bg-[#0a1128]' : 
-      atmosphere === 'waves' ? 'bg-[#001d3d]' : 
-      atmosphere === 'forest' ? 'bg-[#081c15]' : 'bg-zinc-900'
+      atmosphere === 'rain' ? 'bg-[#0a1128]' : 'bg-zinc-900'
     )}>
       {/* Background Atmosphere */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -178,7 +174,6 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
           transition={{ duration: getDuration(), ease: "easeInOut" }}
           className={cn(
             "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120vh] h-[120vh] rounded-full blur-[80px] transform-gpu will-change-transform",
-            atmosphere === 'none' ? 'bg-gradient-to-tr from-emerald-500/20 to-blue-500/20' : 
             atmosphere === 'rain' ? 'bg-gradient-to-tr from-blue-500/30 to-indigo-500/30' : 'bg-white/10'
           )}
         />
@@ -230,7 +225,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
       </div>
 
       <AnimatePresence>
-        {isAudioBlocked && atmosphere !== 'none' && (
+        {isAudioBlocked && (
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -257,7 +252,6 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                  transition={{ duration: getDuration(), ease: "easeInOut" }}
                  className={cn(
                    "absolute w-[400px] h-[400px] rounded-full blur-[60px] transform-gpu will-change-transform",
-                   atmosphere === 'none' ? 'bg-emerald-500/20' : 
                    atmosphere === 'rain' ? 'bg-blue-500/30' : 'bg-white/20'
                  )}
               />
@@ -269,7 +263,6 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                     fill="none" stroke="currentColor" 
                     className={cn(
                       "transition-colors duration-1000",
-                      atmosphere === 'none' ? 'text-emerald-500/40' : 
                       atmosphere === 'rain' ? 'text-blue-400/40' : 'text-white/40'
                     )}
                     strokeWidth="3"
@@ -300,7 +293,6 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                     }}
                     className={cn(
                       "w-full h-full rounded-full shadow-2xl relative overflow-hidden transform-gpu will-change-transform transition-all duration-1000",
-                      atmosphere === 'none' ? 'bg-gradient-to-br from-emerald-400 via-teal-500 to-blue-600' : 
                       atmosphere === 'rain' ? 'bg-gradient-to-br from-blue-400 via-indigo-600 to-zinc-950' : 'bg-gradient-to-br from-zinc-700 via-zinc-800 to-zinc-950'
                     )}
                   >
