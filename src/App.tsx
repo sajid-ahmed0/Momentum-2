@@ -1379,20 +1379,10 @@ export default function App() {
               )}
             </AnimatePresence>
             
-            <div className="flex items-center gap-4">
-              <button 
-                onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
-                className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-zinc-500 lg:hidden"
-                title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-              >
-                {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-              </button>
-
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5">
                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                  <span className="text-[10px] lg:text-[11px] uppercase font-bold text-zinc-400 tracking-tight">System Online</span>
               </div>
-            </div>
 
             <AnimatePresence mode="wait">
               {activeTab === 'home' ? null : 
@@ -2457,7 +2447,18 @@ export default function App() {
                   className="relative w-72 h-full bg-white dark:bg-zinc-950 p-8 flex flex-col border-r border-zinc-200 dark:border-zinc-800"
                 >
                   <div className="flex items-center justify-between mb-12">
-                     <span className="text-xs font-black uppercase tracking-widest opacity-30">Account</span>
+                     <div className="flex items-center gap-4">
+                       <span className="text-xs font-black uppercase tracking-widest opacity-30">Account</span>
+                       <button 
+                         onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
+                         className="p-1 px-2.5 rounded-full bg-zinc-100 dark:bg-zinc-900 transition-colors text-zinc-500 flex items-center gap-2 border border-zinc-200 dark:border-zinc-800"
+                       >
+                         {theme === 'light' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+                         <span className="text-[9px] font-black uppercase tracking-tight">
+                           {theme === 'light' ? 'Dark' : 'Light'}
+                         </span>
+                       </button>
+                     </div>
                      <button onClick={() => setIsMenuOpen(false)} className="p-2 -mr-2 text-zinc-400">
                        <X className="w-5 h-5" />
                      </button>
