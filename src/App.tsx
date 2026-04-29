@@ -1,4 +1,4 @@
-// v1.0.1 - Triggering workflow test
+// v1.0.2 - Triggering workflow test
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   collection, 
