@@ -127,7 +127,8 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
           <span className="text-[10px] font-black uppercase tracking-[0.3em] opacity-0 group-hover:opacity-100 transition-all">Exit</span>
         </motion.button>
 
-        <div className="flex flex-col items-end text-right">
+        {/* Centered Immersion Info */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center text-center">
             <div className="flex items-center gap-3">
               <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white opacity-40">Immersion</span>
               {wakeLockActive && <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />}
@@ -136,6 +137,8 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                 {formatSessionTime(sessionTimeLeft)}
             </div>
         </div>
+
+        <div className="w-12 h-12" /> {/* Right balance spacer */}
       </div>
 
       {/* Main Content - Improved centering for all viewports */}
