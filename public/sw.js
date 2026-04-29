@@ -42,10 +42,16 @@ self.addEventListener('fetch', (event) => {
       }
 
       return fetch(event.request).then((response) => {
-        // Don't cache firestore/auth requests - they handle their own persistence
-        if (!response || response.status !== 200 || response.type !== 'basic' || 
-            event.request.url.includes('firestore.googleapis.com') ||
-            event.request.url.includes('google.com')) {
+        // Cache media files even if they're from other domains (opaque or CORS)
+        const isMedia = event.request.destination === 'audio' || 
+                        event.request.url.endsWith('.mp3') ||
+                        event.request.url.endsWith('.wav');
+
+        // Don't cache firestore/auth requests
+        if (!response || response.status !== 200 || 
+            (!isMedia && (response.type !== 'basic' || 
+             event.request.url.includes('firestore.googleapis.com') ||
+             event.request.url.includes('google.com')))) {
           return response;
         }
 

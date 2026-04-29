@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Volume2, VolumeX } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface BreathingGuideProps {
@@ -12,6 +12,31 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
   const [timeLeft, setTimeLeft] = useState(4);
   const [sessionTimeLeft, setSessionTimeLeft] = useState(300); // 5 minute standard
   const [wakeLockActive, setWakeLockActive] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Audio setup
+  useEffect(() => {
+    const audio = new Audio('https://assets.mixkit.co/music/preview/mixkit-meditation-vibe-627.mp3');
+    audio.loop = true;
+    audioRef.current = audio;
+    
+    return () => {
+      audio.pause();
+      audioRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      if (!isMuted) {
+        audioRef.current.play().catch(e => console.error("Audio play failed:", e));
+      } else {
+        audioRef.current.pause();
+      }
+    }
+  }, [isMuted]);
 
   // Screen Wake Lock Logic
   useEffect(() => {
@@ -138,7 +163,15 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
             </div>
         </div>
 
-        <div className="w-12 h-12" /> {/* Right balance spacer */}
+        <div className="flex items-center gap-2">
+          <motion.button 
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setIsMuted(!isMuted)}
+            className="p-3 bg-white/5 hover:bg-white/10 rounded-full transition-colors border border-white/5"
+          >
+            {isMuted ? <VolumeX className="w-4 h-4 text-white/40" /> : <Volume2 className="w-4 h-4 text-white" />}
+          </motion.button>
+        </div>
       </div>
 
       {/* Main Content - Improved centering for all viewports */}
