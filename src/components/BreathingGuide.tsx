@@ -8,9 +8,9 @@ interface BreathingGuideProps {
 }
 
 export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
-  const [phase, setPhase] = useState<'in' | 'hold' | 'out'>('in');
+  const [phase, setPhase] = useState<'in' | 'hold' | 'out' | 'rest'>('in');
   const [timeLeft, setTimeLeft] = useState(4);
-  const [sessionTimeLeft, setSessionTimeLeft] = useState(120); 
+  const [sessionTimeLeft, setSessionTimeLeft] = useState(300); // 5 minute standard
   const [wakeLockActive, setWakeLockActive] = useState(false);
 
   // Screen Wake Lock Logic
@@ -53,10 +53,13 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
         if (prev <= 1) {
           if (phase === 'in') {
             setPhase('hold');
-            return 7;
+            return 4;
           } else if (phase === 'hold') {
             setPhase('out');
-            return 8;
+            return 4;
+          } else if (phase === 'out') {
+            setPhase('rest');
+            return 4;
           } else {
             setPhase('in');
             return 4;
@@ -82,13 +85,12 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
       case 'in': return 'Breathe In';
       case 'hold': return 'Hold';
       case 'out': return 'Breathe Out';
+      case 'rest': return 'Hold';
     }
   };
 
-    const getDuration = () => {
-    if (phase === 'in') return 4;
-    if (phase === 'hold') return 4;
-    return 8;
+  const getDuration = () => {
+    return 4;
   };
 
   const formatSessionTime = (seconds: number) => {
@@ -114,28 +116,26 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
       </div>
 
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 p-8 flex items-center justify-between z-10 transition-all">
+      <div className="absolute top-0 left-0 right-0 p-10 flex items-center justify-between z-10">
         <motion.button 
           whileHover={{ x: -2 }}
           whileTap={{ scale: 0.95 }}
           onClick={onBack}
-          className="p-3 hover:bg-white/10 rounded-full transition-colors flex items-center gap-3 group"
+          className="p-3 hover:bg-white/10 rounded-full transition-colors flex items-center gap-4 group"
         >
           <ChevronLeft className="w-5 h-5 text-white/40 group-hover:text-white" />
-          <span className="text-[10px] font-black uppercase tracking-[0.3em] opacity-0 group-hover:opacity-100 transition-all">End Session</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] opacity-0 group-hover:opacity-100 transition-all">Exit</span>
         </motion.button>
 
-        <div className="flex flex-col items-center">
-            <div className="flex items-center gap-2">
+        <div className="flex flex-col items-end text-right">
+            <div className="flex items-center gap-3">
               <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white opacity-40">Immersion</span>
-              {wakeLockActive && <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />}
+              {wakeLockActive && <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />}
             </div>
-            <div className="text-[11px] font-mono font-black text-white mt-1 tabular-nums">
+            <div className="text-[14px] font-mono font-black text-white mt-2 tabular-nums tracking-wider opacity-90">
                 {formatSessionTime(sessionTimeLeft)}
             </div>
         </div>
-
-        <div className="w-10 h-10" /> {/* Spacer to keep center balanced */}
       </div>
 
       {/* Main Content - Improved centering for all viewports */}
@@ -235,15 +235,15 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
             className="flex flex-col items-center space-y-4"
         >
             <div className="w-[1px] h-16 bg-gradient-to-b from-white/30 to-transparent" />
-            <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white/40">Focused Breathing</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white/40 tracking-widest">BOX BREATHING</span>
         </motion.div>
         
         <div className="flex bg-white/10 backdrop-blur-2xl p-1.5 rounded-full border border-white/10 shadow-2xl">
-            {['in', 'hold', 'out'].map((p) => (
+            {['in', 'hold', 'out', 'rest'].map((p) => (
               <div key={p} className={cn(
-                  "px-8 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all duration-700",
+                  "px-6 py-2.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all duration-700",
                   phase === p ? "bg-white text-zinc-950 shadow-xl scale-105" : "text-white/20"
-              )}>{p}</div>
+              )}>{p === 'rest' ? 'hold' : p}</div>
             ))}
         </div>
       </div>
