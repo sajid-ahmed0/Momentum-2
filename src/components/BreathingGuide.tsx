@@ -13,13 +13,25 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
   const [sessionTimeLeft, setSessionTimeLeft] = useState(300); // 5 minute standard
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [audioError, setAudioError] = useState<string | null>(null);
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Audio setup
   useEffect(() => {
-    const audio = new Audio('/meditation.mp3');
+    const audio = new Audio('/meditation.mp3?v=1');
     audio.loop = true;
+    
+    audio.oncanplaythrough = () => {
+      console.log("Audio can play through");
+      setAudioError(null);
+    };
+
+    audio.onerror = (e) => {
+      console.error("Audio error:", e);
+      setAudioError("Failed to load audio file. Please ensure it's a valid audio file.");
+    };
+
     audioRef.current = audio;
     
     return () => {
@@ -31,7 +43,10 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
   useEffect(() => {
     if (audioRef.current) {
       if (!isMuted) {
-        audioRef.current.play().catch(e => console.error("Audio play failed:", e));
+        audioRef.current.play().catch(e => {
+          console.error("Audio play failed:", e);
+          setAudioError("Browser blocked auto-play or file is invalid.");
+        });
       } else {
         audioRef.current.pause();
       }
@@ -164,10 +179,20 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
         </div>
 
         <div className="flex items-center gap-2">
+          {audioError && (
+            <span className="text-[9px] text-rose-500 font-bold uppercase tracking-wider bg-rose-500/10 px-2 py-1 rounded-md">
+              Audio Error
+            </span>
+          )}
           <motion.button 
             whileTap={{ scale: 0.9 }}
             onClick={() => setIsMuted(!isMuted)}
-            className="p-3 bg-white/5 hover:bg-white/10 rounded-full transition-colors border border-white/5"
+            className={cn(
+              "p-3 rounded-full transition-all border",
+              isMuted 
+                ? "bg-white/5 hover:bg-white/10 border-white/5" 
+                : "bg-white/20 hover:bg-white/30 border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+            )}
           >
             {isMuted ? <VolumeX className="w-4 h-4 text-white/40" /> : <Volume2 className="w-4 h-4 text-white" />}
           </motion.button>
