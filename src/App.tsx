@@ -1632,6 +1632,47 @@ export default function App() {
                   )}
                 </div>
 
+                {/* --- Milestones Section --- */}
+                <div className="mb-16">
+                  <div className="flex items-center justify-between mb-8">
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 mb-1">Target Tracking</h4>
+                      <h3 className="text-xl font-black uppercase tracking-tighter dark:text-zinc-100">Upcoming Milestones</h3>
+                    </div>
+                    <Button 
+                      variant="secondary" 
+                      onClick={() => { setEditingExam(null); setShowExamModal(true); }}
+                      className="text-[10px] font-bold uppercase tracking-widest px-4 border-dashed border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 h-9"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Milestone
+                    </Button>
+                  </div>
+
+                  {exams.length === 0 ? (
+                    <div className="p-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-zinc-300 dark:text-zinc-700">
+                      <GraduationCap className="w-12 h-12 mb-4 opacity-20" />
+                      <p className="font-bold uppercase tracking-widest text-[10px]">No active countdowns</p>
+                      <button 
+                        onClick={() => { setEditingExam(null); setShowExamModal(true); }}
+                        className="mt-4 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+                      >
+                        Set your first exam goal
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {exams.map(exam => (
+                        <ExamCountdown 
+                          key={exam.id} 
+                          exam={exam} 
+                          onEdit={(e) => { setEditingExam(e); setShowExamModal(true); }}
+                          onDelete={handleDeleteExam}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
                   <div className="col-span-1 md:col-span-2 p-10 bg-zinc-900 text-white rounded-2xl shadow-2xl relative overflow-hidden dark:bg-zinc-100 dark:text-zinc-900">
                      <div className="relative z-10">
@@ -1689,47 +1730,6 @@ export default function App() {
                     </div>
                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Total Entries</p>
                   </div>
-                </div>
-
-                {/* --- Milestones Section --- */}
-                <div className="mt-16">
-                  <div className="flex items-center justify-between mb-8">
-                    <div>
-                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 mb-1">Target Tracking</h4>
-                      <h3 className="text-xl font-black uppercase tracking-tighter dark:text-zinc-100">Upcoming Milestones</h3>
-                    </div>
-                    <Button 
-                      variant="secondary" 
-                      onClick={() => { setEditingExam(null); setShowExamModal(true); }}
-                      className="text-[10px] font-bold uppercase tracking-widest px-4 border-dashed border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 h-9"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Add Milestone
-                    </Button>
-                  </div>
-
-                  {exams.length === 0 ? (
-                    <div className="p-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-zinc-300 dark:text-zinc-700">
-                      <GraduationCap className="w-12 h-12 mb-4 opacity-20" />
-                      <p className="font-bold uppercase tracking-widest text-[10px]">No active countdowns</p>
-                      <button 
-                        onClick={() => { setEditingExam(null); setShowExamModal(true); }}
-                        className="mt-4 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
-                      >
-                        Set your first exam goal
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      {exams.map(exam => (
-                        <ExamCountdown 
-                          key={exam.id} 
-                          exam={exam} 
-                          onEdit={(e) => { setEditingExam(e); setShowExamModal(true); }}
-                          onDelete={handleDeleteExam}
-                        />
-                      ))}
-                    </div>
-                  )}
                 </div>
               </motion.div>
             ) : activeTab === 'habits' ? (

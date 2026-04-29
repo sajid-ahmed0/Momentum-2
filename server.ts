@@ -9,7 +9,7 @@ import { getFirestore, collection, getDocs, query, where } from "firebase/firest
 import fs from "fs";
 import { format, parse, isAfter, startOfToday } from "date-fns";
 
-const __filename = fileURLToPath(import.meta.env ? import.meta.url : "file://" + __filename);
+const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Load Firebase Config
@@ -53,7 +53,7 @@ async function startServer() {
         const subsSnapshot = await getDocs(collection(db, "pushSubscriptions"));
         const examsSnapshot = await getDocs(collection(db, "exams"));
         
-        const exams = examsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const exams = examsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
         const today = startOfToday();
 
         for (const subDoc of subsSnapshot.docs) {

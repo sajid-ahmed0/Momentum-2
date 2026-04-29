@@ -64,9 +64,8 @@ export function sendNotification(title: string, options?: NotificationOptions) {
         registration.showNotification(title, {
           icon: '/manifest.json',
           badge: '/manifest.json',
-          vibrate: [200, 100, 200],
           ...options
-        });
+        } as any);
       });
     } else {
       try {
