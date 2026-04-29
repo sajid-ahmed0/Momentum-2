@@ -18,7 +18,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
 
   // Audio setup
   useEffect(() => {
-    const audio = new Audio('https://assets.mixkit.co/music/preview/mixkit-meditation-vibe-627.mp3');
+    const audio = new Audio('/meditation.mp3');
     audio.loop = true;
     audioRef.current = audio;
     
