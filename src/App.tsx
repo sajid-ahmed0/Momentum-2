@@ -73,6 +73,8 @@ import { Habit, HabitLog, TimeBlock, OverthinkingLog, DailyTask, JournalEntry, U
 import { cn } from './lib/utils';
 import { BreathingGuide } from './components/BreathingGuide';
 
+import { requestNotificationPermission, sendNotification, subscribeToPushNotifications } from './lib/notifications';
+
 // --- Components ---
 
 interface HabitCellProps {
@@ -356,6 +358,9 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'default'
+  );
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -606,6 +611,110 @@ export default function App() {
       unsubExams();
     };
   }, [user]);
+
+  // Notification Checker
+  useEffect(() => {
+    if (!user || notificationPermission !== 'granted') return;
+
+    const checkNotifications = () => {
+      const now = new Date();
+      const todayKey = format(now, 'yyyy-MM-dd');
+      
+      // 1. DAILY COUNTDOWN CHECK
+      const dailyKey = `daily_countdown_${todayKey}`;
+      if (!localStorage.getItem(dailyKey)) {
+        // Find the closest upcoming exam
+        const upcomingExams = exams
+          .map(e => ({ ...e, dateObj: parse(e.date, 'yyyy-MM-dd', new Date()) }))
+          .filter(e => e.dateObj > now)
+          .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+
+        if (upcomingExams.length > 0) {
+          const nextExam = upcomingExams[0];
+          const daysLeft = Math.ceil((nextExam.dateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          
+          sendNotification(`Milestone Countdown: ${nextExam.title}`, {
+            body: `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} remaining until your exam. Stay focused!`,
+            tag: 'daily-countdown',
+            icon: '/manifest.json'
+          });
+          localStorage.setItem(dailyKey, 'true');
+        }
+      }
+
+      // 2. IMMEDIATE REMINDERS (within 30 mins)
+      const thirtyMinsFromNow = new Date(now.getTime() + 30 * 60 * 1000);
+      
+      exams.forEach(exam => {
+        try {
+          const examDate = parse(`${exam.date} ${exam.time}`, 'yyyy-MM-dd HH:mm', new Date());
+          if (examDate > now && examDate <= thirtyMinsFromNow) {
+            const notifiedKey = `notified_exam_${exam.id}`;
+            if (!localStorage.getItem(notifiedKey)) {
+              sendNotification(`URGENT: ${exam.title}`, {
+                body: `Starts in less than 30 minutes! Time to lock in.`,
+                tag: exam.id,
+                requireInteraction: true
+              });
+              localStorage.setItem(notifiedKey, 'true');
+            }
+          }
+        } catch (e) { console.error('Date parse error', e); }
+      });
+
+      tasks.forEach(task => {
+        if (!task.completed && task.time) {
+          try {
+            const taskDate = parse(`${task.date} ${task.time}`, 'yyyy-MM-dd HH:mm', new Date());
+            if (taskDate > now && taskDate <= thirtyMinsFromNow) {
+              const notifiedKey = `notified_task_${task.id}`;
+              if (!localStorage.getItem(notifiedKey)) {
+                sendNotification(`Task Starting: ${task.task}`, {
+                  body: `Scheduled for ${task.time}.`,
+                  tag: task.id
+                });
+                localStorage.setItem(notifiedKey, 'true');
+              }
+            }
+          } catch (e) { console.error('Date parse error', e); }
+        }
+      });
+    };
+
+    // Run initially for daily check
+    checkNotifications();
+
+    const checkInterval = setInterval(checkNotifications, 60000); // Check every minute for timed reminders
+    return () => clearInterval(checkInterval);
+  }, [exams, tasks, user, notificationPermission]);
+
+  const handleRequestNotifications = async () => {
+    const granted = await requestNotificationPermission();
+    setNotificationPermission(granted ? 'granted' : 'denied');
+    
+    if (granted && user) {
+      const subscription = await subscribeToPushNotifications();
+      if (subscription) {
+        // Save to Firestore for the server to use
+        const subData = {
+          uid: user.uid,
+          subscription: subscription.toJSON(),
+          updatedAt: Date.now()
+        };
+        
+        try {
+          // Check if already exists for this device (simplified: just add)
+          await addDoc(collection(db, 'pushSubscriptions'), subData);
+          
+          sendNotification("Push Notifications Active", {
+            body: "You'll now receive daily milestone updates at 7 AM even if the app is closed.",
+          });
+        } catch (e) {
+          console.error("Error saving subscription:", e);
+        }
+      }
+    }
+  };
 
   const formatTime12h = (time: string) => {
     if (!time) return '';
@@ -1496,10 +1605,31 @@ export default function App() {
                 exit={{ opacity: 0, scale: 0.98 }}
                 className="p-10 max-w-6xl mx-auto"
               >
-                <div className="mb-24">
-                  <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-600 mb-4 block">System Status: Active</span>
-                  <h2 className="text-5xl font-black tracking-tighter uppercase dark:text-zinc-100 mb-4">Welcome Back, {(!user || user.isAnonymous) ? 'Protege' : user.displayName?.split(' ')[0]}</h2>
-                  <div className="h-0.5 w-24 bg-zinc-900 dark:bg-zinc-100" />
+                <div className="mb-24 flex flex-col md:flex-row md:items-end justify-between gap-6">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-600 mb-4 block">System Status: Active</span>
+                    <h2 className="text-5xl font-black tracking-tighter uppercase dark:text-zinc-100 mb-4">Welcome Back, {(!user || user.isAnonymous) ? 'Protege' : user.displayName?.split(' ')[0]}</h2>
+                    <div className="h-0.5 w-24 bg-zinc-900 dark:bg-zinc-100" />
+                  </div>
+                  
+                  {notificationPermission !== 'granted' && (
+                    <motion.div 
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="p-6 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-2xl flex items-center gap-6 shadow-2xl border border-zinc-800 dark:border-zinc-200"
+                    >
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-60">Mobile Updates</p>
+                        <p className="text-sm font-bold tracking-tight">Enable Milestone Reminders</p>
+                      </div>
+                      <Button 
+                        onClick={handleRequestNotifications} 
+                        className="bg-emerald-500 border-emerald-500 hover:bg-emerald-600 text-white h-10 px-4 text-[10px] font-black uppercase tracking-widest whitespace-nowrap"
+                      >
+                        Enable Now
+                      </Button>
+                    </motion.div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">

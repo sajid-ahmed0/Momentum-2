@@ -65,3 +65,50 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// Handle Notifications in the background
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  
+  // Close the notification
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // If a window client is already open, focus it
+      for (const client of clientList) {
+        if (client.url === '/' && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // Otherwise, open a new window
+      if (clients.openWindow) {
+        return clients.openWindow('/');
+      }
+    })
+  );
+});
+
+self.addEventListener('push', (event) => {
+  let data = { title: 'New Notification', body: 'You have a new update.' };
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data = { title: 'Notification', body: event.data.text() };
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: '/manifest.json',
+    badge: '/manifest.json',
+    vibrate: [200, 100, 200],
+    data: {
+      dateOfArrival: Date.now(),
+      primaryKey: '2'
+    }
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});

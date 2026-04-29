@@ -138,6 +138,17 @@
         "timestamp": { "type": "number" }
       },
       "required": ["title", "date", "time", "uid", "timestamp"]
+    },
+    "PushSubscriptionData": {
+      "title": "PushSubscriptionData",
+      "description": "Web push subscription details for a user device.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "subscription": { "type": "object" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["uid", "subscription", "updatedAt"]
     }
   },
   "firestore": {
@@ -176,6 +187,10 @@
     "/exams/{examId}": {
       "schema": "Exam",
       "description": "Upcoming exam countdowns."
+    },
+    "/pushSubscriptions/{subId}": {
+      "schema": "PushSubscriptionData",
+      "description": "User device push subscriptions."
     }
   }
 }
