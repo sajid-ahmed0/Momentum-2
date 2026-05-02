@@ -111,7 +111,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
             opacity: phase === 'in' ? [0.1, 0.2] : phase === 'out' ? [0.2, 0.1] : 0.2
           }}
           transition={{ duration: getDuration(), ease: "easeInOut" }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full blur-[120px] transform-gpu will-change-transform bg-emerald-500/20"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full blur-[120px] transform-gpu will-change-transform bg-cyan-500/20"
         />
       </div>
 
@@ -136,7 +136,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
 
         <div className="w-12 h-12 flex items-center justify-center">
           {wakeLockActive && (
-            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
+            <div className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse shadow-[0_0_15px_rgba(6,182,212,0.5)]" />
           )}
         </div>
       </div>
@@ -151,7 +151,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                    opacity: phase === 'in' ? [0.2, 0.5] : phase === 'out' ? [0.5, 0.2] : 0.5
                  }}
                  transition={{ duration: getDuration(), ease: "easeInOut" }}
-                 className="absolute w-[320px] h-[320px] rounded-full blur-[60px] transform-gpu will-change-transform bg-emerald-500/30"
+                 className="absolute w-[320px] h-[320px] rounded-full blur-[60px] transform-gpu will-change-transform bg-cyan-500/30"
               />
 
               <svg 
@@ -162,7 +162,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                   <motion.circle 
                     cx="100" cy="100" r="95" 
                     fill="none" stroke="currentColor" 
-                    className="text-emerald-500/40"
+                    className="text-cyan-500/40"
                     strokeWidth="1.5"
                     strokeDasharray="597"
                     animate={{ strokeDashoffset: [597, 0] }}
@@ -185,14 +185,14 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                       scale: phase === 'in' ? [0.8, 1.2] : phase === 'out' ? [1.2, 0.8] : 1.2,
                     }}
                     transition={{ duration: getDuration(), ease: "easeInOut" }}
-                    className="w-full h-full rounded-full bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-sm relative overflow-hidden"
+                    className="w-full h-full rounded-full bg-cyan-500/10 border border-cyan-500/20 backdrop-blur-sm relative overflow-hidden"
                   >
                       <motion.div 
                         animate={{
                           y: phase === 'in' ? ['100%', '0%'] : phase === 'out' ? ['0%', '100%'] : '0%'
                         }}
                         transition={{ duration: getDuration(), ease: "linear" }}
-                        className="absolute inset-0 bg-gradient-to-t from-emerald-500/30 to-emerald-400/10"
+                        className="absolute inset-0 bg-gradient-to-t from-cyan-500/30 to-cyan-400/10"
                       />
                   </motion.div>
               </div>
