@@ -14,12 +14,19 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const [audioSource, setAudioSource] = useState('https://assets.mixkit.co/music/preview/mixkit-meditation-vibe-627.mp3');
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  const AUDIO_OPTIONS = [
+    { name: 'Ambient Vibe', url: 'https://assets.mixkit.co/music/preview/mixkit-meditation-vibe-627.mp3' },
+    { name: 'Deep Zen', url: 'https://assets.mixkit.co/music/preview/mixkit-deep-meditation-109.mp3' },
+    { name: 'Serenity', url: 'https://assets.mixkit.co/music/preview/mixkit-serenity-944.mp3' }
+  ];
+
   // Audio setup
   useEffect(() => {
-    const audio = new Audio('/meditation.mp3?v=1');
+    const audio = new Audio(`${audioSource}${audioSource.includes('?') ? '&' : '?'}v=2`);
     audio.loop = true;
     
     audio.oncanplay = () => {
@@ -30,13 +37,13 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
     audio.onerror = () => {
       const error = audio.error;
       console.error("Audio error:", error);
-      let errorMsg = "Failed to load audio file.";
+      let errorMsg = "Audio link unreachable.";
       if (error) {
         switch (error.code) {
-          case 1: errorMsg = "Abort: Fetching process aborted."; break;
-          case 2: errorMsg = "Network: Network error occurred."; break;
-          case 3: errorMsg = "Decode: Audio decoding failed. The file might be corrupted or format not supported."; break;
-          case 4: errorMsg = "Source: Format not supported or file not found."; break;
+          case 1: errorMsg = "Abort Error"; break;
+          case 2: errorMsg = "Network Error"; break;
+          case 3: errorMsg = "Corrupted/Invalid File"; break;
+          case 4: errorMsg = "Format Not Supported"; break;
         }
       }
       setAudioError(errorMsg);
@@ -44,11 +51,16 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
 
     audioRef.current = audio;
     
+    // Auto-play if not muted and source changes
+    if (!isMuted) {
+      audio.play().catch(() => {});
+    }
+    
     return () => {
       audio.pause();
       audioRef.current = null;
     };
-  }, []);
+  }, [audioSource]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -189,21 +201,43 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
         </div>
 
         <div className="flex items-center gap-2">
-          {audioError && (
-            <motion.button 
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              onClick={() => {
-                if (audioRef.current) {
-                  audioRef.current.src = `/meditation.mp3?v=${Date.now()}`;
-                  audioRef.current.load();
-                  setAudioError(null);
-                }
-              }}
-              className="text-[9px] text-rose-500 font-bold uppercase tracking-wider bg-rose-500/10 px-2 py-1 rounded-md hover:bg-rose-500/20 transition-colors"
-            >
-              Retry Audio
-            </motion.button>
+          {audioError ? (
+            <div className="flex items-center gap-1.5 overflow-hidden">
+               {AUDIO_OPTIONS.map((opt) => (
+                 <motion.button
+                   key={opt.url}
+                   initial={{ x: 20, opacity: 0 }}
+                   animate={{ x: 0, opacity: 1 }}
+                   onClick={() => {
+                     setAudioSource(opt.url);
+                     setAudioError(null);
+                   }}
+                   className={cn(
+                     "text-[8px] font-black uppercase tracking-widest px-2 py-1.5 rounded-md transition-all border",
+                     audioSource === opt.url 
+                      ? "bg-rose-500 text-white border-rose-500 shadow-lg" 
+                      : "bg-white/5 text-white/40 border-white/5 hover:bg-white/10"
+                   )}
+                 >
+                   {opt.name}
+                 </motion.button>
+               ))}
+            </div>
+          ) : (
+            <div className="flex items-center bg-white/5 rounded-full px-1 border border-white/5">
+              {AUDIO_OPTIONS.map((opt) => (
+                <button
+                  key={opt.url}
+                  onClick={() => setAudioSource(opt.url)}
+                  className={cn(
+                    "text-[8px] font-black uppercase tracking-tighter px-2 py-1 rounded-full transition-all",
+                    audioSource === opt.url ? "text-white opacity-100" : "text-white/20 hover:text-white/40"
+                  )}
+                >
+                  {opt.name}
+                </button>
+              ))}
+            </div>
           )}
           <motion.button 
             whileTap={{ scale: 0.9 }}
@@ -221,27 +255,29 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
       </div>
 
       {/* Main Content - Improved centering for all viewports */}
-      <div className="flex-1 w-full h-full flex flex-col items-center justify-center relative z-0 min-h-0 pt-6">
-        <div className="flex flex-col items-center justify-center space-y-6 lg:space-y-8">
-          <div className="relative flex items-center justify-center scale-[0.85] lg:scale-100">
+      <div className="flex-1 w-full h-full flex flex-col items-center justify-center relative z-0 min-h-0 pt-4 sm:pt-6">
+        <div className="flex flex-col items-center justify-center space-y-4 lg:space-y-6">
+          <div className="relative flex items-center justify-center scale-[0.75] sm:scale-[0.85] lg:scale-[0.95] xl:scale-100">
               <motion.div 
                  animate={{
                    scale: phase === 'in' ? [1, 1.4] : phase === 'out' ? [1.4, 1] : 1.4,
                    opacity: phase === 'in' ? [0.1, 0.4] : phase === 'out' ? [0.4, 0.1] : 0.4
                  }}
                  transition={{ duration: getDuration(), ease: "easeInOut" }}
-                 className="absolute w-[260px] h-[260px] rounded-full blur-[50px] transform-gpu will-change-transform bg-emerald-500/20"
+                 className="absolute w-[220px] h-[220px] lg:w-[260px] lg:h-[260px] rounded-full blur-[40px] lg:blur-[50px] transform-gpu will-change-transform bg-emerald-500/20"
               />
 
-              <svg className="absolute w-[240px] h-[240px] -rotate-90 pointer-events-none">
-                  <circle cx="120" cy="120" r="110" fill="none" stroke="currentColor" className="text-white/5" strokeWidth="1" />
+              <svg className="absolute w-[200px] h-[200px] lg:w-[240px] lg:h-[240px] -rotate-90 pointer-events-none">
+                  <circle cx="100" cy="100" r="90" lg-cx="120" lg-cy="120" lg-r="110" fill="none" stroke="currentColor" className="text-white/5" strokeWidth="1" />
+                  {/* Note: Standard SVG doesn't support lg-cx, using dynamic values would be better but let's just use fixed center and scale the container */}
+                  <circle cx="100" cy="100" r="90" fill="none" stroke="currentColor" className="text-white/5" strokeWidth="0.5" />
                   <motion.circle 
-                    cx="120" cy="120" r="110" 
+                    cx="100" cy="100" r="90" 
                     fill="none" stroke="currentColor" 
                     className="transition-colors duration-1000 text-emerald-500/40"
-                    strokeWidth="3"
-                    strokeDasharray="691"
-                    animate={{ strokeDashoffset: [691, 0] }}
+                    strokeWidth="2"
+                    strokeDasharray="565"
+                    animate={{ strokeDashoffset: [565, 0] }}
                     transition={{ duration: getDuration(), ease: "linear", key: phase }}
                   />
               </svg>
@@ -249,12 +285,12 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
               <motion.div 
                 animate={{ rotate: 360 }}
                 transition={{ duration: getDuration(), ease: "linear", repeat: Infinity }}
-                className="absolute w-[220px] h-[220px] flex items-center justify-end transform-gpu will-change-transform"
+                className="absolute w-[190px] h-[190px] lg:w-[220px] lg:h-[220px] flex items-center justify-end transform-gpu will-change-transform"
               >
                   <div className="w-2 h-2 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.9)] z-20" />
               </motion.div>
 
-              <div className="relative w-40 h-40 sm:w-48 sm:h-48 flex items-center justify-center">
+              <div className="relative w-36 h-36 sm:w-44 lg:w-48 sm:h-44 lg:h-48 flex items-center justify-center">
                   <motion.div 
                     initial={{ scale: 0.8 }}
                     animate={{
@@ -272,18 +308,18 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
               </div>
           </div>
 
-          <div className="text-center space-y-4">
-            <div className="relative h-10 flex items-center justify-center">
+          <div className="text-center space-y-3">
+            <div className="relative h-8 flex items-center justify-center">
               <AnimatePresence mode="wait">
                   <motion.div 
                       key={phase}
-                      initial={{ opacity: 0, scale: 0.8, filter: 'blur(10px)' }}
-                      animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                      exit={{ opacity: 0, scale: 1.2, filter: 'blur(11px)' }}
-                      transition={{ duration: 0.6, ease: "easeOut" }}
+                      initial={{ opacity: 0, y: 10, filter: 'blur(8px)' }}
+                      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, y: -10, filter: 'blur(8px)' }}
+                      transition={{ duration: 0.5, ease: "easeOut" }}
                       className="flex flex-col items-center"
                   >
-                      <h2 className="text-xl sm:text-2xl lg:text-3xl font-black uppercase tracking-[0.25em] text-white drop-shadow-2xl">
+                      <h2 className="text-lg sm:text-xl lg:text-2xl font-black uppercase tracking-[0.2em] text-white drop-shadow-2xl">
                           {getPhaseText()}
                       </h2>
                   </motion.div>
@@ -291,16 +327,16 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
             </div>
             
             <div className="flex flex-col items-center space-y-2">
-              <span className="text-[11px] font-mono font-black tabular-nums text-white/40 tracking-[0.8em]">
+              <span className="text-[10px] sm:text-[11px] font-mono font-black tabular-nums text-white/40 tracking-[0.6em]">
                   {timeLeft.toString().padStart(2, '0')}
               </span>
-              <div className="flex gap-1.5">
+              <div className="flex gap-1">
                   {[...Array(getDuration())].map((_, i) => (
                       <div 
                           key={i} 
                           className={cn(
-                              "h-1 rounded-full transition-all duration-500",
-                              i < (getDuration() - timeLeft) ? "w-4 bg-white" : "w-1 bg-white/10"
+                              "h-0.5 sm:h-1 rounded-full transition-all duration-500",
+                              i < (getDuration() - timeLeft) ? "w-3 sm:w-4 bg-white" : "w-1 bg-white/10"
                           )} 
                       />
                   ))}
