@@ -111,7 +111,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
             opacity: phase === 'in' ? [0.1, 0.2] : phase === 'out' ? [0.2, 0.1] : 0.2
           }}
           transition={{ duration: getDuration(), ease: "easeInOut" }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full blur-[120px] transform-gpu will-change-transform bg-cyan-500/20"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full blur-[120px] transform-gpu will-change-transform bg-emerald-500/20"
         />
       </div>
 
@@ -128,7 +128,10 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
         </motion.button>
 
         <div className="flex flex-col items-center">
-            <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white opacity-40">Immersion</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white opacity-40 flex items-center gap-2">
+              IMMERSION
+              <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+            </span>
             <div className="text-[14px] font-mono font-black text-white mt-1 tabular-nums tracking-wider">
                 {formatSessionTime(sessionTimeLeft)}
             </div>
@@ -136,7 +139,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
 
         <div className="w-12 h-12 flex items-center justify-center">
           {wakeLockActive && (
-            <div className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse shadow-[0_0_15px_rgba(6,182,212,0.5)]" />
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
           )}
         </div>
       </div>
@@ -151,7 +154,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                    opacity: phase === 'in' ? [0.2, 0.5] : phase === 'out' ? [0.5, 0.2] : 0.5
                  }}
                  transition={{ duration: getDuration(), ease: "easeInOut" }}
-                 className="absolute w-[320px] h-[320px] rounded-full blur-[60px] transform-gpu will-change-transform bg-cyan-500/30"
+                 className="absolute w-[320px] h-[320px] rounded-full blur-[60px] transform-gpu will-change-transform bg-emerald-400/30"
               />
 
               <svg 
@@ -162,7 +165,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                   <motion.circle 
                     cx="100" cy="100" r="95" 
                     fill="none" stroke="currentColor" 
-                    className="text-cyan-500/40"
+                    className="text-emerald-400"
                     strokeWidth="1.5"
                     strokeDasharray="597"
                     animate={{ strokeDashoffset: [597, 0] }}
@@ -175,25 +178,20 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                 transition={{ duration: getDuration(), ease: "linear", repeat: Infinity }}
                 className="absolute w-[280px] h-[280px] flex items-center justify-end transform-gpu will-change-transform"
               >
-                  <div className="w-2.5 h-2.5 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.9)] z-20" />
+                  <div className="w-2.5 h-2.5 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,1)] z-20" />
               </motion.div>
 
               <div className="relative w-56 h-56 flex items-center justify-center">
                   <motion.div 
                     initial={{ scale: 0.8 }}
                     animate={{
-                      scale: phase === 'in' ? [0.8, 1.2] : phase === 'out' ? [1.2, 0.8] : 1.2,
+                      scale: phase === 'in' ? [0.8, 1.25] : phase === 'out' ? [1.25, 0.8] : 1.25,
                     }}
                     transition={{ duration: getDuration(), ease: "easeInOut" }}
-                    className="w-full h-full rounded-full bg-cyan-500/10 border border-cyan-500/20 backdrop-blur-sm relative overflow-hidden"
+                    className="w-full h-full rounded-full shadow-2xl relative overflow-hidden transform-gpu will-change-transform bg-gradient-to-br from-emerald-400 via-teal-500 to-blue-600"
                   >
-                      <motion.div 
-                        animate={{
-                          y: phase === 'in' ? ['100%', '0%'] : phase === 'out' ? ['0%', '100%'] : '0%'
-                        }}
-                        transition={{ duration: getDuration(), ease: "linear" }}
-                        className="absolute inset-0 bg-gradient-to-t from-cyan-500/30 to-cyan-400/10"
-                      />
+                      <div className="absolute top-[10%] left-[10%] w-[40%] h-[40%] bg-white/20 rounded-full blur-2xl" />
+                      <div className="absolute bottom-[10%] right-[10%] w-[20%] h-[20%] bg-blue-400/20 rounded-full blur-xl" />
                   </motion.div>
               </div>
           </div>
