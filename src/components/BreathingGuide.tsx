@@ -200,27 +200,27 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
       </div>
 
       {/* Main Content - Improved centering for all viewports */}
-      <div className="flex-1 w-full h-full flex flex-col items-center justify-center relative z-0 min-h-0">
-        <div className="flex flex-col items-center justify-center space-y-12 lg:space-y-16">
-          <div className="relative flex items-center justify-center scale-[0.8] sm:scale-90 lg:scale-100 mb-4">
+      <div className="flex-1 w-full h-full flex flex-col items-center justify-center relative z-0 min-h-0 pt-6">
+        <div className="flex flex-col items-center justify-center space-y-6 lg:space-y-8">
+          <div className="relative flex items-center justify-center scale-[0.85] lg:scale-100">
               <motion.div 
                  animate={{
                    scale: phase === 'in' ? [1, 1.4] : phase === 'out' ? [1.4, 1] : 1.4,
                    opacity: phase === 'in' ? [0.1, 0.4] : phase === 'out' ? [0.4, 0.1] : 0.4
                  }}
                  transition={{ duration: getDuration(), ease: "easeInOut" }}
-                 className="absolute w-[400px] h-[400px] rounded-full blur-[60px] transform-gpu will-change-transform bg-emerald-500/20"
+                 className="absolute w-[260px] h-[260px] rounded-full blur-[50px] transform-gpu will-change-transform bg-emerald-500/20"
               />
 
-              <svg className="absolute w-[340px] h-[340px] -rotate-90 pointer-events-none">
-                  <circle cx="170" cy="170" r="160" fill="none" stroke="currentColor" className="text-white/5" strokeWidth="1" />
+              <svg className="absolute w-[240px] h-[240px] -rotate-90 pointer-events-none">
+                  <circle cx="120" cy="120" r="110" fill="none" stroke="currentColor" className="text-white/5" strokeWidth="1" />
                   <motion.circle 
-                    cx="170" cy="170" r="160" 
+                    cx="120" cy="120" r="110" 
                     fill="none" stroke="currentColor" 
                     className="transition-colors duration-1000 text-emerald-500/40"
                     strokeWidth="3"
-                    strokeDasharray="1005"
-                    animate={{ strokeDashoffset: [1005, 0] }}
+                    strokeDasharray="691"
+                    animate={{ strokeDashoffset: [691, 0] }}
                     transition={{ duration: getDuration(), ease: "linear", key: phase }}
                   />
               </svg>
@@ -228,12 +228,12 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
               <motion.div 
                 animate={{ rotate: 360 }}
                 transition={{ duration: getDuration(), ease: "linear", repeat: Infinity }}
-                className="absolute w-[320px] h-[320px] flex items-center justify-end transform-gpu will-change-transform"
+                className="absolute w-[220px] h-[220px] flex items-center justify-end transform-gpu will-change-transform"
               >
-                  <div className="w-3 h-3 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.9)] z-20" />
+                  <div className="w-2 h-2 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.9)] z-20" />
               </motion.div>
 
-              <div className="relative w-72 h-72 flex items-center justify-center">
+              <div className="relative w-40 h-40 sm:w-48 sm:h-48 flex items-center justify-center">
                   <motion.div 
                     initial={{ scale: 0.8 }}
                     animate={{
@@ -251,8 +251,8 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
               </div>
           </div>
 
-          <div className="text-center space-y-10">
-            <div className="relative h-16 flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <div className="relative h-10 flex items-center justify-center">
               <AnimatePresence mode="wait">
                   <motion.div 
                       key={phase}
@@ -262,24 +262,24 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                       transition={{ duration: 0.6, ease: "easeOut" }}
                       className="flex flex-col items-center"
                   >
-                      <h2 className="text-4xl lg:text-5xl font-black uppercase tracking-[0.3em] text-white drop-shadow-2xl">
+                      <h2 className="text-xl sm:text-2xl lg:text-3xl font-black uppercase tracking-[0.25em] text-white drop-shadow-2xl">
                           {getPhaseText()}
                       </h2>
                   </motion.div>
               </AnimatePresence>
             </div>
             
-            <div className="flex flex-col items-center space-y-4">
-              <span className="text-[14px] font-mono font-black tabular-nums text-white/40 tracking-[1em]">
+            <div className="flex flex-col items-center space-y-2">
+              <span className="text-[11px] font-mono font-black tabular-nums text-white/40 tracking-[0.8em]">
                   {timeLeft.toString().padStart(2, '0')}
               </span>
-              <div className="flex gap-2">
+              <div className="flex gap-1.5">
                   {[...Array(getDuration())].map((_, i) => (
                       <div 
                           key={i} 
                           className={cn(
-                              "h-1.5 rounded-full transition-all duration-500",
-                              i < (getDuration() - timeLeft) ? "w-6 bg-white" : "w-1.5 bg-white/10"
+                              "h-1 rounded-full transition-all duration-500",
+                              i < (getDuration() - timeLeft) ? "w-4 bg-white" : "w-1 bg-white/10"
                           )} 
                       />
                   ))}
@@ -289,14 +289,14 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
         </div>
       </div>
 
-      <div className="absolute bottom-16 flex flex-col items-center space-y-12">
+      <div className="absolute bottom-10 flex flex-col items-center space-y-8">
         <motion.div 
             animate={{ opacity: [0.2, 0.5, 0.2], y: [0, -5, 0] }}
             transition={{ duration: 4, repeat: Infinity }}
-            className="flex flex-col items-center space-y-4"
+            className="flex flex-col items-center space-y-3"
         >
-            <div className="w-[1px] h-16 bg-gradient-to-b from-white/30 to-transparent" />
-            <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white/40 tracking-widest">BOX BREATHING</span>
+            <div className="w-[1px] h-10 bg-gradient-to-b from-white/30 to-transparent" />
+            <span className="text-[9px] font-black uppercase tracking-[0.5em] text-white/40 tracking-widest">BOX BREATHING</span>
         </motion.div>
         
         <div className="flex bg-white/10 backdrop-blur-2xl p-1.5 rounded-full border border-white/10 shadow-2xl">
