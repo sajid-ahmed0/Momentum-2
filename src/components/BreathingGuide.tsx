@@ -19,62 +19,60 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const AUDIO_OPTIONS = [
-    { name: 'Ambient Vibe', url: 'https://assets.mixkit.co/music/preview/mixkit-meditation-vibe-627.mp3' },
-    { name: 'Deep Zen', url: 'https://assets.mixkit.co/music/preview/mixkit-deep-meditation-109.mp3' },
-    { name: 'Serenity', url: 'https://assets.mixkit.co/music/preview/mixkit-serenity-944.mp3' }
+    { name: 'Zen Garden', url: 'https://assets.mixkit.co/music/preview/mixkit-meditation-vibe-627.mp3' },
+    { name: 'Morning Dew', url: 'https://assets.mixkit.co/music/preview/mixkit-serenity-944.mp3' },
+    { name: 'Mountain Path', url: 'https://assets.mixkit.co/music/preview/mixkit-deep-meditation-109.mp3' }
   ];
 
   // Audio setup
   useEffect(() => {
-    const audio = new Audio(`${audioSource}${audioSource.includes('?') ? '&' : '?'}v=3`);
-    audio.loop = true;
-    audio.volume = 1.0; 
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+      audioRef.current.loop = true;
+      audioRef.current.volume = 0.8;
+      audioRef.current.crossOrigin = "anonymous";
+    }
+
+    const audio = audioRef.current;
+    audio.src = `${audioSource}${audioSource.includes('?') ? '&' : '?'}v=4`;
+    audio.load();
     
     audio.oncanplay = () => {
-      console.log("Audio ready:", audioSource);
       setAudioError(null);
       if (!isMuted) {
-        audio.play().catch(e => console.warn("Auto-play blocked:", e));
+        audio.play().catch(e => {
+          console.warn("Autoplay blocked:", e);
+          setAudioError("Click to enable audio");
+        });
       }
     };
 
     audio.onerror = () => {
       const error = audio.error;
       console.error("Audio error:", error);
-      let errorMsg = "Audio unreachable.";
-      if (error) {
-        switch (error.code) {
-          case 1: errorMsg = "Abort Error"; break;
-          case 2: errorMsg = "Network Error"; break;
-          case 3: errorMsg = "Format Error"; break;
-          case 4: errorMsg = "Unsupported Source"; break;
-        }
-      }
-      setAudioError(errorMsg);
+      setAudioError("Audio unreachable. Try another option.");
     };
 
-    audioRef.current = audio;
-    
     return () => {
       audio.pause();
-      audio.src = "";
-      audioRef.current = null;
     };
   }, [audioSource]);
 
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (audio) {
-      if (!isMuted) {
-        audio.play().catch(e => {
-          console.error("Audio play failed:", e);
-          setAudioError("Click to enable audio");
+  const toggleMute = () => {
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    
+    if (audioRef.current) {
+      if (!nextMuted) {
+        audioRef.current.play().catch(e => {
+          console.error("Manual play failed:", e);
+          setAudioError("Playback failed. Try again.");
         });
       } else {
-        audio.pause();
+        audioRef.current.pause();
       }
     }
-  }, [isMuted]);
+  };
 
   // Screen Wake Lock Logic
   useEffect(() => {
@@ -242,7 +240,7 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
           )}
           <motion.button 
             whileTap={{ scale: 0.9 }}
-            onClick={() => setIsMuted(!isMuted)}
+            onClick={toggleMute}
             className={cn(
               "p-3 rounded-full transition-all border",
               isMuted 
@@ -256,21 +254,21 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
       </div>
 
       {/* Main Content - Improved centering for all viewports */}
-      <div className="flex-1 w-full h-full flex flex-col items-center justify-center relative z-0 min-h-0 pt-4 sm:pt-6">
+      <div className="flex-1 w-full h-full flex flex-col items-center justify-center relative z-0 min-h-0 pt-2 sm:pt-4">
         <div className="flex flex-col items-center justify-center space-y-4 lg:space-y-6">
-          <div className="relative flex items-center justify-center scale-[0.75] sm:scale-[0.85] lg:scale-[0.95] xl:scale-100">
+          <div className="relative flex items-center justify-center scale-[0.7] sm:scale-[0.8] lg:scale-90 xl:scale-100">
               <motion.div 
                  animate={{
                    scale: phase === 'in' ? [1, 1.4] : phase === 'out' ? [1.4, 1] : 1.4,
                    opacity: phase === 'in' ? [0.1, 0.4] : phase === 'out' ? [0.4, 0.1] : 0.4
                  }}
                  transition={{ duration: getDuration(), ease: "easeInOut" }}
-                 className="absolute w-[220px] h-[220px] lg:w-[260px] lg:h-[260px] rounded-full blur-[40px] lg:blur-[50px] transform-gpu will-change-transform bg-emerald-500/20"
+                 className="absolute w-[200px] h-[200px] lg:w-[240px] lg:h-[240px] rounded-full blur-[40px] lg:blur-[50px] transform-gpu will-change-transform bg-emerald-500/20"
               />
 
               <svg 
                 viewBox="0 0 200 200"
-                className="absolute w-[220px] h-[220px] lg:w-[280px] lg:h-[280px] -rotate-90 pointer-events-none"
+                className="absolute w-[200px] h-[200px] lg:w-[240px] lg:h-[240px] -rotate-90 pointer-events-none"
               >
                   <circle cx="100" cy="100" r="95" fill="none" stroke="currentColor" className="text-white/5" strokeWidth="0.5" />
                   <motion.circle 
@@ -287,12 +285,13 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
               <motion.div 
                 animate={{ rotate: 360 }}
                 transition={{ duration: getDuration(), ease: "linear", repeat: Infinity }}
-                className="absolute w-[220px] h-[220px] lg:w-[280px] lg:h-[280px] flex items-center justify-end transform-gpu will-change-transform"
+                className="absolute w-[200px] h-[200px] lg:w-[240px] lg:h-[240px] flex items-center justify-center transform-gpu will-change-transform"
               >
-                  <div className="w-2.5 h-2.5 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.9)] z-20" />
+                  {/* Position the dot exactly on the circle path (radius 95) */}
+                  <div className="absolute right-[2px] w-2 h-2 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.9)] z-20" />
               </motion.div>
 
-              <div className="relative w-40 h-40 sm:w-48 lg:w-56 sm:h-48 lg:h-56 flex items-center justify-center">
+              <div className="relative w-36 h-36 sm:w-44 lg:w-52 sm:h-44 lg:h-52 flex items-center justify-center">
                   <motion.div 
                     initial={{ scale: 0.8 }}
                     animate={{

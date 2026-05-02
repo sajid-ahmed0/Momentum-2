@@ -1,4 +1,4 @@
-const CACHE_NAME = 'momentum-v5';
+const CACHE_NAME = 'momentum-v7';
 const OFFLINE_URL = 'index.html';
 
 const ASSETS_TO_CACHE = [
@@ -42,15 +42,14 @@ self.addEventListener('fetch', (event) => {
       }
 
       return fetch(event.request).then((response) => {
-        // Cache media files even if they're from other domains (opaque or CORS)
+        // Don't cache firestore/auth or media requests
         const isMedia = event.request.destination === 'audio' || 
                         /\.(mp3|wav|ogg|m4a|aac)(\?.*)?$/i.test(event.request.url);
 
-        // Don't cache firestore/auth requests
-        if (!response || response.status !== 200 || 
-            (!isMedia && (response.type !== 'basic' || 
+        if (!response || response.status !== 200 || isMedia ||
+            (response.type !== 'basic' || 
              event.request.url.includes('firestore.googleapis.com') ||
-             event.request.url.includes('google.com')))) {
+             event.request.url.includes('google.com'))) {
           return response;
         }
 
