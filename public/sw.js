@@ -1,4 +1,4 @@
-const CACHE_NAME = 'momentum-v4';
+const CACHE_NAME = 'momentum-v5';
 const OFFLINE_URL = 'index.html';
 
 const ASSETS_TO_CACHE = [

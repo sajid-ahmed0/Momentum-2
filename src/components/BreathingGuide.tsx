@@ -22,14 +22,24 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
     const audio = new Audio('/meditation.mp3?v=1');
     audio.loop = true;
     
-    audio.oncanplaythrough = () => {
-      console.log("Audio can play through");
+    audio.oncanplay = () => {
+      console.log("Audio can play");
       setAudioError(null);
     };
 
-    audio.onerror = (e) => {
-      console.error("Audio error:", e);
-      setAudioError("Failed to load audio file. Please ensure it's a valid audio file.");
+    audio.onerror = () => {
+      const error = audio.error;
+      console.error("Audio error:", error);
+      let errorMsg = "Failed to load audio file.";
+      if (error) {
+        switch (error.code) {
+          case 1: errorMsg = "Abort: Fetching process aborted."; break;
+          case 2: errorMsg = "Network: Network error occurred."; break;
+          case 3: errorMsg = "Decode: Audio decoding failed. The file might be corrupted or format not supported."; break;
+          case 4: errorMsg = "Source: Format not supported or file not found."; break;
+        }
+      }
+      setAudioError(errorMsg);
     };
 
     audioRef.current = audio;
@@ -180,9 +190,20 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
 
         <div className="flex items-center gap-2">
           {audioError && (
-            <span className="text-[9px] text-rose-500 font-bold uppercase tracking-wider bg-rose-500/10 px-2 py-1 rounded-md">
-              Audio Error
-            </span>
+            <motion.button 
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              onClick={() => {
+                if (audioRef.current) {
+                  audioRef.current.src = `/meditation.mp3?v=${Date.now()}`;
+                  audioRef.current.load();
+                  setAudioError(null);
+                }
+              }}
+              className="text-[9px] text-rose-500 font-bold uppercase tracking-wider bg-rose-500/10 px-2 py-1 rounded-md hover:bg-rose-500/20 transition-colors"
+            >
+              Retry Audio
+            </motion.button>
           )}
           <motion.button 
             whileTap={{ scale: 0.9 }}
