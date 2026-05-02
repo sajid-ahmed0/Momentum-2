@@ -143,59 +143,102 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
         </div>
       </div>
 
-      {/* Main Content - Restored original large dimensions */}
+      {/* Main Content - Centered & Immersive */}
       <div className="flex-1 w-full h-full flex flex-col items-center justify-center relative z-0 min-h-0 pt-0">
-        <div className="flex flex-col items-center justify-center space-y-12 lg:space-y-16">
-          <div className="relative flex items-center justify-center">
+        <div className="flex flex-col items-center justify-center space-y-16 lg:space-y-24">
+          <div className="relative flex items-center justify-center scale-90 sm:scale-100">
+              {/* Outer Atmosphere Glows */}
               <motion.div 
                  animate={{
-                   scale: phase === 'in' ? [1, 1.4] : phase === 'out' ? [1.4, 1] : 1.4,
+                   scale: phase === 'in' ? [1, 1.3] : phase === 'out' ? [1.3, 1] : 1.3,
                    opacity: phase === 'in' ? [0.1, 0.4] : phase === 'out' ? [0.4, 0.1] : 0.4
                  }}
                  transition={{ duration: getDuration(), ease: "easeInOut" }}
-                 className="absolute w-[400px] h-[400px] rounded-full blur-[80px] transform-gpu will-change-transform bg-emerald-500/20"
+                 className="absolute w-[450px] h-[450px] rounded-full blur-[100px] transform-gpu will-change-transform bg-teal-500/30"
               />
- 
+              
+              <motion.div 
+                 animate={{
+                   scale: phase === 'in' ? [1.1, 1.5] : phase === 'out' ? [1.5, 1.1] : 1.5,
+                   opacity: phase === 'in' ? [0.05, 0.2] : phase === 'out' ? [0.2, 0.05] : 0.2
+                 }}
+                 transition={{ duration: getDuration() * 1.5, ease: "easeInOut", repeat: Infinity, repeatType: "reverse" }}
+                 className="absolute w-[500px] h-[500px] rounded-full blur-[120px] transform-gpu will-change-transform bg-blue-500/20"
+              />
+
+              {/* Progress System */}
               <div className="absolute inset-0 flex items-center justify-center -rotate-90">
+                {/* Background Ring */}
+                <div className="absolute w-[340px] h-[340px] rounded-full border border-white/5 backdrop-blur-[2px]" />
+                
+                {/* Visual Progress SVG */}
                 <svg 
                   viewBox="0 0 200 200"
-                  className="w-[340px] h-[340px] pointer-events-none"
+                  className="w-[360px] h-[360px] pointer-events-none drop-shadow-[0_0_15px_rgba(20,184,166,0.3)]"
                 >
-                    <circle cx="100" cy="100" r="95" fill="none" stroke="currentColor" className="text-white/5" strokeWidth="0.5" />
                     <motion.circle 
-                      cx="100" cy="100" r="95" 
-                      fill="none" stroke="currentColor" 
-                      className="transition-colors duration-1000 text-emerald-500/40"
-                      strokeWidth="1"
-                      strokeDasharray="597"
-                      animate={{ strokeDashoffset: [597, 0] }}
+                      cx="100" cy="100" r="92" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      className={cn(
+                        "transition-colors duration-1000",
+                        phase === 'in' ? "text-emerald-400" : phase === 'hold' ? "text-teal-400" : "text-blue-400"
+                      )}
+                      strokeWidth="1.5"
+                      strokeDasharray="578"
+                      strokeLinecap="round"
+                      animate={{ strokeDashoffset: [578, 0] }}
                       transition={{ duration: getDuration(), ease: "linear", key: phase }}
                     />
                 </svg>
                 
+                {/* Orbital Particle */}
                 <motion.div 
                   animate={{ rotate: 360 }}
                   transition={{ duration: getDuration(), ease: "linear", repeat: Infinity }}
-                  className="absolute w-[320px] h-[320px] flex items-center justify-center pointer-events-none"
+                  className="absolute w-[368px] h-[368px] flex items-center justify-center pointer-events-none"
                 >
-                    <div className="absolute right-0 w-3 h-3 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.9)] z-20" />
+                    <div className={cn(
+                      "absolute right-0 w-3.5 h-3.5 rounded-full shadow-[0_0_25px_rgba(255,255,255,1)] z-20 transition-colors duration-1000",
+                      phase === 'in' ? "bg-emerald-200" : "bg-white"
+                    )} />
+                    {/* Tiny trailing flare */}
+                    <div className="absolute right-2 w-1.5 h-1.5 bg-white/20 blur-sm rounded-full" />
                 </motion.div>
               </div>
  
-              <div className="relative w-72 h-72 flex items-center justify-center">
+              {/* Central Core Circle */}
+              <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center">
                   <motion.div 
                     initial={{ scale: 0.8 }}
                     animate={{
-                      scale: phase === 'in' ? [0.8, 1.15] : phase === 'out' ? [1.15, 0.8] : [1.15, 1.1, 1.15],
+                      scale: phase === 'in' ? [0.85, 1.1] : phase === 'out' ? [1.1, 0.85] : [1.1, 1.08, 1.1],
+                      boxShadow: phase === 'in' ? '0 0 50px rgba(16,185,129,0.2)' : '0 0 30px rgba(59,130,246,0.1)'
                     }}
                     transition={{ 
                       duration: getDuration(), 
                       ease: "easeInOut",
-                      repeat: phase === 'hold' ? Infinity : 0
+                      repeat: (phase === 'hold' || phase === 'rest') ? Infinity : 0
                     }}
-                    className="w-full h-full rounded-full shadow-2xl relative overflow-hidden transform-gpu will-change-transform transition-all duration-1000 bg-gradient-to-br from-emerald-400 via-teal-500 to-blue-600"
+                    className={cn(
+                      "w-full h-full rounded-full relative overflow-hidden transform-gpu will-change-transform transition-all duration-1000",
+                      "bg-gradient-to-br from-white/10 via-white/5 to-transparent backdrop-blur-xl border border-white/20",
+                      "shadow-[inset_0_0_40px_rgba(255,255,255,0.1)]"
+                    )}
                   >
-                      <div className="absolute top-[10%] left-[10%] w-[40%] h-[40%] bg-white/20 rounded-full blur-2xl" />
+                      {/* Inner Dynamic Gradient Layer */}
+                      <motion.div 
+                        animate={{ 
+                          opacity: phase === 'in' ? 0.8 : 0.4,
+                          background: phase === 'in' ? 'radial-gradient(circle at 30% 30%, #10b981 0%, transparent 70%)' : 'radial-gradient(circle at 30% 30%, #3b82f6 0%, transparent 70%)'
+                        }}
+                        transition={{ duration: 1000 }}
+                        className="absolute inset-0"
+                      />
+                      
+                      {/* Glass Specular highlights */}
+                      <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-gradient-to-br from-white/20 to-transparent rounded-full blur-xl" />
+                      <div className="absolute bottom-[5%] right-[5%] w-[30%] h-[30%] bg-white/5 rounded-full blur-lg" />
                   </motion.div>
               </div>
           </div>
