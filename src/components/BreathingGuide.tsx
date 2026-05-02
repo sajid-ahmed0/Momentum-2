@@ -12,71 +12,6 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
   const [timeLeft, setTimeLeft] = useState(4);
   const [sessionTimeLeft, setSessionTimeLeft] = useState(120); // 2 minute standard
   const [wakeLockActive, setWakeLockActive] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
-  const [audioError, setAudioError] = useState<string | null>(null);
-  const [audioSource, setAudioSource] = useState('https://assets.mixkit.co/music/preview/mixkit-meditation-vibe-627.mp3');
-  
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const AUDIO_OPTIONS = [
-    { name: 'Zen Bloom', url: 'https://assets.mixkit.co/music/preview/mixkit-meditation-vibe-627.mp3' },
-    { name: 'Morning Dew', url: 'https://assets.mixkit.co/music/preview/mixkit-serenity-944.mp3' },
-    { name: 'Deep Forest', url: 'https://assets.mixkit.co/music/preview/mixkit-deep-meditation-109.mp3' }
-  ];
-
-  // Audio setup
-  useEffect(() => {
-    if (!audioRef.current) return;
-    
-    const audio = audioRef.current;
-    audio.volume = 1.0; // Force full volume
-    
-    const handleCanPlay = () => {
-      setAudioError(null);
-      if (!isMuted) {
-        audio.play().catch(e => {
-          console.warn("Autoplay blocked:", e);
-          setAudioError("Click 'Unmute' to enable sound");
-        });
-      }
-    };
-
-    const handleError = () => {
-      console.error("Audio error details:", audio.error);
-      setAudioError("Audio unreachable. Try another option.");
-    };
-
-    audio.addEventListener('canplay', handleCanPlay);
-    audio.addEventListener('error', handleError);
-
-    // Update source when audioSource changes
-    audio.src = `${audioSource}${audioSource.includes('?') ? '&' : '?'}v=5`;
-    audio.load();
-
-    return () => {
-      audio.removeEventListener('canplay', handleCanPlay);
-      audio.removeEventListener('error', handleError);
-      audio.pause();
-    };
-  }, [audioSource]);
-
-  const toggleMute = () => {
-    const nextMuted = !isMuted;
-    setIsMuted(nextMuted);
-    
-    if (audioRef.current) {
-      if (!nextMuted) {
-        audioRef.current.play().then(() => {
-          setAudioError(null);
-        }).catch(e => {
-          console.error("Manual play failed:", e);
-          setAudioError("Click again to enable");
-        });
-      } else {
-        audioRef.current.pause();
-      }
-    }
-  };
 
   // Screen Wake Lock Logic
   useEffect(() => {
@@ -168,15 +103,6 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
       <div className={cn(
       "fixed inset-0 z-[60] flex flex-col items-center justify-center p-6 text-white overflow-hidden transition-colors duration-1000 bg-zinc-950"
     )}>
-      {/* Hidden Audio Element */}
-      <audio 
-        ref={audioRef}
-        loop 
-        playsInline
-        crossOrigin="anonymous"
-        className="hidden"
-      />
-
       {/* Background Atmosphere */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div 
@@ -213,76 +139,27 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
         </div>
 
         <div className="flex items-center gap-2">
-          {audioError ? (
-            <div className="flex items-center gap-1.5 overflow-hidden">
-               {AUDIO_OPTIONS.map((opt) => (
-                 <motion.button
-                   key={opt.url}
-                   initial={{ x: 20, opacity: 0 }}
-                   animate={{ x: 0, opacity: 1 }}
-                   onClick={() => {
-                     setAudioSource(opt.url);
-                     setAudioError(null);
-                   }}
-                   className={cn(
-                     "text-[8px] font-black uppercase tracking-widest px-2 py-1.5 rounded-md transition-all border",
-                     audioSource === opt.url 
-                      ? "bg-rose-500 text-white border-rose-500 shadow-lg" 
-                      : "bg-white/5 text-white/40 border-white/5 hover:bg-white/10"
-                   )}
-                 >
-                   {opt.name}
-                 </motion.button>
-               ))}
-            </div>
-          ) : (
-            <div className="flex items-center bg-white/5 rounded-full px-1 border border-white/5">
-              {AUDIO_OPTIONS.map((opt) => (
-                <button
-                  key={opt.url}
-                  onClick={() => setAudioSource(opt.url)}
-                  className={cn(
-                    "text-[8px] font-black uppercase tracking-tighter px-2 py-1 rounded-full transition-all",
-                    audioSource === opt.url ? "text-white opacity-100" : "text-white/20 hover:text-white/40"
-                  )}
-                >
-                  {opt.name}
-                </button>
-              ))}
-            </div>
-          )}
-          <motion.button 
-            whileTap={{ scale: 0.9 }}
-            onClick={toggleMute}
-            className={cn(
-              "p-3 rounded-full transition-all border",
-              isMuted 
-                ? "bg-white/5 hover:bg-white/10 border-white/5" 
-                : "bg-white/20 hover:bg-white/30 border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.1)]"
-            )}
-          >
-            {isMuted ? <VolumeX className="w-4 h-4 text-white/40" /> : <Volume2 className="w-4 h-4 text-white" />}
-          </motion.button>
+          {/* Audio controls removed */}
         </div>
       </div>
 
-      {/* Main Content - Improved centering for all viewports */}
+      {/* Main Content - Restored original large dimensions */}
       <div className="flex-1 w-full h-full flex flex-col items-center justify-center relative z-0 min-h-0 pt-0">
-        <div className="flex flex-col items-center justify-center space-y-2 sm:space-y-4 lg:space-y-6">
-          <div className="relative flex items-center justify-center scale-[0.65] sm:scale-[0.8] lg:scale-90 xl:scale-100">
+        <div className="flex flex-col items-center justify-center space-y-12 lg:space-y-16">
+          <div className="relative flex items-center justify-center">
               <motion.div 
                  animate={{
                    scale: phase === 'in' ? [1, 1.4] : phase === 'out' ? [1.4, 1] : 1.4,
-                   opacity: phase === 'in' ? [0.1, 0.3] : phase === 'out' ? [0.3, 0.1] : 0.3
+                   opacity: phase === 'in' ? [0.1, 0.4] : phase === 'out' ? [0.4, 0.1] : 0.4
                  }}
                  transition={{ duration: getDuration(), ease: "easeInOut" }}
-                 className="absolute w-[200px] h-[200px] lg:w-[240px] lg:h-[240px] rounded-full blur-[30px] lg:blur-[40px] transform-gpu will-change-transform bg-emerald-500/20"
+                 className="absolute w-[400px] h-[400px] rounded-full blur-[80px] transform-gpu will-change-transform bg-emerald-500/20"
               />
  
               <div className="absolute inset-0 flex items-center justify-center -rotate-90">
                 <svg 
                   viewBox="0 0 200 200"
-                  className="w-[200px] h-[200px] lg:w-[240px] lg:h-[240px] pointer-events-none"
+                  className="w-[340px] h-[340px] pointer-events-none"
                 >
                     <circle cx="100" cy="100" r="95" fill="none" stroke="currentColor" className="text-white/5" strokeWidth="0.5" />
                     <motion.circle 
@@ -299,13 +176,13 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                 <motion.div 
                   animate={{ rotate: 360 }}
                   transition={{ duration: getDuration(), ease: "linear", repeat: Infinity }}
-                  className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                  className="absolute w-[320px] h-[320px] flex items-center justify-center pointer-events-none"
                 >
-                    <div className="w-2 h-2 bg-white rounded-full shadow-[0_0_15px_rgba(255,255,255,0.8)] z-20 translate-x-[95px]" />
+                    <div className="absolute right-0 w-3 h-3 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.9)] z-20" />
                 </motion.div>
               </div>
  
-              <div className="relative w-36 h-36 sm:w-44 lg:w-52 sm:h-44 lg:h-52 flex items-center justify-center scale-95 sm:scale-100">
+              <div className="relative w-72 h-72 flex items-center justify-center">
                   <motion.div 
                     initial={{ scale: 0.8 }}
                     animate={{
@@ -323,35 +200,35 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
               </div>
           </div>
 
-          <div className="text-center space-y-3">
-            <div className="relative h-8 flex items-center justify-center">
+          <div className="text-center space-y-6">
+            <div className="relative h-10 flex items-center justify-center">
               <AnimatePresence mode="wait">
                   <motion.div 
                       key={phase}
-                      initial={{ opacity: 0, y: 10, filter: 'blur(8px)' }}
-                      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                      exit={{ opacity: 0, y: -10, filter: 'blur(8px)' }}
-                      transition={{ duration: 0.5, ease: "easeOut" }}
+                      initial={{ opacity: 0, scale: 0.8, filter: 'blur(10px)' }}
+                      animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, scale: 1.2, filter: 'blur(11px)' }}
+                      transition={{ duration: 0.6, ease: "easeOut" }}
                       className="flex flex-col items-center"
                   >
-                      <h2 className="text-lg sm:text-xl lg:text-2xl font-black uppercase tracking-[0.2em] text-white drop-shadow-2xl">
+                      <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase tracking-[0.25em] text-white drop-shadow-2xl">
                           {getPhaseText()}
                       </h2>
                   </motion.div>
               </AnimatePresence>
             </div>
             
-            <div className="flex flex-col items-center space-y-2">
-              <span className="text-[10px] sm:text-[11px] font-mono font-black tabular-nums text-white/40 tracking-[0.6em]">
+            <div className="flex flex-col items-center space-y-4">
+              <span className="text-[12px] font-mono font-black tabular-nums text-white/40 tracking-[0.8em]">
                   {timeLeft.toString().padStart(2, '0')}
               </span>
-              <div className="flex gap-1">
+              <div className="flex gap-2">
                   {[...Array(getDuration())].map((_, i) => (
                       <div 
                           key={i} 
                           className={cn(
-                              "h-0.5 sm:h-1 rounded-full transition-all duration-500",
-                              i < (getDuration() - timeLeft) ? "w-3 sm:w-4 bg-white" : "w-1 bg-white/10"
+                              "h-1 rounded-full transition-all duration-500",
+                              i < (getDuration() - timeLeft) ? "w-4 bg-white" : "w-1 bg-white/10"
                           )} 
                       />
                   ))}
