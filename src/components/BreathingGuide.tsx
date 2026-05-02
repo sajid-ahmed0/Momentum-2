@@ -10,7 +10,7 @@ interface BreathingGuideProps {
 export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
   const [phase, setPhase] = useState<'in' | 'hold' | 'out' | 'rest'>('in');
   const [timeLeft, setTimeLeft] = useState(4);
-  const [sessionTimeLeft, setSessionTimeLeft] = useState(300); // 5 minute standard
+  const [sessionTimeLeft, setSessionTimeLeft] = useState(120); // 2 minute standard
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [audioError, setAudioError] = useState<string | null>(null);
@@ -26,24 +26,28 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
 
   // Audio setup
   useEffect(() => {
-    const audio = new Audio(`${audioSource}${audioSource.includes('?') ? '&' : '?'}v=2`);
+    const audio = new Audio(`${audioSource}${audioSource.includes('?') ? '&' : '?'}v=3`);
     audio.loop = true;
+    audio.volume = 1.0; 
     
     audio.oncanplay = () => {
-      console.log("Audio can play");
+      console.log("Audio ready:", audioSource);
       setAudioError(null);
+      if (!isMuted) {
+        audio.play().catch(e => console.warn("Auto-play blocked:", e));
+      }
     };
 
     audio.onerror = () => {
       const error = audio.error;
       console.error("Audio error:", error);
-      let errorMsg = "Audio link unreachable.";
+      let errorMsg = "Audio unreachable.";
       if (error) {
         switch (error.code) {
           case 1: errorMsg = "Abort Error"; break;
           case 2: errorMsg = "Network Error"; break;
-          case 3: errorMsg = "Corrupted/Invalid File"; break;
-          case 4: errorMsg = "Format Not Supported"; break;
+          case 3: errorMsg = "Format Error"; break;
+          case 4: errorMsg = "Unsupported Source"; break;
         }
       }
       setAudioError(errorMsg);
@@ -51,26 +55,23 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
 
     audioRef.current = audio;
     
-    // Auto-play if not muted and source changes
-    if (!isMuted) {
-      audio.play().catch(() => {});
-    }
-    
     return () => {
       audio.pause();
+      audio.src = "";
       audioRef.current = null;
     };
   }, [audioSource]);
 
   useEffect(() => {
-    if (audioRef.current) {
+    const audio = audioRef.current;
+    if (audio) {
       if (!isMuted) {
-        audioRef.current.play().catch(e => {
+        audio.play().catch(e => {
           console.error("Audio play failed:", e);
-          setAudioError("Browser blocked auto-play or file is invalid.");
+          setAudioError("Click to enable audio");
         });
       } else {
-        audioRef.current.pause();
+        audio.pause();
       }
     }
   }, [isMuted]);
@@ -267,17 +268,18 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
                  className="absolute w-[220px] h-[220px] lg:w-[260px] lg:h-[260px] rounded-full blur-[40px] lg:blur-[50px] transform-gpu will-change-transform bg-emerald-500/20"
               />
 
-              <svg className="absolute w-[200px] h-[200px] lg:w-[240px] lg:h-[240px] -rotate-90 pointer-events-none">
-                  <circle cx="100" cy="100" r="90" lg-cx="120" lg-cy="120" lg-r="110" fill="none" stroke="currentColor" className="text-white/5" strokeWidth="1" />
-                  {/* Note: Standard SVG doesn't support lg-cx, using dynamic values would be better but let's just use fixed center and scale the container */}
-                  <circle cx="100" cy="100" r="90" fill="none" stroke="currentColor" className="text-white/5" strokeWidth="0.5" />
+              <svg 
+                viewBox="0 0 200 200"
+                className="absolute w-[220px] h-[220px] lg:w-[280px] lg:h-[280px] -rotate-90 pointer-events-none"
+              >
+                  <circle cx="100" cy="100" r="95" fill="none" stroke="currentColor" className="text-white/5" strokeWidth="0.5" />
                   <motion.circle 
-                    cx="100" cy="100" r="90" 
+                    cx="100" cy="100" r="95" 
                     fill="none" stroke="currentColor" 
                     className="transition-colors duration-1000 text-emerald-500/40"
-                    strokeWidth="2"
-                    strokeDasharray="565"
-                    animate={{ strokeDashoffset: [565, 0] }}
+                    strokeWidth="1.5"
+                    strokeDasharray="597"
+                    animate={{ strokeDashoffset: [597, 0] }}
                     transition={{ duration: getDuration(), ease: "linear", key: phase }}
                   />
               </svg>
@@ -285,12 +287,12 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
               <motion.div 
                 animate={{ rotate: 360 }}
                 transition={{ duration: getDuration(), ease: "linear", repeat: Infinity }}
-                className="absolute w-[190px] h-[190px] lg:w-[220px] lg:h-[220px] flex items-center justify-end transform-gpu will-change-transform"
+                className="absolute w-[220px] h-[220px] lg:w-[280px] lg:h-[280px] flex items-center justify-end transform-gpu will-change-transform"
               >
-                  <div className="w-2 h-2 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.9)] z-20" />
+                  <div className="w-2.5 h-2.5 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.9)] z-20" />
               </motion.div>
 
-              <div className="relative w-36 h-36 sm:w-44 lg:w-48 sm:h-44 lg:h-48 flex items-center justify-center">
+              <div className="relative w-40 h-40 sm:w-48 lg:w-56 sm:h-48 lg:h-56 flex items-center justify-center">
                   <motion.div 
                     initial={{ scale: 0.8 }}
                     animate={{
