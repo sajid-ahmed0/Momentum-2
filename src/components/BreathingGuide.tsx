@@ -19,41 +19,43 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const AUDIO_OPTIONS = [
-    { name: 'Zen Garden', url: 'https://assets.mixkit.co/music/preview/mixkit-meditation-vibe-627.mp3' },
+    { name: 'Zen Bloom', url: 'https://assets.mixkit.co/music/preview/mixkit-meditation-vibe-627.mp3' },
     { name: 'Morning Dew', url: 'https://assets.mixkit.co/music/preview/mixkit-serenity-944.mp3' },
-    { name: 'Mountain Path', url: 'https://assets.mixkit.co/music/preview/mixkit-deep-meditation-109.mp3' }
+    { name: 'Deep Forest', url: 'https://assets.mixkit.co/music/preview/mixkit-deep-meditation-109.mp3' }
   ];
 
   // Audio setup
   useEffect(() => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio();
-      audioRef.current.loop = true;
-      audioRef.current.volume = 0.8;
-      audioRef.current.crossOrigin = "anonymous";
-    }
-
-    const audio = audioRef.current;
-    audio.src = `${audioSource}${audioSource.includes('?') ? '&' : '?'}v=4`;
-    audio.load();
+    if (!audioRef.current) return;
     
-    audio.oncanplay = () => {
+    const audio = audioRef.current;
+    audio.volume = 1.0; // Force full volume
+    
+    const handleCanPlay = () => {
       setAudioError(null);
       if (!isMuted) {
         audio.play().catch(e => {
           console.warn("Autoplay blocked:", e);
-          setAudioError("Click to enable audio");
+          setAudioError("Click 'Unmute' to enable sound");
         });
       }
     };
 
-    audio.onerror = () => {
-      const error = audio.error;
-      console.error("Audio error:", error);
+    const handleError = () => {
+      console.error("Audio error details:", audio.error);
       setAudioError("Audio unreachable. Try another option.");
     };
 
+    audio.addEventListener('canplay', handleCanPlay);
+    audio.addEventListener('error', handleError);
+
+    // Update source when audioSource changes
+    audio.src = `${audioSource}${audioSource.includes('?') ? '&' : '?'}v=5`;
+    audio.load();
+
     return () => {
+      audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener('error', handleError);
       audio.pause();
     };
   }, [audioSource]);
@@ -64,9 +66,11 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
     
     if (audioRef.current) {
       if (!nextMuted) {
-        audioRef.current.play().catch(e => {
+        audioRef.current.play().then(() => {
+          setAudioError(null);
+        }).catch(e => {
           console.error("Manual play failed:", e);
-          setAudioError("Playback failed. Try again.");
+          setAudioError("Click again to enable");
         });
       } else {
         audioRef.current.pause();
@@ -164,6 +168,15 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
       <div className={cn(
       "fixed inset-0 z-[60] flex flex-col items-center justify-center p-6 text-white overflow-hidden transition-colors duration-1000 bg-zinc-950"
     )}>
+      {/* Hidden Audio Element */}
+      <audio 
+        ref={audioRef}
+        loop 
+        playsInline
+        crossOrigin="anonymous"
+        className="hidden"
+      />
+
       {/* Background Atmosphere */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div 
@@ -254,44 +267,45 @@ export const BreathingGuide = ({ onBack }: BreathingGuideProps) => {
       </div>
 
       {/* Main Content - Improved centering for all viewports */}
-      <div className="flex-1 w-full h-full flex flex-col items-center justify-center relative z-0 min-h-0 pt-2 sm:pt-4">
-        <div className="flex flex-col items-center justify-center space-y-4 lg:space-y-6">
-          <div className="relative flex items-center justify-center scale-[0.7] sm:scale-[0.8] lg:scale-90 xl:scale-100">
+      <div className="flex-1 w-full h-full flex flex-col items-center justify-center relative z-0 min-h-0 pt-0">
+        <div className="flex flex-col items-center justify-center space-y-2 sm:space-y-4 lg:space-y-6">
+          <div className="relative flex items-center justify-center scale-[0.65] sm:scale-[0.8] lg:scale-90 xl:scale-100">
               <motion.div 
                  animate={{
                    scale: phase === 'in' ? [1, 1.4] : phase === 'out' ? [1.4, 1] : 1.4,
-                   opacity: phase === 'in' ? [0.1, 0.4] : phase === 'out' ? [0.4, 0.1] : 0.4
+                   opacity: phase === 'in' ? [0.1, 0.3] : phase === 'out' ? [0.3, 0.1] : 0.3
                  }}
                  transition={{ duration: getDuration(), ease: "easeInOut" }}
-                 className="absolute w-[200px] h-[200px] lg:w-[240px] lg:h-[240px] rounded-full blur-[40px] lg:blur-[50px] transform-gpu will-change-transform bg-emerald-500/20"
+                 className="absolute w-[200px] h-[200px] lg:w-[240px] lg:h-[240px] rounded-full blur-[30px] lg:blur-[40px] transform-gpu will-change-transform bg-emerald-500/20"
               />
-
-              <svg 
-                viewBox="0 0 200 200"
-                className="absolute w-[200px] h-[200px] lg:w-[240px] lg:h-[240px] -rotate-90 pointer-events-none"
-              >
-                  <circle cx="100" cy="100" r="95" fill="none" stroke="currentColor" className="text-white/5" strokeWidth="0.5" />
-                  <motion.circle 
-                    cx="100" cy="100" r="95" 
-                    fill="none" stroke="currentColor" 
-                    className="transition-colors duration-1000 text-emerald-500/40"
-                    strokeWidth="1.5"
-                    strokeDasharray="597"
-                    animate={{ strokeDashoffset: [597, 0] }}
-                    transition={{ duration: getDuration(), ease: "linear", key: phase }}
-                  />
-              </svg>
-
-              <motion.div 
-                animate={{ rotate: 360 }}
-                transition={{ duration: getDuration(), ease: "linear", repeat: Infinity }}
-                className="absolute w-[200px] h-[200px] lg:w-[240px] lg:h-[240px] flex items-center justify-center transform-gpu will-change-transform"
-              >
-                  {/* Position the dot exactly on the circle path (radius 95) */}
-                  <div className="absolute right-[2px] w-2 h-2 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.9)] z-20" />
-              </motion.div>
-
-              <div className="relative w-36 h-36 sm:w-44 lg:w-52 sm:h-44 lg:h-52 flex items-center justify-center">
+ 
+              <div className="absolute inset-0 flex items-center justify-center -rotate-90">
+                <svg 
+                  viewBox="0 0 200 200"
+                  className="w-[200px] h-[200px] lg:w-[240px] lg:h-[240px] pointer-events-none"
+                >
+                    <circle cx="100" cy="100" r="95" fill="none" stroke="currentColor" className="text-white/5" strokeWidth="0.5" />
+                    <motion.circle 
+                      cx="100" cy="100" r="95" 
+                      fill="none" stroke="currentColor" 
+                      className="transition-colors duration-1000 text-emerald-500/40"
+                      strokeWidth="1"
+                      strokeDasharray="597"
+                      animate={{ strokeDashoffset: [597, 0] }}
+                      transition={{ duration: getDuration(), ease: "linear", key: phase }}
+                    />
+                </svg>
+                
+                <motion.div 
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: getDuration(), ease: "linear", repeat: Infinity }}
+                  className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                >
+                    <div className="w-2 h-2 bg-white rounded-full shadow-[0_0_15px_rgba(255,255,255,0.8)] z-20 translate-x-[95px]" />
+                </motion.div>
+              </div>
+ 
+              <div className="relative w-36 h-36 sm:w-44 lg:w-52 sm:h-44 lg:h-52 flex items-center justify-center scale-95 sm:scale-100">
                   <motion.div 
                     initial={{ scale: 0.8 }}
                     animate={{
