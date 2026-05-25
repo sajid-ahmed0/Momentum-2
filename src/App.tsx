@@ -1045,7 +1045,7 @@ export default function App() {
   const { habitComp, currentBlock, nextBlock, urgeSuccess, todayUrgeCount } = getStats();
 
   const navItems = [
-    { id: 'urge', icon: Zap, label: 'Circuit' },
+    { id: 'tasks', icon: ListTodo, label: 'Tasks' },
     { id: 'schedule', icon: Clock, label: 'Schedule' },
     { id: 'overthinking', icon: Activity, label: 'Thinking' },
     { id: 'habits', icon: Flame, label: 'Habits' },
@@ -1272,15 +1272,15 @@ export default function App() {
             <h5 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 mb-5">NAVIGATION</h5>
             <div className="space-y-1">
               <button 
-                onClick={() => setActiveTab('urge')}
+                onClick={() => setActiveTab('tasks')}
                 className={cn(
                   "w-full flex items-center px-3 py-2 rounded transition-all text-xs font-bold uppercase tracking-tight",
-                  activeTab === 'urge' 
-                    ? "bg-amber-500 text-white shadow-lg dark:bg-amber-500 dark:text-white" 
+                  activeTab === 'tasks' 
+                    ? "bg-zinc-900 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900" 
                     : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 )}
               >
-                <Zap className="w-4 h-4 mr-3" /> Circuit Breaker
+                <ListTodo className="w-4 h-4 mr-3" /> Daily Tasks
               </button>
               <button 
                 onClick={() => setActiveTab('schedule')}
@@ -1327,15 +1327,15 @@ export default function App() {
                 <BookOpen className="w-4 h-4 mr-3" /> Daily Journal
               </button>
               <button 
-                onClick={() => setActiveTab('tasks')}
+                onClick={() => setActiveTab('urge')}
                 className={cn(
                   "w-full flex items-center px-3 py-2 rounded transition-all text-xs font-bold uppercase tracking-tight",
-                  activeTab === 'tasks' 
-                    ? "bg-zinc-900 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900" 
+                  activeTab === 'urge' 
+                    ? "bg-amber-500 text-white shadow-lg dark:bg-amber-500 dark:text-white" 
                     : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 )}
               >
-                <ListTodo className="w-4 h-4 mr-3" /> Daily Tasks
+                <Zap className="w-4 h-4 mr-3" /> Circuit Breaker
               </button>
             </div>
           </div>
@@ -1682,29 +1682,31 @@ export default function App() {
                      <Activity className="absolute bottom-[-20px] right-[-20px] w-64 h-64 opacity-[0.03] rotate-12" />
                   </div>
                   
-                  <div className="p-10 bg-amber-500 text-white rounded-2xl shadow-xl flex flex-col justify-between group cursor-pointer hover:scale-[1.02] transition-transform" onClick={() => setActiveTab('urge')}>
+                  <div className="p-10 bg-emerald-600 text-white rounded-2xl shadow-xl flex flex-col justify-between group cursor-pointer hover:scale-[1.02] transition-transform" onClick={() => setActiveTab('tasks')}>
                     <div>
-                      <Zap className="w-8 h-8 mb-4" />
-                      <h3 className="font-black uppercase tracking-tight text-xl">Circuit Breaker</h3>
+                      <ListTodo className="w-8 h-8 mb-4 text-emerald-100" />
+                      <h3 className="font-black uppercase tracking-tight text-xl">Daily Tasks</h3>
                     </div>
                     <div>
-                      <p className="text-4xl font-mono font-black mb-1">{urgeSuccess}%</p>
-                      <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Today's Success Rate</p>
+                      <p className="text-4xl font-mono font-black mb-1">
+                        {tasks.length > 0 ? Math.round((tasks.filter(t => t.completed).length / tasks.length) * 100) : 0}%
+                      </p>
+                      <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Today's Completion Rate</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  <div className="p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer" onClick={() => setActiveTab('schedule')}>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+                  <div className="col-span-1 p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer" onClick={() => setActiveTab('schedule')}>
                     <Clock className="w-5 h-5 mb-4 text-zinc-400" />
                     <p className="text-sm font-bold uppercase tracking-tight mb-2 dark:text-zinc-200">Schedule</p>
-                    <div className="truncate">
-                       <span className="text-sm font-bold">{currentBlock ? currentBlock.activity : (nextBlock ? `Next: ${nextBlock.activity}` : 'Open Schedule')}</span>
+                    <div className="truncatexl max-w-full">
+                       <span className="text-xs font-bold block truncate">{currentBlock ? currentBlock.activity : (nextBlock ? `Next: ${nextBlock.activity}` : 'Open Schedule')}</span>
                     </div>
                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Active Blocks</p>
                   </div>
 
-                  <div className="p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer" onClick={() => setActiveTab('overthinking')}>
+                  <div className="col-span-1 p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer" onClick={() => setActiveTab('overthinking')}>
                     <Activity className="w-5 h-5 mb-4 text-zinc-400" />
                     <p className="text-sm font-bold uppercase tracking-tight mb-2 dark:text-zinc-200">Mental Map</p>
                     <div className="flex items-baseline gap-2">
@@ -1713,7 +1715,7 @@ export default function App() {
                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Sessions Tracked</p>
                   </div>
 
-                  <div className="p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer" onClick={() => setActiveTab('habits')}>
+                  <div className="col-span-1 p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer" onClick={() => setActiveTab('habits')}>
                     <Layout className="w-5 h-5 mb-4 text-zinc-400" />
                     <p className="text-sm font-bold uppercase tracking-tight mb-2 dark:text-zinc-200">Habits</p>
                     <div className="flex items-baseline gap-2">
@@ -1722,13 +1724,22 @@ export default function App() {
                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Today's Progress</p>
                   </div>
 
-                  <div className="p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer" onClick={() => setActiveTab('journal')}>
+                  <div className="col-span-1 p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer" onClick={() => setActiveTab('journal')}>
                     <BookOpen className="w-5 h-5 mb-4 text-zinc-400" />
                     <p className="text-sm font-bold uppercase tracking-tight mb-2 dark:text-zinc-200">Journal</p>
                     <div className="flex items-baseline gap-2">
                        <span className="text-3xl font-mono font-black">{journalEntries.length}</span>
                     </div>
                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Total Entries</p>
+                  </div>
+
+                  <div className="col-span-1 p-8 bg-amber-500/10 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-900/50 rounded-2xl hover:border-amber-300 dark:hover:border-amber-700 transition-all cursor-pointer" onClick={() => setActiveTab('urge')}>
+                    <Zap className="w-5 h-5 mb-4 text-amber-500" />
+                    <p className="text-sm font-bold uppercase tracking-tight mb-2 dark:text-zinc-200">Circuit</p>
+                    <div className="flex items-baseline gap-2">
+                       <span className="text-3xl font-mono font-black text-amber-500">{urgeSuccess}%</span>
+                    </div>
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Success Rate</p>
                   </div>
                 </div>
               </motion.div>
@@ -2646,15 +2657,15 @@ export default function App() {
                         </button>
                         <button 
                           onClick={() => {
-                            setActiveTab('urge');
+                            setActiveTab('tasks');
                             setIsMenuOpen(false);
                           }}
                           className={cn(
                             "w-full flex items-center px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-tight",
-                            activeTab === 'urge' ? "bg-amber-500 text-white shadow-lg" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                            activeTab === 'tasks' ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
                           )}
                         >
-                          <Zap className="w-4 h-4 mr-4" /> Circuit Breaker
+                          <ListTodo className="w-4 h-4 mr-4" /> Daily Tasks
                         </button>
                         <button 
                           onClick={() => {
@@ -2706,15 +2717,15 @@ export default function App() {
                         </button>
                         <button 
                           onClick={() => {
-                            setActiveTab('tasks');
+                            setActiveTab('urge');
                             setIsMenuOpen(false);
                           }}
                           className={cn(
                             "w-full flex items-center px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-tight",
-                            activeTab === 'tasks' ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                            activeTab === 'urge' ? "bg-amber-500 text-white shadow-lg" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
                           )}
                         >
-                          <ListTodo className="w-4 h-4 mr-4" /> Daily Tasks
+                          <Zap className="w-4 h-4 mr-4" /> Circuit Breaker
                         </button>
                       </div>
                     </div>
