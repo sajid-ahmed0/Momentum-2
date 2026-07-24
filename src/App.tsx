@@ -1507,8 +1507,8 @@ export default function App() {
                 className="flex items-center gap-1.5 p-1 bg-zinc-50 border border-high-line rounded shadow-inner dark:bg-zinc-900 dark:border-zinc-800 dark:shadow-none"
               >
                 <button 
-                  onClick={() => setZoom(prev => Math.max(0.5, Math.round((prev - 0.1) * 10) / 10))}
-                  disabled={zoom <= 0.5}
+                  onClick={() => setZoom(prev => Math.max(0.1, Math.round((prev - 0.1) * 10) / 10))}
+                  disabled={zoom <= 0.1}
                   className="p-1.5 hover:bg-white hover:shadow-sm rounded transition-all text-zinc-400 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 disabled:opacity-30"
                   title="Zoom Out"
                 >
@@ -1518,8 +1518,8 @@ export default function App() {
                 <span className="text-[9px] font-mono font-bold text-zinc-400 px-1 w-8 text-center">{Math.round(zoom * 100)}%</span>
                 <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-700" />
                 <button 
-                  onClick={() => setZoom(prev => Math.min(2.0, Math.round((prev + 0.1) * 10) / 10))}
-                  disabled={zoom >= 2.0}
+                  onClick={() => setZoom(prev => Math.min(1.0, Math.round((prev + 0.1) * 10) / 10))}
+                  disabled={zoom >= 1.0}
                   className="p-1.5 hover:bg-white hover:shadow-sm rounded transition-all text-zinc-400 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 disabled:opacity-30"
                   title="Zoom In"
                 >

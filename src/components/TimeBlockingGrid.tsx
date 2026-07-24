@@ -101,7 +101,7 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
 
   const setZoomScale = (action: number | ((prev: number) => number)) => {
     const nextVal = typeof action === 'function' ? action(zoomScale) : action;
-    const clamped = Math.max(0.5, Math.min(2.0, Math.round(nextVal * 10) / 10));
+    const clamped = Math.max(0.1, Math.min(1.0, Math.round(nextVal * 10) / 10));
     if (onZoomScaleChange) {
       onZoomScaleChange(clamped);
     } else {
@@ -383,32 +383,8 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
           </div>
         </div>
 
-        {/* View Mode Switcher, Zoom Controls & Add Button */}
+        {/* View Mode Switcher & Add Button */}
         <div className="flex items-center gap-2 sm:gap-3 ml-auto flex-wrap">
-          {/* Zoom In/Out Controls */}
-          {viewMode !== 'list' && viewMode !== 'month' && (
-            <div className="flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-1 shadow-sm">
-              <button 
-                onClick={() => setZoomScale(prev => Math.max(0.6, Math.round((prev - 0.2) * 10) / 10))}
-                disabled={zoomScale <= 0.6}
-                className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30 rounded-md transition-colors text-zinc-600 dark:text-zinc-400"
-                title="Zoom Out (Compact Grid)"
-              >
-                <ZoomOut className="w-3.5 h-3.5" />
-              </button>
-              <span className="text-[10px] font-mono font-bold px-1.5 text-zinc-500 dark:text-zinc-400 select-none">
-                {Math.round(zoomScale * 100)}%
-              </span>
-              <button 
-                onClick={() => setZoomScale(prev => Math.min(2.0, Math.round((prev + 0.2) * 10) / 10))}
-                disabled={zoomScale >= 2.0}
-                className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30 rounded-md transition-colors text-zinc-600 dark:text-zinc-400"
-                title="Zoom In (Detailed Grid)"
-              >
-                <ZoomIn className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
 
           {/* View Mode Selector */}
           <div className="flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-1 shadow-sm">
