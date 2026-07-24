@@ -702,27 +702,6 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                           <p className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500">
                             {formatTime12h(block.startTime)} – {formatTime12h(block.endTime)} ({getMinutes(block.endTime) - getMinutes(block.startTime)} mins)
                           </p>
-                          {subtasks.length > 0 && (
-                            <div className="mt-2.5 pt-2 border-t border-zinc-100 dark:border-zinc-800 space-y-1.5">
-                              {subtasks.map(st => (
-                                <div 
-                                  key={st.id}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onToggleSubtask && onToggleSubtask(block.id, st.id);
-                                  }}
-                                  className="flex items-center gap-2 text-xs cursor-pointer hover:opacity-80 transition-opacity"
-                                >
-                                  <div className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition-colors ${st.completed ? 'bg-amber-500 border-amber-500 text-white' : 'border-zinc-300 dark:border-zinc-700'}`}>
-                                    {st.completed && <Check className="w-2.5 h-2.5" />}
-                                  </div>
-                                  <span className={st.completed ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-700 dark:text-zinc-200 font-medium'}>
-                                    {st.text}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       </div>
 
