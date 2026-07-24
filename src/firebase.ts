@@ -3,6 +3,7 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
+  linkWithPopup,
   signOut, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
@@ -28,7 +29,19 @@ if (typeof window !== 'undefined') {
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
+export const signInWithGoogle = async () => {
+  if (auth.currentUser && auth.currentUser.isAnonymous) {
+    try {
+      return await linkWithPopup(auth.currentUser, googleProvider);
+    } catch (error: any) {
+      if (error.code === 'auth/credential-already-in-use') {
+        return await signInWithPopup(auth, googleProvider);
+      }
+      throw error;
+    }
+  }
+  return await signInWithPopup(auth, googleProvider);
+};
 export const loginWithEmail = (email: string, pass: string) => signInWithEmailAndPassword(auth, email, pass);
 export const registerWithEmail = (email: string, pass: string) => createUserWithEmailAndPassword(auth, email, pass);
 export const loginAnonymously = () => signInAnonymously(auth);

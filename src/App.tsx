@@ -382,6 +382,7 @@ export default function App() {
   const [editingJournalEntry, setEditingJournalEntry] = useState<JournalEntry | null>(null);
   const [editingOverthinkingLog, setEditingOverthinkingLog] = useState<OverthinkingLog | null>(null);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
+  const [editingUrgeLog, setEditingUrgeLog] = useState<UrgeLog | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
@@ -2295,77 +2296,214 @@ export default function App() {
                         </div>
 
                         <div className="space-y-4">
-                          {urgeLogs.slice(0, 15).map(log => (
-                            <div key={log.id} className="p-4 bg-zinc-50/50 dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-zinc-800 rounded-xl space-y-3 group hover:border-zinc-300 dark:hover:border-zinc-700 transition-all shadow-xs">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-500 uppercase">
-                                    {format(new Date(log.timestamp), 'MMM d, p')}
-                                  </span>
-                                  <span className={cn(
-                                    "px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider",
-                                    log.outcome === 'resisted' || log.outcome === 'returned_to_focus' 
-                                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                                      : "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
-                                  )}>
-                                    {log.outcome.replace(/_/g, ' ')}
-                                  </span>
-                                </div>
-                                <button 
-                                  type="button"
-                                  onClick={async () => {
-                                    try {
-                                      await deleteDoc(doc(db, 'urgeLogs', log.id));
-                                    } catch (err) {
-                                      console.error(err);
-                                    }
-                                  }}
-                                  className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-50 dark:hover:bg-red-500/10 rounded transition-all"
-                                  title="Delete record"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5 text-zinc-400 hover:text-red-500" />
-                                </button>
-                              </div>
+                          {urgeLogs.slice(0, 15).map(log => {
+                            const isEditing = editingUrgeLog?.id === log.id;
 
-                              <div>
-                                <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                                  "{log.intent || 'Unspecified Action'}"
-                                </p>
-                                <p className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 mt-0.5">
-                                  Future impact: <span className={log.willHelpFuture ? 'text-emerald-500 font-bold' : 'text-red-400 font-bold'}>{log.willHelpFuture ? 'Positive' : 'Negative'}</span> • Duration: {formatDurationSeconds(log.durationSeconds)}
-                                </p>
-                              </div>
+                            if (isEditing && editingUrgeLog) {
+                              return (
+                                <div key={log.id} className="p-4 bg-white dark:bg-zinc-900 border-2 border-amber-500 rounded-xl space-y-4 shadow-md">
+                                  <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
+                                    <span className="text-xs font-black uppercase text-amber-500 tracking-wider">Edit Urge Session</span>
+                                    <span className="text-[10px] font-mono text-zinc-400">{format(new Date(log.timestamp), 'MMM d, p')}</span>
+                                  </div>
 
-                              {/* REASON & ALTERNATIVE PLAN DETAILS */}
-                              {(log.whyNotReason || log.whatToDoInstead) && (
-                                <div className="space-y-2 pt-1 border-t border-zinc-100 dark:border-zinc-800/80">
-                                  {log.whyNotReason && (
-                                    <div className="p-2.5 bg-red-500/5 border border-red-500/15 rounded-lg text-xs space-y-1">
-                                      <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 font-bold text-[10px] uppercase tracking-wider">
-                                        <AlertTriangle className="w-3 h-3 shrink-0" />
-                                        <span>Why Shouldn't I Do It?</span>
-                                      </div>
-                                      <p className="text-zinc-700 dark:text-zinc-300 font-medium whitespace-pre-wrap pl-4 text-[11px]">
-                                        {log.whyNotReason}
-                                      </p>
+                                  <div className="space-y-3">
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Action / Impulse</label>
+                                      <input 
+                                        type="text"
+                                        value={editingUrgeLog.intent}
+                                        onChange={(e) => setEditingUrgeLog({ ...editingUrgeLog, intent: e.target.value })}
+                                        placeholder="What were you about to do?"
+                                        className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2.5 text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                      />
                                     </div>
-                                  )}
 
-                                  {log.whatToDoInstead && (
-                                    <div className="p-2.5 bg-emerald-500/5 border border-emerald-500/15 rounded-lg text-xs space-y-1">
-                                      <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] uppercase tracking-wider">
-                                        <Sparkles className="w-3 h-3 shrink-0" />
-                                        <span>What Should I Do Instead?</span>
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div>
+                                        <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Outcome</label>
+                                        <select
+                                          value={editingUrgeLog.outcome}
+                                          onChange={(e) => setEditingUrgeLog({ ...editingUrgeLog, outcome: e.target.value as any })}
+                                          className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                        >
+                                          <option value="returned_to_focus">Returned To Focus</option>
+                                          <option value="resisted">Resisted</option>
+                                          <option value="continued_anyway">Continued Anyway</option>
+                                          <option value="given_in">Given In</option>
+                                        </select>
                                       </div>
-                                      <p className="text-zinc-700 dark:text-zinc-300 font-medium whitespace-pre-wrap pl-4 text-[11px]">
-                                        {log.whatToDoInstead}
-                                      </p>
+
+                                      <div>
+                                        <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Helps Future?</label>
+                                        <div className="flex gap-2 pt-0.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditingUrgeLog({ ...editingUrgeLog, willHelpFuture: true })}
+                                            className={cn(
+                                              "flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all border",
+                                              editingUrgeLog.willHelpFuture === true
+                                                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 border-zinc-900 dark:border-zinc-100"
+                                                : "border-zinc-200 text-zinc-400 dark:border-zinc-800"
+                                            )}
+                                          >
+                                            Yes
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditingUrgeLog({ ...editingUrgeLog, willHelpFuture: false })}
+                                            className={cn(
+                                              "flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all border",
+                                              editingUrgeLog.willHelpFuture === false
+                                                ? "bg-red-500 text-white border-red-500"
+                                                : "border-zinc-200 text-zinc-400 dark:border-zinc-800"
+                                            )}
+                                          >
+                                            No
+                                          </button>
+                                        </div>
+                                      </div>
                                     </div>
-                                  )}
+
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase text-red-500 mb-1">Why Shouldn't I Do It?</label>
+                                      <textarea 
+                                        rows={2}
+                                        value={editingUrgeLog.whyNotReason || ''}
+                                        onChange={(e) => setEditingUrgeLog({ ...editingUrgeLog, whyNotReason: e.target.value })}
+                                        placeholder="Reason why you shouldn't..."
+                                        className="w-full bg-red-500/5 border border-red-200 dark:border-red-900/40 rounded-lg p-2 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-red-500 font-medium resize-none"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase text-emerald-500 mb-1">What Should I Do Instead?</label>
+                                      <textarea 
+                                        rows={2}
+                                        value={editingUrgeLog.whatToDoInstead || ''}
+                                        onChange={(e) => setEditingUrgeLog({ ...editingUrgeLog, whatToDoInstead: e.target.value })}
+                                        placeholder="Plan for what to do instead..."
+                                        className="w-full bg-emerald-500/5 border border-emerald-200 dark:border-emerald-900/40 rounded-lg p-2 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium resize-none"
+                                      />
+                                    </div>
+
+                                    <div className="flex justify-end gap-2 pt-2">
+                                      <button 
+                                        type="button"
+                                        onClick={() => setEditingUrgeLog(null)}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button 
+                                        type="button"
+                                        onClick={async () => {
+                                          try {
+                                            await updateDoc(doc(db, 'urgeLogs', editingUrgeLog.id), {
+                                              intent: editingUrgeLog.intent,
+                                              willHelpFuture: editingUrgeLog.willHelpFuture,
+                                              outcome: editingUrgeLog.outcome,
+                                              whyNotReason: editingUrgeLog.whyNotReason || '',
+                                              whatToDoInstead: editingUrgeLog.whatToDoInstead || ''
+                                            });
+                                            setEditingUrgeLog(null);
+                                          } catch (err) {
+                                            console.error('Failed to update urge log:', err);
+                                          }
+                                        }}
+                                        className="px-4 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-amber-600 transition-all shadow-xs"
+                                      >
+                                        Save Changes
+                                      </button>
+                                    </div>
+                                  </div>
                                 </div>
-                              )}
-                            </div>
-                          ))}
+                              );
+                            }
+
+                            return (
+                              <div key={log.id} className="p-4 bg-zinc-50/50 dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-zinc-800 rounded-xl space-y-3 group hover:border-zinc-300 dark:hover:border-zinc-700 transition-all shadow-xs">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-500 uppercase">
+                                      {format(new Date(log.timestamp), 'MMM d, p')}
+                                    </span>
+                                    <span className={cn(
+                                      "px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider",
+                                      log.outcome === 'resisted' || log.outcome === 'returned_to_focus' 
+                                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                                        : "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
+                                    )}>
+                                      {log.outcome.replace(/_/g, ' ')}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-1">
+                                    <button 
+                                      type="button"
+                                      onClick={() => setEditingUrgeLog(log)}
+                                      className="p-1.5 hover:bg-zinc-200/60 dark:hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-all"
+                                      title="Edit session"
+                                    >
+                                      <Edit className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button 
+                                      type="button"
+                                      onClick={async () => {
+                                        try {
+                                          await deleteDoc(doc(db, 'urgeLogs', log.id));
+                                        } catch (err) {
+                                          console.error(err);
+                                        }
+                                      }}
+                                      className="p-1.5 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg text-zinc-400 hover:text-red-500 transition-all"
+                                      title="Delete record"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                                    "{log.intent || 'Unspecified Action'}"
+                                  </p>
+                                  <p className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 mt-0.5">
+                                    Future impact: <span className={log.willHelpFuture ? 'text-emerald-500 font-bold' : 'text-red-400 font-bold'}>{log.willHelpFuture ? 'Positive' : 'Negative'}</span> • Duration: {formatDurationSeconds(log.durationSeconds)}
+                                  </p>
+                                </div>
+
+                                {/* REASON & ALTERNATIVE PLAN DETAILS */}
+                                {(log.whyNotReason || log.whatToDoInstead) && (
+                                  <div className="space-y-2 pt-1 border-t border-zinc-100 dark:border-zinc-800/80">
+                                    {log.whyNotReason && (
+                                      <div className="p-2.5 bg-red-500/5 border border-red-500/15 rounded-lg text-xs space-y-1">
+                                        <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 font-bold text-[10px] uppercase tracking-wider">
+                                          <AlertTriangle className="w-3 h-3 shrink-0" />
+                                          <span>Why Shouldn't I Do It?</span>
+                                        </div>
+                                        <p className="text-zinc-700 dark:text-zinc-300 font-medium whitespace-pre-wrap pl-4 text-[11px]">
+                                          {log.whyNotReason}
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {log.whatToDoInstead && (
+                                      <div className="p-2.5 bg-emerald-500/5 border border-emerald-500/15 rounded-lg text-xs space-y-1">
+                                        <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] uppercase tracking-wider">
+                                          <Sparkles className="w-3 h-3 shrink-0" />
+                                          <span>What Should I Do Instead?</span>
+                                        </div>
+                                        <p className="text-zinc-700 dark:text-zinc-300 font-medium whitespace-pre-wrap pl-4 text-[11px]">
+                                          {log.whatToDoInstead}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                   </div>
