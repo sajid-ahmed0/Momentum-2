@@ -42,32 +42,14 @@ import { TimeBlock, BlockTask } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const COLOR_OPTIONS = [
-  // Row 1 - Crimson, Rose, Pink, Salmon, Coral, Orange, Amber, Gold, Yellow, Lime, Green, Mint
-  { id: 'crimson', name: 'Crimson', bg: 'bg-rose-700 border-rose-800 text-white', dot: '#be123c' },
-  { id: 'rose', name: 'Rose', bg: 'bg-rose-500 border-rose-600 text-white', dot: '#f43f5e' },
-  { id: 'pink', name: 'Pink', bg: 'bg-pink-500 border-pink-600 text-white', dot: '#ec4899' },
-  { id: 'salmon', name: 'Salmon', bg: 'bg-rose-400 border-rose-500 text-white', dot: '#fb7185' },
-  { id: 'coral', name: 'Coral', bg: 'bg-orange-500 border-orange-600 text-white', dot: '#f97316' },
-  { id: 'amber', name: 'Amber', bg: 'bg-amber-500 border-amber-600 text-white', dot: '#f59e0b' },
-  { id: 'gold', name: 'Gold', bg: 'bg-amber-400 border-amber-500 text-zinc-900', dot: '#fbbf24' },
-  { id: 'yellow', name: 'Yellow', bg: 'bg-yellow-500 border-yellow-600 text-zinc-900', dot: '#eab308' },
-  { id: 'lime', name: 'Lime', bg: 'bg-lime-500 border-lime-600 text-zinc-900', dot: '#84cc16' },
-  { id: 'green', name: 'Green', bg: 'bg-green-600 border-green-700 text-white', dot: '#16a34a' },
-  { id: 'emerald', name: 'Emerald', bg: 'bg-emerald-600 border-emerald-700 text-white', dot: '#059669' },
-  { id: 'mint', name: 'Mint', bg: 'bg-emerald-400 border-emerald-500 text-zinc-900', dot: '#34d399' },
-
-  // Row 2 - Teal, Cyan, Sky, Blue, Indigo, Lavender, Purple, Magenta, Brown, Slate, Taupe
-  { id: 'teal', name: 'Teal', bg: 'bg-teal-600 border-teal-700 text-white', dot: '#0d9488' },
-  { id: 'cyan', name: 'Cyan', bg: 'bg-cyan-500 border-cyan-600 text-white', dot: '#06b6d4' },
-  { id: 'sky', name: 'Sky Blue', bg: 'bg-sky-500 border-sky-600 text-white', dot: '#0ea5e9' },
-  { id: 'blue', name: 'Royal Blue', bg: 'bg-blue-600 border-blue-700 text-white', dot: '#2563eb' },
   { id: 'indigo', name: 'Indigo', bg: 'bg-indigo-600 border-indigo-700 text-white', dot: '#4f46e5' },
-  { id: 'violet', name: 'Violet', bg: 'bg-violet-500 border-violet-600 text-white', dot: '#8b5cf6' },
+  { id: 'rose', name: 'Red', bg: 'bg-rose-500 border-rose-600 text-white', dot: '#f43f5e' },
+  { id: 'amber', name: 'Orange', bg: 'bg-amber-500 border-amber-600 text-white', dot: '#f59e0b' },
+  { id: 'emerald', name: 'Green', bg: 'bg-emerald-600 border-emerald-700 text-white', dot: '#059669' },
+  { id: 'sky', name: 'Blue', bg: 'bg-sky-500 border-sky-600 text-white', dot: '#0ea5e9' },
   { id: 'purple', name: 'Purple', bg: 'bg-purple-600 border-purple-700 text-white', dot: '#9333ea' },
-  { id: 'fuchsia', name: 'Fuchsia', bg: 'bg-fuchsia-600 border-fuchsia-700 text-white', dot: '#c026d3' },
-  { id: 'brown', name: 'Brown', bg: 'bg-amber-800 border-amber-900 text-white', dot: '#92400e' },
-  { id: 'zinc', name: 'Slate', bg: 'bg-zinc-600 border-zinc-700 text-white', dot: '#52525b' },
-  { id: 'taupe', name: 'Taupe', bg: 'bg-stone-500 border-stone-600 text-white', dot: '#78716c' },
+  { id: 'teal', name: 'Teal', bg: 'bg-teal-600 border-teal-700 text-white', dot: '#0d9488' },
+  { id: 'zinc', name: 'Gray', bg: 'bg-zinc-600 border-zinc-700 text-white', dot: '#52525b' },
 ];
 
 export const getBlockColorStyle = (colorId?: string) => {
@@ -960,20 +942,43 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                             {isCompact ? (
                               /* SIDE-BY-SIDE LAYOUT FOR LOW SCALE / COMPACT BLOCKS */
                               <div className="flex items-center justify-between gap-1.5 w-full h-full min-w-0">
-                                <div className="flex items-center gap-1.5 min-w-0 truncate">
+                                <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
                                   <span className={`font-mono ${timeSize} font-bold opacity-90 shrink-0 leading-none`}>
                                     {formatTime12h(block.startTime)} - {formatTime12h(block.endTime)}
                                   </span>
                                   <span className="text-white/60 font-mono text-[9px] shrink-0 leading-none">•</span>
-                                  <span className={`font-black ${titleSize} uppercase truncate tracking-tight leading-none flex items-center gap-1`}>
+                                  <span className={`font-black ${titleSize} uppercase shrink-0 leading-none flex items-center gap-1`}>
                                     {block.emoji && <span className="normal-case leading-none mr-0.5">{block.emoji}</span>}
                                     <span className="truncate">{block.activity}</span>
                                   </span>
+
+                                  {/* TASKS VISIBLE SIDE-BY-SIDE IN LOW SCALE / COMPACT MODE */}
                                   {subtasks.length > 0 && (
-                                    <span className="bg-black/30 text-white font-mono text-[8px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shrink-0 ml-1">
-                                      <CheckSquare className="w-2.5 h-2.5 text-amber-300 shrink-0" />
-                                      <span>{completedCount}/{subtasks.length}</span>
-                                    </span>
+                                    <>
+                                      <span className="text-white/60 font-mono text-[9px] shrink-0 leading-none">•</span>
+                                      <div className="flex items-center gap-1.5 overflow-hidden flex-1 min-w-0">
+                                        {subtasks.map(st => (
+                                          <span
+                                            key={st.id}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onToggleSubtask && onToggleSubtask(block.id, st.id);
+                                            }}
+                                            className="inline-flex items-center gap-1 text-[9px] font-medium bg-black/25 hover:bg-black/40 px-1.5 py-0.5 rounded cursor-pointer shrink-0 max-w-[140px] truncate transition-colors"
+                                            title={st.text}
+                                          >
+                                            {st.completed ? (
+                                              <Check className="w-2.5 h-2.5 shrink-0 text-emerald-300" />
+                                            ) : (
+                                              <div className="w-2 h-2 rounded-sm border border-white/80 shrink-0" />
+                                            )}
+                                            <span className={st.completed ? 'line-through opacity-70 truncate' : 'truncate font-bold'}>
+                                              {st.text}
+                                            </span>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </>
                                   )}
                                 </div>
                                 <button
@@ -1012,9 +1017,9 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                                     <span className="truncate">{block.activity}</span>
                                   </h5>
 
-                                  {/* SUBTASKS PREVIEW FOR CARDS */}
+                                  {/* SUBTASKS DIRECTLY VISIBLE UNDER BLOCK NAME */}
                                   {subtasks.length > 0 && (
-                                    <div className="mt-1 space-y-0.5 border-t border-white/20 pt-1 overflow-y-auto custom-scrollbar flex-1 pr-0.5">
+                                    <div className="mt-1 space-y-1 border-t border-white/20 pt-1 overflow-y-auto custom-scrollbar flex-1 pr-0.5">
                                       {subtasks.map(st => (
                                         <div 
                                           key={st.id} 
@@ -1022,14 +1027,14 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                                             e.stopPropagation();
                                             onToggleSubtask && onToggleSubtask(block.id, st.id);
                                           }}
-                                          className="flex items-center gap-1 text-[9px] font-medium opacity-90 hover:opacity-100 truncate cursor-pointer py-0.5"
+                                          className="flex items-center gap-1.5 text-[10px] font-medium bg-black/15 hover:bg-black/30 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
                                         >
                                           {st.completed ? (
-                                            <Check className="w-2.5 h-2.5 shrink-0 text-emerald-300" />
+                                            <Check className="w-3 h-3 shrink-0 text-emerald-300" />
                                           ) : (
-                                            <div className="w-2 h-2 rounded-sm border border-white/80 shrink-0" />
+                                            <div className="w-2.5 h-2.5 rounded-sm border border-white/90 shrink-0" />
                                           )}
-                                          <span className={st.completed ? 'line-through opacity-70 truncate' : 'truncate font-bold'}>
+                                          <span className={st.completed ? 'line-through opacity-70 truncate' : 'truncate font-bold text-white'}>
                                             {st.text}
                                           </span>
                                         </div>
