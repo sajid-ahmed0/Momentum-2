@@ -84,6 +84,8 @@ export interface UrgeLog {
   id: string;
   intent: string;
   willHelpFuture: boolean;
+  whyNotReason?: string;
+  whatToDoInstead?: string;
   outcome: 'resisted' | 'given_in' | 'returned_to_focus' | 'continued_anyway';
   durationSeconds: number;
   date: string;

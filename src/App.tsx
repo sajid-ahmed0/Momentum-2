@@ -2294,42 +2294,76 @@ export default function App() {
                           </div>
                         </div>
 
-                        <div className="space-y-3">
-                          {urgeLogs.slice(0, 10).map(log => (
-                            <div key={log.id} className="p-4 bg-zinc-50/30 dark:bg-zinc-900/30 border border-zinc-100 dark:border-zinc-800 rounded-lg flex items-center justify-between group hover:bg-white dark:hover:bg-zinc-900 transition-all">
-                              <div>
-                                <div className="flex items-center gap-3 mb-1">
-                                  <span className="text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-600 uppercase">
+                        <div className="space-y-4">
+                          {urgeLogs.slice(0, 15).map(log => (
+                            <div key={log.id} className="p-4 bg-zinc-50/50 dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-zinc-800 rounded-xl space-y-3 group hover:border-zinc-300 dark:hover:border-zinc-700 transition-all shadow-xs">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-500 uppercase">
                                     {format(new Date(log.timestamp), 'MMM d, p')}
                                   </span>
                                   <span className={cn(
-                                    "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter",
+                                    "px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider",
                                     log.outcome === 'resisted' || log.outcome === 'returned_to_focus' 
-                                      ? "bg-emerald-500/10 text-emerald-500"
-                                      : "bg-red-500/10 text-red-500"
+                                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                                      : "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
                                   )}>
-                                    {log.outcome.replace('_', ' ')}
+                                    {log.outcome.replace(/_/g, ' ')}
                                   </span>
                                 </div>
-                                <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
-                                  "{log.intent || 'Unknown Action'}"
+                                <button 
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      await deleteDoc(doc(db, 'urgeLogs', log.id));
+                                    } catch (err) {
+                                      console.error(err);
+                                    }
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-50 dark:hover:bg-red-500/10 rounded transition-all"
+                                  title="Delete record"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-zinc-400 hover:text-red-500" />
+                                </button>
+                              </div>
+
+                              <div>
+                                <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                                  "{log.intent || 'Unspecified Action'}"
                                 </p>
-                                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1">
-                                  Future impact: {log.willHelpFuture ? 'Positive' : 'Negative'} • Duration: {formatDurationSeconds(log.durationSeconds)}
+                                <p className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 mt-0.5">
+                                  Future impact: <span className={log.willHelpFuture ? 'text-emerald-500 font-bold' : 'text-red-400 font-bold'}>{log.willHelpFuture ? 'Positive' : 'Negative'}</span> • Duration: {formatDurationSeconds(log.durationSeconds)}
                                 </p>
                               </div>
-                              <button 
-                                onClick={async () => {
-                                  try {
-                                    await deleteDoc(doc(db, 'urgeLogs', log.id));
-                                  } catch (err) {
-                                    console.error(err);
-                                  }
-                                }}
-                                className="opacity-0 group-hover:opacity-100 p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded transition-all"
-                              >
-                                <Trash2 className="w-3.5 h-3.5 text-zinc-400" />
-                              </button>
+
+                              {/* REASON & ALTERNATIVE PLAN DETAILS */}
+                              {(log.whyNotReason || log.whatToDoInstead) && (
+                                <div className="space-y-2 pt-1 border-t border-zinc-100 dark:border-zinc-800/80">
+                                  {log.whyNotReason && (
+                                    <div className="p-2.5 bg-red-500/5 border border-red-500/15 rounded-lg text-xs space-y-1">
+                                      <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 font-bold text-[10px] uppercase tracking-wider">
+                                        <AlertTriangle className="w-3 h-3 shrink-0" />
+                                        <span>Why Shouldn't I Do It?</span>
+                                      </div>
+                                      <p className="text-zinc-700 dark:text-zinc-300 font-medium whitespace-pre-wrap pl-4 text-[11px]">
+                                        {log.whyNotReason}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {log.whatToDoInstead && (
+                                    <div className="p-2.5 bg-emerald-500/5 border border-emerald-500/15 rounded-lg text-xs space-y-1">
+                                      <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] uppercase tracking-wider">
+                                        <Sparkles className="w-3 h-3 shrink-0" />
+                                        <span>What Should I Do Instead?</span>
+                                      </div>
+                                      <p className="text-zinc-700 dark:text-zinc-300 font-medium whitespace-pre-wrap pl-4 text-[11px]">
+                                        {log.whatToDoInstead}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
