@@ -11,7 +11,12 @@ import {
   eachDayOfInterval, 
   isToday,
   addWeeks,
-  subWeeks
+  subWeeks,
+  startOfMonth,
+  endOfMonth,
+  isSameMonth,
+  addMonths,
+  subMonths
 } from 'date-fns';
 import { 
   ChevronLeft, 
@@ -85,7 +90,7 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
   onOpenModalWithDefaults,
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(startOfToday());
-  const [viewMode, setViewMode] = useState<'day' | '3day' | 'week' | 'list'>('day');
+  const [viewMode, setViewMode] = useState<'day' | '3day' | 'week' | 'month' | 'list'>('day');
   const [zoomScale, setZoomScale] = useState<number>(1.0); // 0.6 = 60%, 1.0 = 100%, 2.0 = 200%
   const [now, setNow] = useState<Date>(new Date());
   const gridScrollRef = useRef<HTMLDivElement>(null);
@@ -105,6 +110,38 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
   const [presetNameInput, setPresetNameInput] = useState<string>('');
   const [presetDurationInput, setPresetDurationInput] = useState<number>(60);
   const [presetColorInput, setPresetColorInput] = useState<string>('indigo');
+
+  // Quick presets drag-to-scroll state
+  const quickPresetScrollRef = useRef<HTMLDivElement>(null);
+  const [isQuickDragging, setIsQuickDragging] = useState(false);
+  const [quickStartX, setQuickStartX] = useState(0);
+  const [quickScrollLeft, setQuickScrollLeft] = useState(0);
+  const [quickDragDistance, setQuickDragDistance] = useState(0);
+
+  const handleQuickMouseDown = (e: React.MouseEvent) => {
+    if (!quickPresetScrollRef.current) return;
+    setIsQuickDragging(true);
+    setQuickStartX(e.pageX - quickPresetScrollRef.current.offsetLeft);
+    setQuickScrollLeft(quickPresetScrollRef.current.scrollLeft);
+    setQuickDragDistance(0);
+  };
+
+  const handleQuickMouseLeave = () => {
+    setIsQuickDragging(false);
+  };
+
+  const handleQuickMouseUp = () => {
+    setIsQuickDragging(false);
+  };
+
+  const handleQuickMouseMove = (e: React.MouseEvent) => {
+    if (!isQuickDragging || !quickPresetScrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - quickPresetScrollRef.current.offsetLeft;
+    const walk = (x - quickStartX) * 1.5;
+    setQuickDragDistance(Math.abs(x - quickStartX));
+    quickPresetScrollRef.current.scrollLeft = quickScrollLeft - walk;
+  };
 
   // Update current time indicator every minute
   useEffect(() => {
@@ -201,6 +238,8 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
       setSelectedDate(prev => subDays(prev, 3));
     } else if (viewMode === 'week') {
       setSelectedDate(prev => subWeeks(prev, 1));
+    } else if (viewMode === 'month') {
+      setSelectedDate(prev => subMonths(prev, 1));
     }
   };
 
@@ -211,6 +250,8 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
       setSelectedDate(prev => addDays(prev, 3));
     } else if (viewMode === 'week') {
       setSelectedDate(prev => addWeeks(prev, 1));
+    } else if (viewMode === 'month') {
+      setSelectedDate(prev => addMonths(prev, 1));
     }
   };
 
@@ -300,9 +341,17 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <CalendarIcon className="w-4 h-4 text-amber-500" />
+            <button 
+              onClick={() => setViewMode(prev => prev === 'month' ? 'day' : 'month')}
+              className="p-1 hover:bg-amber-500/10 rounded-lg transition-colors group"
+              title="Click to toggle Month Calendar View"
+            >
+              <CalendarIcon className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
+            </button>
             <h2 className="text-sm sm:text-base font-black tracking-tight uppercase">
-              {viewMode === 'week' ? (
+              {viewMode === 'month' ? (
+                format(selectedDate, 'MMMM yyyy')
+              ) : viewMode === 'week' ? (
                 <>
                   {format(displayedDays[0], 'MMM d')} – {format(displayedDays[6], 'MMM d, yyyy')}
                 </>
@@ -320,7 +369,7 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
         {/* View Mode Switcher, Zoom Controls & Add Button */}
         <div className="flex items-center gap-2 sm:gap-3 ml-auto flex-wrap">
           {/* Zoom In/Out Controls */}
-          {viewMode !== 'list' && (
+          {viewMode !== 'list' && viewMode !== 'month' && (
             <div className="flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-1 shadow-sm">
               <button 
                 onClick={() => setZoomScale(prev => Math.max(0.6, Math.round((prev - 0.2) * 10) / 10))}
@@ -377,6 +426,18 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
               Week
             </button>
             <button
+              onClick={() => setViewMode('month')}
+              className={`px-3 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition-all ${
+                viewMode === 'month' 
+                  ? 'bg-amber-500 text-white shadow-sm' 
+                  : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              }`}
+              title="Month Calendar View"
+            >
+              <CalendarIcon className="w-3.5 h-3.5" />
+              <span>Month</span>
+            </button>
+            <button
               onClick={() => setViewMode('list')}
               className={`px-2 py-1 rounded-md text-xs font-bold transition-all ${
                 viewMode === 'list' 
@@ -418,10 +479,19 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
         </div>
       </div>
 
-      {/* QUICK PRESETS STRIP WITH CUSTOMIZE BUTTON */}
-      <div className="px-6 py-2.5 bg-zinc-100/60 dark:bg-zinc-900/40 border-b border-zinc-200 dark:border-zinc-800/80 flex items-center justify-between gap-2 overflow-x-auto text-xs no-scrollbar">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-          <span className="text-[10px] font-mono font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest shrink-0 flex items-center gap-1">
+      {/* QUICK PRESETS STRIP WITH DRAG-TO-SCROLL & CUSTOMIZE BUTTON */}
+      <div className="px-6 py-2.5 bg-zinc-100/60 dark:bg-zinc-900/40 border-b border-zinc-200 dark:border-zinc-800/80 flex items-center justify-between gap-2 text-xs no-scrollbar overflow-hidden">
+        <div 
+          ref={quickPresetScrollRef}
+          onMouseDown={handleQuickMouseDown}
+          onMouseLeave={handleQuickMouseLeave}
+          onMouseUp={handleQuickMouseUp}
+          onMouseMove={handleQuickMouseMove}
+          className={`flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none select-none cursor-grab flex-1 ${
+            isQuickDragging ? 'cursor-grabbing' : ''
+          }`}
+        >
+          <span className="text-[10px] font-mono font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest shrink-0 flex items-center gap-1 select-none pointer-events-none">
             <Sparkles className="w-3 h-3 text-amber-500" /> Quick Add:
           </span>
 
@@ -430,8 +500,11 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
             return (
               <button 
                 key={preset.id}
-                onClick={() => handleAddPreset(preset.name, preset.durationMinutes, preset.color)}
-                className="px-2.5 py-1 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700/80 border border-zinc-200 dark:border-zinc-700/80 text-zinc-700 dark:text-zinc-300 font-bold rounded-md shrink-0 transition-all flex items-center gap-1.5 hover:shadow-sm"
+                onClick={() => {
+                  if (quickDragDistance > 5) return; // Prevent triggering preset click when dragging to scroll
+                  handleAddPreset(preset.name, preset.durationMinutes, preset.color);
+                }}
+                className="px-2.5 py-1 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700/80 border border-zinc-200 dark:border-zinc-700/80 text-zinc-700 dark:text-zinc-300 font-bold rounded-md shrink-0 transition-all flex items-center gap-1.5 hover:shadow-sm select-none"
               >
                 <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
                 <span>{preset.name}</span>
@@ -443,7 +516,7 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
 
         <button
           onClick={() => setShowCustomizeModal(true)}
-          className="flex items-center gap-1 px-2.5 py-1 bg-white dark:bg-zinc-800 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-zinc-600 dark:text-zinc-300 hover:text-amber-600 dark:hover:text-amber-400 border border-zinc-200 dark:border-zinc-700 font-bold text-[10px] uppercase tracking-wider rounded-md shrink-0 transition-colors"
+          className="flex items-center gap-1 px-2.5 py-1 bg-white dark:bg-zinc-800 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-zinc-600 dark:text-zinc-300 hover:text-amber-600 dark:hover:text-amber-400 border border-zinc-200 dark:border-zinc-700 font-bold text-[10px] uppercase tracking-wider rounded-md shrink-0 transition-colors ml-2"
           title="Customize Quick Presets"
         >
           <SlidersHorizontal className="w-3 h-3" />
@@ -452,7 +525,133 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
       </div>
 
       {/* VIEW CONTENT */}
-      {viewMode === 'list' ? (
+      {viewMode === 'month' ? (
+        /* GOOGLE CALENDAR STYLE MONTH VIEW */
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          {/* MONTH WEEKDAY HEADERS */}
+          <div className="grid grid-cols-7 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-900/90 text-center sticky top-0 z-20">
+            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((dayName) => (
+              <div key={dayName} className="py-2.5 text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 border-r last:border-r-0 border-zinc-200 dark:border-zinc-800">
+                {dayName}
+              </div>
+            ))}
+          </div>
+
+          {/* MONTH DAYS GRID */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
+            {(() => {
+              const monthStart = startOfMonth(selectedDate);
+              const monthEnd = endOfMonth(selectedDate);
+              const monthGridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+              const monthGridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+              const monthDays = eachDayOfInterval({ start: monthGridStart, end: monthGridEnd });
+
+              return (
+                <div className="grid grid-cols-7 auto-rows-fr min-h-full border-l border-t border-zinc-200 dark:border-zinc-800">
+                  {monthDays.map(dayDate => {
+                    const isCurrentMonth = isSameMonth(dayDate, selectedDate);
+                    const isDayToday = isToday(dayDate);
+                    const dateStr = format(dayDate, 'yyyy-MM-dd');
+                    const dayBlocks = timeBlocks
+                      .filter(b => b.date === dateStr)
+                      .sort((a, b) => getMinutes(a.startTime) - getMinutes(b.startTime));
+
+                    return (
+                      <div
+                        key={dateStr}
+                        onClick={() => {
+                          if (onOpenModalWithDefaults) {
+                            onOpenModalWithDefaults({ startTime: '09:00', endTime: '10:00', date: dateStr });
+                          }
+                        }}
+                        className={`min-h-[110px] sm:min-h-[130px] p-1.5 border-r border-b border-zinc-200 dark:border-zinc-800 flex flex-col justify-between transition-colors relative group cursor-pointer ${
+                          isDayToday
+                            ? 'bg-amber-500/5 dark:bg-amber-500/10'
+                            : isCurrentMonth
+                              ? 'bg-white dark:bg-zinc-950 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/50'
+                              : 'bg-zinc-50/50 dark:bg-zinc-900/30 opacity-60'
+                        }`}
+                      >
+                        {/* Day Number Header */}
+                        <div className="flex items-center justify-between mb-1">
+                          <span
+                            className={`text-xs font-black w-6 h-6 flex items-center justify-center rounded-full transition-all ${
+                              isDayToday
+                                ? 'bg-amber-500 text-white shadow-sm'
+                                : isCurrentMonth
+                                  ? 'text-zinc-800 dark:text-zinc-200'
+                                  : 'text-zinc-400 dark:text-zinc-600'
+                            }`}
+                          >
+                            {format(dayDate, 'd')}
+                          </span>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onOpenModalWithDefaults) {
+                                onOpenModalWithDefaults({ startTime: '09:00', endTime: '10:00', date: dateStr });
+                              }
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-amber-500 hover:text-white rounded text-zinc-400 transition-all"
+                            title="Add block on this day"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+
+                        {/* Event Pills List */}
+                        <div className="flex-1 space-y-1 overflow-hidden">
+                          {dayBlocks.slice(0, 3).map(block => {
+                            const dotColor = COLOR_OPTIONS.find(c => c.id === block.color)?.dot || '#4f46e5';
+                            return (
+                              <div
+                                key={block.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (onOpenModalWithDefaults) {
+                                    onOpenModalWithDefaults({
+                                      startTime: block.startTime,
+                                      endTime: block.endTime,
+                                      date: block.date,
+                                      block
+                                    });
+                                  }
+                                }}
+                                className="px-1.5 py-0.5 rounded text-[10px] font-bold truncate flex items-center gap-1.5 shadow-sm text-white hover:scale-[1.02] transition-transform"
+                                style={{ backgroundColor: dotColor }}
+                                title={`${block.activity} (${formatTime12h(block.startTime)} - ${formatTime12h(block.endTime)})`}
+                              >
+                                <span className="font-mono text-[9px] opacity-80 shrink-0">
+                                  {formatTime12h(block.startTime).replace(':00', '').replace(' ', '')}
+                                </span>
+                                <span className="truncate uppercase font-black">{block.activity}</span>
+                              </div>
+                            );
+                          })}
+
+                          {dayBlocks.length > 3 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedDate(dayDate);
+                                setViewMode('day');
+                              }}
+                              className="text-[9px] font-mono font-bold text-amber-600 dark:text-amber-400 hover:underline px-1 py-0.5 block"
+                            >
+                              +{dayBlocks.length - 3} more
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      ) : viewMode === 'list' ? (
         /* LIST COMPACT VIEW */
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           <div className="flex items-center justify-between mb-2">
