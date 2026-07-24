@@ -72,6 +72,7 @@ import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail, 
 import { Habit, HabitLog, TimeBlock, OverthinkingLog, DailyTask, JournalEntry, UrgeLog, Exam } from './types';
 import { cn } from './lib/utils';
 import { BreathingGuide } from './components/BreathingGuide';
+import { TimeBlockingGrid } from './components/TimeBlockingGrid';
 
 import { requestNotificationPermission, sendNotification, subscribeToPushNotifications } from './lib/notifications';
 
@@ -365,6 +366,7 @@ export default function App() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleDefaults, setScheduleDefaults] = useState<{ startTime: string; endTime: string; date: string } | null>(null);
   const [showOverthinkingModal, setShowOverthinkingModal] = useState(false);
   const [showJournalModal, setShowJournalModal] = useState(false);
   const [showExamModal, setShowExamModal] = useState(false);
@@ -725,27 +727,31 @@ export default function App() {
     }
   };
 
-  const handleAddTimeBlock = async (data: { startTime: string, endTime: string, activity: string }) => {
+  const handleAddTimeBlock = async (data: { startTime: string; endTime: string; activity: string; date?: string; category?: string }) => {
     if (!user) return;
     // Close modal immediately for better UX
     setShowScheduleModal(false);
+    setScheduleDefaults(null);
     try {
       await addDoc(collection(db, 'timeBlocks'), {
-        ...data,
-        date: format(startOfToday(), 'yyyy-MM-dd'),
+        activity: data.activity,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        category: data.category || 'Deep Work',
+        date: data.date || scheduleDefaults?.date || format(startOfToday(), 'yyyy-MM-dd'),
         uid: user.uid,
         timestamp: Date.now()
       });
     } catch (err) {
       console.error(err);
-      // If error, we might want to re-open or show error, but user requested auto-close
     }
   };
 
-  const handleEditTimeBlock = async (id: string, data: { startTime: string, endTime: string, activity: string }) => {
+  const handleEditTimeBlock = async (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; category?: string }) => {
     // Close modal immediately
     setShowScheduleModal(false);
     setEditingTimeBlock(null);
+    setScheduleDefaults(null);
     try {
       await updateDoc(doc(db, 'timeBlocks', id), {
         ...data,
@@ -1969,62 +1975,19 @@ export default function App() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="p-10 max-w-4xl mx-auto"
+                className="p-4 sm:p-8 max-w-7xl mx-auto h-[calc(100vh-120px)] min-h-[650px] flex flex-col"
               >
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <h2 className="text-2xl font-black uppercase tracking-tighter dark:text-zinc-100">Today's Schedule</h2>
-                    <p className="text-sm text-zinc-400 font-medium dark:text-zinc-500">{format(new Date(), 'EEEE, MMMM do')}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  {timeBlocks.filter(b => b.date === format(startOfToday(), 'yyyy-MM-dd')).length === 0 ? (
-                    <div className="p-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-xl flex flex-col items-center justify-center text-zinc-300 dark:text-zinc-700">
-                      <Clock className="w-12 h-12 mb-4 opacity-20" />
-                      <p className="font-bold uppercase tracking-widest text-[10px]">Your schedule is clear</p>
-                    </div>
-                  ) : (
-                    timeBlocks
-                      .filter(b => b.date === format(startOfToday(), 'yyyy-MM-dd'))
-                      .map(block => (
-                        <div key={block.id} className="flex gap-6 group min-h-[80px]">
-                          <div className="w-20 pt-1 flex flex-col justify-between items-end pb-1 shrink-0">
-                            <p className="text-[10px] font-mono font-black text-zinc-900 dark:text-zinc-100 lowercase tabular-nums leading-none">{formatTime12h(block.startTime)}</p>
-                            <div className="w-px flex-1 bg-zinc-200 dark:bg-zinc-800 mr-4 my-2" />
-                            <p className="text-[10px] font-mono font-black text-zinc-900 dark:text-zinc-100 lowercase tabular-nums leading-none">{formatTime12h(block.endTime)}</p>
-                          </div>
-                          <div className="flex-1 p-5 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 transition-all flex items-center justify-between">
-                            <div>
-                               <h4 className="font-black uppercase tracking-tight text-sm dark:text-zinc-100">{block.activity}</h4>
-                               {block.category && (
-                                <span className="inline-block mt-2 px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-[8px] font-black uppercase tracking-widest rounded-full text-zinc-400 dark:text-zinc-500">
-                                  {block.category}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <button 
-                                onClick={() => {
-                                  setEditingTimeBlock(block);
-                                  setShowScheduleModal(true);
-                                }}
-                                className="lg:opacity-0 lg:group-hover:opacity-100 opacity-100 p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all"
-                              >
-                                <Settings className="w-4 h-4 text-zinc-300 hover:text-zinc-600 dark:hover:text-zinc-400" />
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteTimeBlock(block.id)}
-                                className="lg:opacity-0 lg:group-hover:opacity-100 opacity-100 p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all"
-                              >
-                                <Trash2 className="w-4 h-4 text-zinc-300 hover:text-red-500" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                  )}
-                </div>
+                <TimeBlockingGrid 
+                  timeBlocks={timeBlocks}
+                  onAddTimeBlock={handleAddTimeBlock}
+                  onEditTimeBlock={(id, data) => handleEditTimeBlock(id, data)}
+                  onDeleteTimeBlock={handleDeleteTimeBlock}
+                  onOpenModalWithDefaults={(defaults) => {
+                    setEditingTimeBlock(null);
+                    setScheduleDefaults(defaults);
+                    setShowScheduleModal(true);
+                  }}
+                />
               </motion.div>
             ) : activeTab === 'overthinking' ? (
               <motion.div 
@@ -2927,6 +2890,7 @@ export default function App() {
             onClose={() => {
               setShowScheduleModal(false);
               setEditingTimeBlock(null);
+              setScheduleDefaults(null);
             }} 
             title={editingTimeBlock ? "Edit Time Block" : "New Time Block"}
           >
@@ -2936,7 +2900,9 @@ export default function App() {
               const data = {
                 startTime: fd.get('startTime') as string,
                 endTime: fd.get('endTime') as string,
-                activity: fd.get('activity') as string
+                activity: fd.get('activity') as string,
+                category: fd.get('category') as string,
+                date: fd.get('date') as string,
               };
               
               if (editingTimeBlock) {
@@ -2944,45 +2910,77 @@ export default function App() {
               } else {
                 handleAddTimeBlock(data);
               }
-            }} className="space-y-8">
+            }} className="space-y-6">
               <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Activity Name</label>
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Activity Name</label>
                 <input 
                   name="activity"
                   type="text" 
                   required
                   autoFocus
                   defaultValue={editingTimeBlock?.activity || ''}
-                  placeholder="e.g. Lunch, Deep Work, Gym"
-                  className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
+                  placeholder="e.g. Deep Work, Gym, Lunch"
+                  className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-8">
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Start Time</label>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Date</label>
+                  <input 
+                    name="date"
+                    type="date" 
+                    required
+                    defaultValue={editingTimeBlock?.date || scheduleDefaults?.date || format(startOfToday(), 'yyyy-MM-dd')}
+                    className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Category</label>
+                  <select
+                    name="category"
+                    defaultValue={editingTimeBlock?.category || 'Deep Work'}
+                    className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
+                  >
+                    <option value="Deep Work">Deep Work</option>
+                    <option value="Work">Work</option>
+                    <option value="Health & Gym">Health & Gym</option>
+                    <option value="Personal">Personal</option>
+                    <option value="Study & Reading">Study & Reading</option>
+                    <option value="Rest & Break">Rest & Break</option>
+                    <option value="Routine / Chores">Routine / Chores</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Start Time</label>
                   <input 
                     name="startTime"
                     type="time" 
                     required
-                    defaultValue={editingTimeBlock?.startTime || ''}
+                    defaultValue={editingTimeBlock?.startTime || scheduleDefaults?.startTime || '09:00'}
                     className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">End Time</label>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">End Time</label>
                   <input 
                     name="endTime"
                     type="time" 
                     required
-                    defaultValue={editingTimeBlock?.endTime || ''}
+                    defaultValue={editingTimeBlock?.endTime || scheduleDefaults?.endTime || '10:00'}
                     className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
                   />
                 </div>
               </div>
+
               <div className="pt-6 flex gap-3 sticky bottom-0 bg-white dark:bg-zinc-950 pb-2">
                 <Button type="button" variant="secondary" onClick={() => {
                   setShowScheduleModal(false);
                   setEditingTimeBlock(null);
+                  setScheduleDefaults(null);
                 }} className="flex-1 text-xs dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 h-10">Cancel</Button>
                 <Button type="submit" className="flex-[2] text-xs font-bold dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white h-10">{editingTimeBlock ? "Update Block" : "Save Block"}</Button>
               </div>
