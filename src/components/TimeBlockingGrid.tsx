@@ -92,8 +92,8 @@ const DEFAULT_PRESETS: QuickPreset[] = [
 
 interface TimeBlockingGridProps {
   timeBlocks: TimeBlock[];
-  onAddTimeBlock: (data: { startTime: string; endTime: string; activity: string; date: string; color?: string; subtasks?: BlockTask[] }) => void;
-  onEditTimeBlock: (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; subtasks?: BlockTask[] }) => void;
+  onAddTimeBlock: (data: { startTime: string; endTime: string; activity: string; date: string; color?: string; emoji?: string; subtasks?: BlockTask[] }) => void;
+  onEditTimeBlock: (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; emoji?: string; subtasks?: BlockTask[] }) => void;
   onDeleteTimeBlock: (id: string) => void;
   onToggleSubtask?: (blockId: string, subtaskId: string) => void;
   onOpenModalWithDefaults?: (defaults: { startTime: string; endTime: string; date: string; block?: TimeBlock }) => void;
@@ -633,8 +633,9 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                                 style={{ backgroundColor: dotColor }}
                                 title={`${block.activity} (${formatTime12h(block.startTime)} - ${formatTime12h(block.endTime)})`}
                               >
-                                <span className="font-mono text-[9px] opacity-80 shrink-0">
-                                  {formatTime12h(block.startTime).replace(':00', '').replace(' ', '')}
+                                <span className="font-mono text-[9px] opacity-80 shrink-0 flex items-center gap-1">
+                                  {block.emoji && <span className="normal-case leading-none">{block.emoji}</span>}
+                                  <span>{formatTime12h(block.startTime).replace(':00', '').replace(' ', '')}</span>
                                 </span>
                                 <span className="truncate uppercase font-black">{block.activity}</span>
                               </div>
@@ -712,10 +713,34 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                           style={{ backgroundColor: COLOR_OPTIONS.find(c => c.id === block.color)?.dot || '#4f46e5' }}
                         />
                         <div>
-                          <h4 className="font-black text-sm uppercase dark:text-zinc-100">{block.activity}</h4>
+                          <h4 className="font-black text-sm uppercase dark:text-zinc-100 flex items-center gap-1.5">
+                            {block.emoji && <span className="normal-case text-base leading-none">{block.emoji}</span>}
+                            <span>{block.activity}</span>
+                          </h4>
                           <p className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500">
                             {formatTime12h(block.startTime)} – {formatTime12h(block.endTime)} ({getMinutes(block.endTime) - getMinutes(block.startTime)} mins)
                           </p>
+                          {subtasks.length > 0 && (
+                            <div className="mt-2.5 pt-2 border-t border-zinc-100 dark:border-zinc-800 space-y-1.5">
+                              {subtasks.map(st => (
+                                <div 
+                                  key={st.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onToggleSubtask && onToggleSubtask(block.id, st.id);
+                                  }}
+                                  className="flex items-center gap-2 text-xs cursor-pointer hover:opacity-80 transition-opacity"
+                                >
+                                  <div className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition-colors ${st.completed ? 'bg-amber-500 border-amber-500 text-white' : 'border-zinc-300 dark:border-zinc-700'}`}>
+                                    {st.completed && <Check className="w-2.5 h-2.5" />}
+                                  </div>
+                                  <span className={st.completed ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-700 dark:text-zinc-200 font-medium'}>
+                                    {st.text}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -940,9 +965,16 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                                     {formatTime12h(block.startTime)} - {formatTime12h(block.endTime)}
                                   </span>
                                   <span className="text-white/60 font-mono text-[9px] shrink-0 leading-none">•</span>
-                                  <span className={`font-black ${titleSize} uppercase truncate tracking-tight leading-none`}>
-                                    {block.activity}
+                                  <span className={`font-black ${titleSize} uppercase truncate tracking-tight leading-none flex items-center gap-1`}>
+                                    {block.emoji && <span className="normal-case leading-none mr-0.5">{block.emoji}</span>}
+                                    <span className="truncate">{block.activity}</span>
                                   </span>
+                                  {subtasks.length > 0 && (
+                                    <span className="bg-black/30 text-white font-mono text-[8px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shrink-0 ml-1">
+                                      <CheckSquare className="w-2.5 h-2.5 text-amber-300 shrink-0" />
+                                      <span>{completedCount}/{subtasks.length}</span>
+                                    </span>
+                                  )}
                                 </div>
                                 <button
                                   onClick={(e) => {
@@ -958,8 +990,8 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                             ) : (
                               /* TALLER BLOCK MULTI-LINE LAYOUT */
                               <div className="flex flex-col justify-between h-full min-w-0">
-                                <div className="min-w-0">
-                                  <div className="flex items-center justify-between gap-1">
+                                <div className="min-w-0 flex-1 flex flex-col justify-start overflow-hidden">
+                                  <div className="flex items-center justify-between gap-1 shrink-0">
                                     <span className="font-mono text-[9px] font-bold opacity-90 truncate">
                                       {formatTime12h(block.startTime)} - {formatTime12h(block.endTime)}
                                     </span>
@@ -968,50 +1000,46 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                                         e.stopPropagation();
                                         onDeleteTimeBlock(block.id);
                                       }}
-                                      className="opacity-0 group-hover/card:opacity-100 p-0.5 hover:bg-black/20 rounded transition-opacity"
+                                      className="opacity-0 group-hover/card:opacity-100 p-0.5 hover:bg-black/20 rounded transition-opacity shrink-0"
                                       title="Delete"
                                     >
                                       <X className="w-3 h-3 text-white" />
                                     </button>
                                   </div>
 
-                                  <h5 className="font-black text-xs leading-snug tracking-tight truncate mt-0.5 uppercase">
-                                    {block.activity}
+                                  <h5 className="font-black text-xs leading-snug tracking-tight truncate mt-0.5 uppercase flex items-center gap-1 shrink-0">
+                                    {block.emoji && <span className="normal-case leading-none">{block.emoji}</span>}
+                                    <span className="truncate">{block.activity}</span>
                                   </h5>
 
-                                  {/* SUBTASKS PREVIEW FOR TALLER CARDS */}
-                                  {heightPx >= 60 && subtasks.length > 0 && (
-                                    <div className="mt-1 space-y-0.5 border-t border-white/20 pt-1">
-                                      {subtasks.slice(0, heightPx >= 100 ? 5 : 2).map(st => (
+                                  {/* SUBTASKS PREVIEW FOR CARDS */}
+                                  {subtasks.length > 0 && (
+                                    <div className="mt-1 space-y-0.5 border-t border-white/20 pt-1 overflow-y-auto custom-scrollbar flex-1 pr-0.5">
+                                      {subtasks.map(st => (
                                         <div 
                                           key={st.id} 
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             onToggleSubtask && onToggleSubtask(block.id, st.id);
                                           }}
-                                          className="flex items-center gap-1 text-[9px] font-medium opacity-90 hover:opacity-100 truncate cursor-pointer"
+                                          className="flex items-center gap-1 text-[9px] font-medium opacity-90 hover:opacity-100 truncate cursor-pointer py-0.5"
                                         >
                                           {st.completed ? (
-                                            <Check className="w-2.5 h-2.5 shrink-0" />
+                                            <Check className="w-2.5 h-2.5 shrink-0 text-emerald-300" />
                                           ) : (
                                             <div className="w-2 h-2 rounded-sm border border-white/80 shrink-0" />
                                           )}
-                                          <span className={st.completed ? 'line-through opacity-70' : ''}>
+                                          <span className={st.completed ? 'line-through opacity-70 truncate' : 'truncate font-bold'}>
                                             {st.text}
                                           </span>
                                         </div>
                                       ))}
-                                      {subtasks.length > (heightPx >= 100 ? 5 : 2) && (
-                                        <span className="text-[8px] font-mono opacity-70">
-                                          +{subtasks.length - (heightPx >= 100 ? 5 : 2)} more
-                                        </span>
-                                      )}
                                     </div>
                                   )}
                                 </div>
 
                                 {heightPx > 36 && (
-                                  <div className="flex items-center justify-between mt-1 text-[8px] font-mono font-bold uppercase opacity-80">
+                                  <div className="flex items-center justify-between mt-1 text-[8px] font-mono font-bold uppercase opacity-80 shrink-0">
                                     <span>{durationMins}m</span>
                                     {subtasks.length > 0 && (
                                       <span className="flex items-center gap-1 bg-black/20 px-1 py-0.5 rounded">
@@ -1021,6 +1049,42 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                                     )}
                                   </div>
                                 )}
+                              </div>
+                            )}
+
+                            {/* HOVER SUBTASKS POPOVER FOR EASY VISIBILITY AT ANY SCALE */}
+                            {subtasks.length > 0 && (
+                              <div 
+                                onClick={(e) => e.stopPropagation()}
+                                className="hidden group-hover/card:block absolute left-0 right-0 top-full mt-1 z-50 p-2.5 bg-zinc-900/95 text-white dark:bg-zinc-950 dark:text-zinc-100 rounded-xl shadow-2xl border border-zinc-700/80 dark:border-zinc-800 text-[10px] min-w-[210px] pointer-events-auto backdrop-blur-md"
+                              >
+                                <div className="flex items-center justify-between border-b border-zinc-700 dark:border-zinc-800 pb-1.5 mb-1.5 font-bold">
+                                  <span className="flex items-center gap-1 text-amber-400 font-mono text-[9px] uppercase tracking-wider">
+                                    <CheckSquare className="w-3 h-3" /> Checklist ({completedCount}/{subtasks.length})
+                                  </span>
+                                  <span className="text-[8px] font-mono text-zinc-400">Click task to toggle</span>
+                                </div>
+                                <div className="space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
+                                  {subtasks.map(st => (
+                                    <div 
+                                      key={st.id} 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onToggleSubtask && onToggleSubtask(block.id, st.id);
+                                      }}
+                                      className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/10 dark:hover:bg-zinc-800/80 cursor-pointer transition-colors"
+                                    >
+                                      {st.completed ? (
+                                        <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                                      ) : (
+                                        <div className="w-2.5 h-2.5 rounded-sm border border-zinc-400 shrink-0" />
+                                      )}
+                                      <span className={`text-[10px] font-medium leading-snug ${st.completed ? 'line-through text-zinc-500' : 'text-zinc-100'}`}>
+                                        {st.text}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             )}
                           </motion.div>

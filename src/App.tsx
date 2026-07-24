@@ -369,6 +369,7 @@ export default function App() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [scheduleDefaults, setScheduleDefaults] = useState<{ startTime: string; endTime: string; date: string; block?: TimeBlock } | null>(null);
   const [modalColor, setModalColor] = useState<string>('indigo');
+  const [modalEmoji, setModalEmoji] = useState<string>('');
   const [modalSubtasks, setModalSubtasks] = useState<BlockTask[]>([]);
   const [newSubtaskInput, setNewSubtaskInput] = useState<string>('');
   const [showOverthinkingModal, setShowOverthinkingModal] = useState(false);
@@ -735,6 +736,7 @@ export default function App() {
     if (showScheduleModal) {
       const activeBlock = editingTimeBlock || scheduleDefaults?.block;
       setModalColor(activeBlock?.color || 'indigo');
+      setModalEmoji(activeBlock?.emoji || '');
       setModalSubtasks(activeBlock?.subtasks ? JSON.parse(JSON.stringify(activeBlock.subtasks)) : []);
       setNewSubtaskInput('');
     }
@@ -757,13 +759,14 @@ export default function App() {
     }
   };
 
-  const handleAddTimeBlock = async (data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; subtasks?: BlockTask[] }) => {
+  const handleAddTimeBlock = async (data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; emoji?: string; subtasks?: BlockTask[] }) => {
     if (!user) return;
     setShowScheduleModal(false);
     setScheduleDefaults(null);
     try {
       await addDoc(collection(db, 'timeBlocks'), {
         activity: data.activity,
+        emoji: data.emoji !== undefined ? data.emoji : (modalEmoji || ''),
         startTime: data.startTime,
         endTime: data.endTime,
         color: data.color || modalColor || 'indigo',
@@ -777,13 +780,14 @@ export default function App() {
     }
   };
 
-  const handleEditTimeBlock = async (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; subtasks?: BlockTask[] }) => {
+  const handleEditTimeBlock = async (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; emoji?: string; subtasks?: BlockTask[] }) => {
     setShowScheduleModal(false);
     setEditingTimeBlock(null);
     setScheduleDefaults(null);
     try {
       await updateDoc(doc(db, 'timeBlocks', id), {
         activity: data.activity,
+        emoji: data.emoji !== undefined ? data.emoji : (modalEmoji || ''),
         startTime: data.startTime,
         endTime: data.endTime,
         date: data.date,
@@ -2938,6 +2942,7 @@ export default function App() {
                 startTime: fd.get('startTime') as string,
                 endTime: fd.get('endTime') as string,
                 activity: fd.get('activity') as string,
+                emoji: modalEmoji,
                 date: fd.get('date') as string,
                 color: modalColor,
                 subtasks: modalSubtasks,
@@ -2950,16 +2955,55 @@ export default function App() {
               }
             }} className="space-y-6">
               <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Activity / Block Name</label>
-                <input 
-                  name="activity"
-                  type="text" 
-                  required
-                  autoFocus
-                  defaultValue={editingTimeBlock?.activity || ''}
-                  placeholder="e.g. Deep Work, Gym, Lunch, Client Meeting"
-                  className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
-                />
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Activity Name & Emoji</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={modalEmoji}
+                    onChange={(e) => setModalEmoji(e.target.value)}
+                    placeholder="⚡"
+                    title="Emoji Icon"
+                    className="w-12 h-11 text-center text-lg rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold"
+                  />
+                  <input 
+                    name="activity"
+                    type="text" 
+                    required
+                    autoFocus
+                    defaultValue={editingTimeBlock?.activity || ''}
+                    placeholder="e.g. Deep Work, Gym, Lunch, Client Meeting"
+                    className="flex-1 px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
+                  />
+                </div>
+
+                {/* QUICK EMOJI SELECTOR ROW */}
+                <div className="mt-2 flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1">
+                  <span className="text-[9px] font-bold uppercase text-zinc-400 shrink-0 mr-0.5">Quick Emoji:</span>
+                  {['🎯', '⚡', '📚', '💪', '🥗', '☕', '💻', '🧠', '🎨', '🎧', '🛌', '🏃', '📝', '💼', '🧘', '🚀', '🔥', '⚽', '🛒', '🏖️'].map(e => (
+                    <button
+                      key={e}
+                      type="button"
+                      onClick={() => setModalEmoji(e)}
+                      className={`w-7 h-7 shrink-0 rounded-lg text-sm flex items-center justify-center transition-all ${
+                        modalEmoji === e 
+                          ? 'bg-amber-500/20 border-2 border-amber-500 scale-110 shadow-sm' 
+                          : 'bg-zinc-100 dark:bg-zinc-800/80 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                  {modalEmoji && (
+                    <button
+                      type="button"
+                      onClick={() => setModalEmoji('')}
+                      className="text-[9px] font-mono font-bold text-zinc-400 hover:text-red-500 px-1.5 py-1 shrink-0"
+                      title="Clear emoji"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* COLOR SELECTION */}

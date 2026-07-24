@@ -39,6 +39,7 @@ export interface TimeBlock {
   startTime: string; // HH:mm
   endTime: string;   // HH:mm
   activity: string;
+  emoji?: string;    // e.g. '🎯', '⚡', '📚', '💪'
   color?: string;    // e.g. 'amber', 'indigo', 'emerald', 'rose', 'sky', 'purple', 'teal', 'zinc'
   subtasks?: BlockTask[];
   uid: string;
