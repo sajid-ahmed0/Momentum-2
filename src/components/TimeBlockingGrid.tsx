@@ -310,7 +310,7 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
   };
 
   return (
-    <div className="w-full flex flex-col h-full bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden transition-all">
+    <div className="w-full flex flex-col h-full bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 overflow-hidden transition-all">
       {/* HEADER CONTROLS */}
       <div className="p-4 sm:p-6 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/80 backdrop-blur-md flex flex-wrap items-center justify-between gap-4">
         

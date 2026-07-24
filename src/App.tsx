@@ -2008,7 +2008,7 @@ export default function App() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="p-4 sm:p-8 max-w-7xl mx-auto h-[calc(100vh-120px)] min-h-[650px] flex flex-col"
+                className="w-full h-[calc(100vh-80px)] flex flex-col p-0"
               >
                 <TimeBlockingGrid 
                   timeBlocks={timeBlocks}
