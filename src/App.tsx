@@ -69,10 +69,10 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail, loginAnonymously } from './firebase';
-import { Habit, HabitLog, TimeBlock, OverthinkingLog, DailyTask, JournalEntry, UrgeLog, Exam } from './types';
+import { Habit, HabitLog, TimeBlock, OverthinkingLog, DailyTask, JournalEntry, UrgeLog, Exam, BlockTask } from './types';
 import { cn } from './lib/utils';
 import { BreathingGuide } from './components/BreathingGuide';
-import { TimeBlockingGrid } from './components/TimeBlockingGrid';
+import { TimeBlockingGrid, COLOR_OPTIONS } from './components/TimeBlockingGrid';
 
 import { requestNotificationPermission, sendNotification, subscribeToPushNotifications } from './lib/notifications';
 
@@ -366,7 +366,10 @@ export default function App() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [scheduleDefaults, setScheduleDefaults] = useState<{ startTime: string; endTime: string; date: string } | null>(null);
+  const [scheduleDefaults, setScheduleDefaults] = useState<{ startTime: string; endTime: string; date: string; block?: TimeBlock } | null>(null);
+  const [modalColor, setModalColor] = useState<string>('indigo');
+  const [modalSubtasks, setModalSubtasks] = useState<BlockTask[]>([]);
+  const [newSubtaskInput, setNewSubtaskInput] = useState<string>('');
   const [showOverthinkingModal, setShowOverthinkingModal] = useState(false);
   const [showJournalModal, setShowJournalModal] = useState(false);
   const [showExamModal, setShowExamModal] = useState(false);
@@ -727,9 +730,34 @@ export default function App() {
     }
   };
 
-  const handleAddTimeBlock = async (data: { startTime: string; endTime: string; activity: string; date?: string; category?: string }) => {
+  useEffect(() => {
+    if (showScheduleModal) {
+      const activeBlock = editingTimeBlock || scheduleDefaults?.block;
+      setModalColor(activeBlock?.color || 'indigo');
+      setModalSubtasks(activeBlock?.subtasks ? JSON.parse(JSON.stringify(activeBlock.subtasks)) : []);
+      setNewSubtaskInput('');
+    }
+  }, [showScheduleModal, editingTimeBlock, scheduleDefaults]);
+
+  const handleToggleSubtask = async (blockId: string, subtaskId: string) => {
+    const targetBlock = timeBlocks.find(b => b.id === blockId);
+    if (!targetBlock || !targetBlock.subtasks) return;
+
+    const updatedSubtasks = targetBlock.subtasks.map(st => 
+      st.id === subtaskId ? { ...st, completed: !st.completed } : st
+    );
+
+    try {
+      await updateDoc(doc(db, 'timeBlocks', blockId), {
+        subtasks: updatedSubtasks
+      });
+    } catch (err) {
+      console.error("Error toggling subtask:", err);
+    }
+  };
+
+  const handleAddTimeBlock = async (data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; subtasks?: BlockTask[] }) => {
     if (!user) return;
-    // Close modal immediately for better UX
     setShowScheduleModal(false);
     setScheduleDefaults(null);
     try {
@@ -737,7 +765,8 @@ export default function App() {
         activity: data.activity,
         startTime: data.startTime,
         endTime: data.endTime,
-        category: data.category || 'Deep Work',
+        color: data.color || modalColor || 'indigo',
+        subtasks: data.subtasks || modalSubtasks || [],
         date: data.date || scheduleDefaults?.date || format(startOfToday(), 'yyyy-MM-dd'),
         uid: user.uid,
         timestamp: Date.now()
@@ -747,14 +776,18 @@ export default function App() {
     }
   };
 
-  const handleEditTimeBlock = async (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; category?: string }) => {
-    // Close modal immediately
+  const handleEditTimeBlock = async (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; subtasks?: BlockTask[] }) => {
     setShowScheduleModal(false);
     setEditingTimeBlock(null);
     setScheduleDefaults(null);
     try {
       await updateDoc(doc(db, 'timeBlocks', id), {
-        ...data,
+        activity: data.activity,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        date: data.date,
+        color: data.color || modalColor || 'indigo',
+        subtasks: data.subtasks !== undefined ? data.subtasks : modalSubtasks,
         timestamp: Date.now()
       });
     } catch (err) {
@@ -1982,8 +2015,9 @@ export default function App() {
                   onAddTimeBlock={handleAddTimeBlock}
                   onEditTimeBlock={(id, data) => handleEditTimeBlock(id, data)}
                   onDeleteTimeBlock={handleDeleteTimeBlock}
+                  onToggleSubtask={handleToggleSubtask}
                   onOpenModalWithDefaults={(defaults) => {
-                    setEditingTimeBlock(null);
+                    setEditingTimeBlock(defaults.block || null);
                     setScheduleDefaults(defaults);
                     setShowScheduleModal(true);
                   }}
@@ -2901,8 +2935,9 @@ export default function App() {
                 startTime: fd.get('startTime') as string,
                 endTime: fd.get('endTime') as string,
                 activity: fd.get('activity') as string,
-                category: fd.get('category') as string,
                 date: fd.get('date') as string,
+                color: modalColor,
+                subtasks: modalSubtasks,
               };
               
               if (editingTimeBlock) {
@@ -2912,19 +2947,42 @@ export default function App() {
               }
             }} className="space-y-6">
               <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Activity Name</label>
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Activity / Block Name</label>
                 <input 
                   name="activity"
                   type="text" 
                   required
                   autoFocus
                   defaultValue={editingTimeBlock?.activity || ''}
-                  placeholder="e.g. Deep Work, Gym, Lunch"
+                  placeholder="e.g. Deep Work, Gym, Lunch, Client Meeting"
                   className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* COLOR SELECTION */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Block Color</label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {COLOR_OPTIONS.map(col => (
+                    <button
+                      key={col.id}
+                      type="button"
+                      onClick={() => setModalColor(col.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                        modalColor === col.id 
+                          ? 'ring-2 ring-amber-500 ring-offset-2 dark:ring-offset-zinc-950 scale-105 shadow-md' 
+                          : 'opacity-70 hover:opacity-100'
+                      }`}
+                      style={{ backgroundColor: col.dot, color: '#ffffff' }}
+                    >
+                      {modalColor === col.id && <Check className="w-3.5 h-3.5 text-white" />}
+                      <span>{col.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Date</label>
                   <input 
@@ -2932,28 +2990,9 @@ export default function App() {
                     type="date" 
                     required
                     defaultValue={editingTimeBlock?.date || scheduleDefaults?.date || format(startOfToday(), 'yyyy-MM-dd')}
-                    className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
+                    className="w-full px-3 py-2.5 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
                   />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Category</label>
-                  <select
-                    name="category"
-                    defaultValue={editingTimeBlock?.category || 'Deep Work'}
-                    className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
-                  >
-                    <option value="Deep Work">Deep Work</option>
-                    <option value="Work">Work</option>
-                    <option value="Health & Gym">Health & Gym</option>
-                    <option value="Personal">Personal</option>
-                    <option value="Study & Reading">Study & Reading</option>
-                    <option value="Rest & Break">Rest & Break</option>
-                    <option value="Routine / Chores">Routine / Chores</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Start Time</label>
                   <input 
@@ -2961,7 +3000,7 @@ export default function App() {
                     type="time" 
                     required
                     defaultValue={editingTimeBlock?.startTime || scheduleDefaults?.startTime || '09:00'}
-                    className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
+                    className="w-full px-3 py-2.5 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
                   />
                 </div>
                 <div>
@@ -2971,9 +3010,80 @@ export default function App() {
                     type="time" 
                     required
                     defaultValue={editingTimeBlock?.endTime || scheduleDefaults?.endTime || '10:00'}
-                    className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
+                    className="w-full px-3 py-2.5 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
                   />
                 </div>
+              </div>
+
+              {/* TASKS LIST FOR THIS TIME BLOCK */}
+              <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">
+                  Tasks Checklist for this Block
+                </label>
+
+                <div className="flex gap-2 mb-3">
+                  <input 
+                    type="text" 
+                    value={newSubtaskInput}
+                    onChange={(e) => setNewSubtaskInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (newSubtaskInput.trim()) {
+                          setModalSubtasks([...modalSubtasks, { id: Date.now().toString(), text: newSubtaskInput.trim(), completed: false }]);
+                          setNewSubtaskInput('');
+                        }
+                      }
+                    }}
+                    placeholder="Add a task e.g. Read chapter 2, Outline report..."
+                    className="flex-1 px-3 py-2 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 text-xs font-medium dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newSubtaskInput.trim()) {
+                        setModalSubtasks([...modalSubtasks, { id: Date.now().toString(), text: newSubtaskInput.trim(), completed: false }]);
+                        setNewSubtaskInput('');
+                      }
+                    }}
+                    className="px-3 py-2 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-lg text-xs font-bold flex items-center gap-1 hover:opacity-90 transition-opacity"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Task
+                  </button>
+                </div>
+
+                {modalSubtasks.length > 0 && (
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1 custom-scrollbar">
+                    {modalSubtasks.map((st, idx) => (
+                      <div key={st.id} className="flex items-center justify-between p-2 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 text-xs">
+                        <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
+                          <input 
+                            type="checkbox" 
+                            checked={st.completed}
+                            onChange={() => {
+                              const updated = [...modalSubtasks];
+                              updated[idx].completed = !updated[idx].completed;
+                              setModalSubtasks(updated);
+                            }}
+                            className="rounded text-amber-500 focus:ring-amber-500 shrink-0"
+                          />
+                          <span className={`truncate ${st.completed ? 'line-through text-zinc-400 dark:text-zinc-500' : 'font-medium dark:text-zinc-200'}`}>
+                            {st.text}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setModalSubtasks(modalSubtasks.filter(t => t.id !== st.id))}
+                          className="text-zinc-400 hover:text-red-500 p-1 shrink-0"
+                          title="Remove task"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="pt-6 flex gap-3 sticky bottom-0 bg-white dark:bg-zinc-950 pb-2">

@@ -27,13 +27,20 @@ export interface UserProfile {
   createdAt: number;
 }
 
+export interface BlockTask {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
 export interface TimeBlock {
   id: string;
   date: string;
   startTime: string; // HH:mm
   endTime: string;   // HH:mm
   activity: string;
-  category?: string;
+  color?: string;    // e.g. 'amber', 'indigo', 'emerald', 'rose', 'sky', 'purple', 'teal', 'zinc'
+  subtasks?: BlockTask[];
   uid: string;
   timestamp: number;
 }
