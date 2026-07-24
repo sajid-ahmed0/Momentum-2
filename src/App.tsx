@@ -65,7 +65,8 @@ import {
   Download,
   Share2,
   ListTodo,
-  GraduationCap
+  GraduationCap,
+  Palette
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail, loginAnonymously } from './firebase';
@@ -2963,24 +2964,48 @@ export default function App() {
 
               {/* COLOR SELECTION */}
               <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Block Color</label>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {COLOR_OPTIONS.map(col => (
-                    <button
-                      key={col.id}
-                      type="button"
-                      onClick={() => setModalColor(col.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                        modalColor === col.id 
-                          ? 'ring-2 ring-amber-500 ring-offset-2 dark:ring-offset-zinc-950 scale-105 shadow-md' 
-                          : 'opacity-70 hover:opacity-100'
-                      }`}
-                      style={{ backgroundColor: col.dot, color: '#ffffff' }}
-                    >
-                      {modalColor === col.id && <Check className="w-3.5 h-3.5 text-white" />}
-                      <span>{col.name}</span>
-                    </button>
-                  ))}
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em]">Block Color</label>
+                  <Palette className="w-3.5 h-3.5 text-zinc-400" />
+                </div>
+                <div className="p-3 bg-zinc-100/80 dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-800/80 rounded-2xl">
+                  <div className="flex flex-wrap gap-2.5 justify-start items-center">
+                    {COLOR_OPTIONS.map(col => {
+                      const isSelected = modalColor === col.id;
+                      const isLight = ['yellow', 'gold', 'lime', 'mint'].includes(col.id);
+                      return (
+                        <button
+                          key={col.id}
+                          type="button"
+                          onClick={() => setModalColor(col.id)}
+                          title={col.name}
+                          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                            isSelected 
+                              ? 'ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-zinc-950 scale-110 shadow-md' 
+                              : 'hover:scale-110 opacity-90 hover:opacity-100'
+                          }`}
+                          style={{ backgroundColor: col.dot }}
+                        >
+                          {isSelected && (
+                            <Check className={`w-4 h-4 ${isLight ? 'text-zinc-900' : 'text-white'} drop-shadow-sm`} />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Selected color indicator pill matching image_1 */}
+                  <div className="mt-3 pt-2.5 border-t border-zinc-200/60 dark:border-zinc-800/80 flex items-center justify-center">
+                    <div className="w-full py-1.5 px-3 bg-white dark:bg-zinc-800/90 border border-zinc-200/80 dark:border-zinc-700/80 rounded-xl flex items-center justify-center gap-2 shadow-sm text-xs font-bold text-zinc-800 dark:text-zinc-100">
+                      <div 
+                        className="w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0" 
+                        style={{ backgroundColor: COLOR_OPTIONS.find(c => c.id === modalColor)?.dot || '#4f46e5' }}
+                      >
+                        <Check className="w-2.5 h-2.5 text-white" />
+                      </div>
+                      <span>{COLOR_OPTIONS.find(c => c.id === modalColor)?.name || 'Default'}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 

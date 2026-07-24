@@ -42,14 +42,32 @@ import { TimeBlock, BlockTask } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const COLOR_OPTIONS = [
-  { id: 'indigo', name: 'Indigo', bg: 'bg-indigo-600 border-indigo-700 text-white', dot: '#4f46e5' },
+  // Row 1 - Crimson, Rose, Pink, Salmon, Coral, Orange, Amber, Gold, Yellow, Lime, Green, Mint
+  { id: 'crimson', name: 'Crimson', bg: 'bg-rose-700 border-rose-800 text-white', dot: '#be123c' },
+  { id: 'rose', name: 'Rose', bg: 'bg-rose-500 border-rose-600 text-white', dot: '#f43f5e' },
+  { id: 'pink', name: 'Pink', bg: 'bg-pink-500 border-pink-600 text-white', dot: '#ec4899' },
+  { id: 'salmon', name: 'Salmon', bg: 'bg-rose-400 border-rose-500 text-white', dot: '#fb7185' },
+  { id: 'coral', name: 'Coral', bg: 'bg-orange-500 border-orange-600 text-white', dot: '#f97316' },
   { id: 'amber', name: 'Amber', bg: 'bg-amber-500 border-amber-600 text-white', dot: '#f59e0b' },
+  { id: 'gold', name: 'Gold', bg: 'bg-amber-400 border-amber-500 text-zinc-900', dot: '#fbbf24' },
+  { id: 'yellow', name: 'Yellow', bg: 'bg-yellow-500 border-yellow-600 text-zinc-900', dot: '#eab308' },
+  { id: 'lime', name: 'Lime', bg: 'bg-lime-500 border-lime-600 text-zinc-900', dot: '#84cc16' },
+  { id: 'green', name: 'Green', bg: 'bg-green-600 border-green-700 text-white', dot: '#16a34a' },
   { id: 'emerald', name: 'Emerald', bg: 'bg-emerald-600 border-emerald-700 text-white', dot: '#059669' },
-  { id: 'rose', name: 'Rose', bg: 'bg-rose-600 border-rose-700 text-white', dot: '#e11d48' },
-  { id: 'sky', name: 'Sky Blue', bg: 'bg-sky-600 border-sky-700 text-white', dot: '#0284c7' },
-  { id: 'purple', name: 'Purple', bg: 'bg-purple-600 border-purple-700 text-white', dot: '#9333ea' },
+  { id: 'mint', name: 'Mint', bg: 'bg-emerald-400 border-emerald-500 text-zinc-900', dot: '#34d399' },
+
+  // Row 2 - Teal, Cyan, Sky, Blue, Indigo, Lavender, Purple, Magenta, Brown, Slate, Taupe
   { id: 'teal', name: 'Teal', bg: 'bg-teal-600 border-teal-700 text-white', dot: '#0d9488' },
-  { id: 'zinc', name: 'Slate', bg: 'bg-zinc-700 border-zinc-800 text-white', dot: '#3f3f46' },
+  { id: 'cyan', name: 'Cyan', bg: 'bg-cyan-500 border-cyan-600 text-white', dot: '#06b6d4' },
+  { id: 'sky', name: 'Sky Blue', bg: 'bg-sky-500 border-sky-600 text-white', dot: '#0ea5e9' },
+  { id: 'blue', name: 'Royal Blue', bg: 'bg-blue-600 border-blue-700 text-white', dot: '#2563eb' },
+  { id: 'indigo', name: 'Indigo', bg: 'bg-indigo-600 border-indigo-700 text-white', dot: '#4f46e5' },
+  { id: 'violet', name: 'Violet', bg: 'bg-violet-500 border-violet-600 text-white', dot: '#8b5cf6' },
+  { id: 'purple', name: 'Purple', bg: 'bg-purple-600 border-purple-700 text-white', dot: '#9333ea' },
+  { id: 'fuchsia', name: 'Fuchsia', bg: 'bg-fuchsia-600 border-fuchsia-700 text-white', dot: '#c026d3' },
+  { id: 'brown', name: 'Brown', bg: 'bg-amber-800 border-amber-900 text-white', dot: '#92400e' },
+  { id: 'zinc', name: 'Slate', bg: 'bg-zinc-600 border-zinc-700 text-white', dot: '#52525b' },
+  { id: 'taupe', name: 'Taupe', bg: 'bg-stone-500 border-stone-600 text-white', dot: '#78716c' },
 ];
 
 export const getBlockColorStyle = (colorId?: string) => {
@@ -820,7 +838,7 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                     style={{ height: `${HOUR_HEIGHT}px` }}
                     className="border-b border-zinc-100 dark:border-zinc-800/40 relative pr-2 flex justify-end items-start"
                   >
-                    <span className="text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-500 -mt-2 bg-white dark:bg-zinc-950 px-1 rounded">
+                    <span className={`text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-500 bg-white dark:bg-zinc-950 px-1 rounded ${h === 0 ? 'mt-1' : '-mt-2'}`}>
                       {format(new Date().setHours(h, 0, 0, 0), 'h a')}
                     </span>
                   </div>
