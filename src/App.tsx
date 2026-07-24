@@ -1266,6 +1266,8 @@ export default function App() {
         setAuthError('Sign-in window was closed');
       } else if (err.code === 'auth/unauthorized-domain') {
         setAuthError('This domain is not authorized in Firebase. Please add your GitHub domain to "Authorized domains" in Firebase Console.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setAuthError('Sign-in popup was blocked. Please enable popups for this site in your browser settings (look for a popup blocker icon in your address bar), or click "Open in New Tab" at the top right of your preview window to run in a standalone tab.');
       } else {
         setAuthError(err.message || 'Failed to sign in with Google');
       }
@@ -2254,7 +2256,10 @@ export default function App() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="p-10 max-w-2xl mx-auto h-full flex flex-col"
+                className={cn(
+                  "p-6 sm:p-10 max-w-2xl mx-auto flex flex-col",
+                  urgeSession ? "min-h-[calc(100vh-160px)] justify-center" : "pb-36 lg:pb-16"
+                )}
               >
                 {!urgeSession ? (
                   <div className="flex-1 flex flex-col">
