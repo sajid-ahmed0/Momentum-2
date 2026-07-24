@@ -912,10 +912,11 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                         const subtasks = block.subtasks || [];
                         const completedCount = subtasks.filter(t => t.completed).length;
 
-                        const isCompact = heightPx < 52 || zoomScale <= 0.6;
-                        const paddingClass = heightPx < 28 ? 'px-1.5 py-0' : heightPx < 48 ? 'px-2 py-0.5' : 'p-2';
-                        const titleSize = heightPx < 24 ? 'text-[10px]' : 'text-xs';
-                        const timeSize = heightPx < 24 ? 'text-[8px]' : 'text-[9px]';
+                        // Layout thresholds based on pixel height
+                        const isVeryCompact = heightPx < 44 || zoomScale <= 0.5;
+                        const paddingClass = heightPx < 32 ? 'px-1.5 py-0.5' : heightPx < 60 ? 'px-2 py-1' : 'px-2.5 py-1.5';
+                        const titleSize = heightPx < 32 ? 'text-[10px]' : 'text-xs';
+                        const timeSize = heightPx < 32 ? 'text-[8px]' : 'text-[9px]';
 
                         return (
                           <motion.div
@@ -926,7 +927,7 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                               top: `${topPx}px`,
                               height: `${heightPx}px`,
                             }}
-                            className={`absolute left-1 right-1 rounded-lg border shadow-md flex flex-col justify-center overflow-hidden cursor-pointer hover:z-30 hover:scale-[1.02] transition-all group/card ${paddingClass} ${colorStyle}`}
+                            className={`absolute left-1 right-1 rounded-lg border shadow-md flex flex-col justify-start overflow-hidden cursor-pointer hover:z-30 hover:scale-[1.01] transition-all group/card ${paddingClass} ${colorStyle}`}
                             onClick={(e) => {
                               e.stopPropagation();
                               if (onOpenModalWithDefaults) {
@@ -939,24 +940,24 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                               }
                             }}
                           >
-                            {isCompact ? (
-                              /* SIDE-BY-SIDE LAYOUT FOR LOW SCALE / COMPACT BLOCKS */
+                            {isVeryCompact ? (
+                              /* COMPACT / LOW-HEIGHT SIDE-BY-SIDE LAYOUT */
                               <div className="flex items-center justify-between gap-1.5 w-full h-full min-w-0">
                                 <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
                                   <span className={`font-mono ${timeSize} font-bold opacity-90 shrink-0 leading-none`}>
-                                    {formatTime12h(block.startTime)} - {formatTime12h(block.endTime)}
+                                    {formatTime12h(block.startTime)}
                                   </span>
-                                  <span className="text-white/60 font-mono text-[9px] shrink-0 leading-none">•</span>
+                                  <span className="text-white/60 font-mono text-[8px] shrink-0 leading-none">•</span>
                                   <span className={`font-black ${titleSize} uppercase shrink-0 leading-none flex items-center gap-1`}>
-                                    {block.emoji && <span className="normal-case leading-none mr-0.5">{block.emoji}</span>}
+                                    {block.emoji && <span className="normal-case leading-none">{block.emoji}</span>}
                                     <span className="truncate">{block.activity}</span>
                                   </span>
 
-                                  {/* TASKS VISIBLE SIDE-BY-SIDE IN LOW SCALE / COMPACT MODE */}
+                                  {/* TASKS INLINE FOR COMPACT CARDS */}
                                   {subtasks.length > 0 && (
                                     <>
-                                      <span className="text-white/60 font-mono text-[9px] shrink-0 leading-none">•</span>
-                                      <div className="flex items-center gap-1.5 overflow-hidden flex-1 min-w-0">
+                                      <span className="text-white/60 font-mono text-[8px] shrink-0 leading-none">•</span>
+                                      <div className="flex items-center gap-1 overflow-hidden flex-1 min-w-0">
                                         {subtasks.map(st => (
                                           <span
                                             key={st.id}
@@ -964,7 +965,7 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                                               e.stopPropagation();
                                               onToggleSubtask && onToggleSubtask(block.id, st.id);
                                             }}
-                                            className="inline-flex items-center gap-1 text-[9px] font-medium bg-black/25 hover:bg-black/40 px-1.5 py-0.5 rounded cursor-pointer shrink-0 max-w-[140px] truncate transition-colors"
+                                            className="inline-flex items-center gap-1 text-[9px] font-medium bg-black/25 hover:bg-black/40 px-1 py-0.5 rounded cursor-pointer shrink-0 max-w-[110px] truncate transition-colors"
                                             title={st.text}
                                           >
                                             {st.completed ? (
@@ -993,65 +994,60 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                                 </button>
                               </div>
                             ) : (
-                              /* TALLER BLOCK MULTI-LINE LAYOUT */
-                              <div className="flex flex-col justify-between h-full min-w-0">
-                                <div className="min-w-0 flex-1 flex flex-col justify-start overflow-hidden">
-                                  <div className="flex items-center justify-between gap-1 shrink-0">
-                                    <span className="font-mono text-[9px] font-bold opacity-90 truncate">
+                              /* TALLER BLOCK STANDARD LAYOUT */
+                              <div className="flex flex-col h-full min-w-0 justify-start overflow-hidden">
+                                {/* HEADER LINE: Time + Duration + Delete */}
+                                <div className="flex items-center justify-between gap-1 shrink-0 leading-none mb-0.5">
+                                  <div className="flex items-center gap-1 min-w-0 truncate">
+                                    <span className="font-mono text-[9px] font-bold opacity-90 truncate leading-none">
                                       {formatTime12h(block.startTime)} - {formatTime12h(block.endTime)}
                                     </span>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        onDeleteTimeBlock(block.id);
-                                      }}
-                                      className="opacity-0 group-hover/card:opacity-100 p-0.5 hover:bg-black/20 rounded transition-opacity shrink-0"
-                                      title="Delete"
-                                    >
-                                      <X className="w-3 h-3 text-white" />
-                                    </button>
+                                    <span className="text-white/60 font-mono text-[8px] shrink-0 leading-none">•</span>
+                                    <span className="font-mono text-[8px] font-bold opacity-75 shrink-0 leading-none">
+                                      {durationMins}m
+                                    </span>
                                   </div>
 
-                                  <h5 className="font-black text-xs leading-snug tracking-tight truncate mt-0.5 uppercase flex items-center gap-1 shrink-0">
-                                    {block.emoji && <span className="normal-case leading-none">{block.emoji}</span>}
-                                    <span className="truncate">{block.activity}</span>
-                                  </h5>
-
-                                  {/* SUBTASKS DIRECTLY VISIBLE UNDER BLOCK NAME */}
-                                  {subtasks.length > 0 && (
-                                    <div className="mt-1 space-y-1 border-t border-white/20 pt-1 overflow-y-auto custom-scrollbar flex-1 pr-0.5">
-                                      {subtasks.map(st => (
-                                        <div 
-                                          key={st.id} 
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            onToggleSubtask && onToggleSubtask(block.id, st.id);
-                                          }}
-                                          className="flex items-center gap-1.5 text-[10px] font-medium bg-black/15 hover:bg-black/30 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
-                                        >
-                                          {st.completed ? (
-                                            <Check className="w-3 h-3 shrink-0 text-emerald-300" />
-                                          ) : (
-                                            <div className="w-2.5 h-2.5 rounded-sm border border-white/90 shrink-0" />
-                                          )}
-                                          <span className={st.completed ? 'line-through opacity-70 truncate' : 'truncate font-bold text-white'}>
-                                            {st.text}
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onDeleteTimeBlock(block.id);
+                                    }}
+                                    className="opacity-0 group-hover/card:opacity-100 p-0.5 hover:bg-black/20 rounded transition-opacity shrink-0"
+                                    title="Delete"
+                                  >
+                                    <X className="w-3 h-3 text-white" />
+                                  </button>
                                 </div>
 
-                                {heightPx > 36 && (
-                                  <div className="flex items-center justify-between mt-1 text-[8px] font-mono font-bold uppercase opacity-80 shrink-0">
-                                    <span>{durationMins}m</span>
-                                    {subtasks.length > 0 && (
-                                      <span className="flex items-center gap-1 bg-black/20 px-1 py-0.5 rounded">
-                                        <CheckSquare className="w-2.5 h-2.5" />
-                                        {completedCount}/{subtasks.length}
-                                      </span>
-                                    )}
+                                {/* BLOCK TITLE & EMOJI */}
+                                <h5 className="font-black text-xs leading-tight tracking-tight truncate uppercase flex items-center gap-1 shrink-0">
+                                  {block.emoji && <span className="normal-case leading-none">{block.emoji}</span>}
+                                  <span className="truncate">{block.activity}</span>
+                                </h5>
+
+                                {/* SUBTASKS LIST */}
+                                {subtasks.length > 0 && (
+                                  <div className="mt-1 space-y-0.5 border-t border-white/20 pt-1 overflow-y-auto custom-scrollbar flex-1 pr-0.5 min-h-0">
+                                    {subtasks.map(st => (
+                                      <div 
+                                        key={st.id} 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onToggleSubtask && onToggleSubtask(block.id, st.id);
+                                        }}
+                                        className="flex items-center gap-1.5 text-[9px] font-medium bg-black/20 hover:bg-black/35 px-1.5 py-0.5 rounded cursor-pointer transition-colors leading-tight"
+                                      >
+                                        {st.completed ? (
+                                          <Check className="w-2.5 h-2.5 shrink-0 text-emerald-300" />
+                                        ) : (
+                                          <div className="w-2 h-2 rounded-sm border border-white/90 shrink-0" />
+                                        )}
+                                        <span className={st.completed ? 'line-through opacity-70 truncate' : 'truncate font-bold text-white'}>
+                                          {st.text}
+                                        </span>
+                                      </div>
+                                    ))}
                                   </div>
                                 )}
                               </div>
