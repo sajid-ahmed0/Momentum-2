@@ -887,6 +887,11 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                         const subtasks = block.subtasks || [];
                         const completedCount = subtasks.filter(t => t.completed).length;
 
+                        const isCompact = heightPx < 52 || zoomScale <= 0.6;
+                        const paddingClass = heightPx < 28 ? 'px-1.5 py-0' : heightPx < 48 ? 'px-2 py-0.5' : 'p-2';
+                        const titleSize = heightPx < 24 ? 'text-[10px]' : 'text-xs';
+                        const timeSize = heightPx < 24 ? 'text-[8px]' : 'text-[9px]';
+
                         return (
                           <motion.div
                             key={block.id}
@@ -896,7 +901,7 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                               top: `${topPx}px`,
                               height: `${heightPx}px`,
                             }}
-                            className={`absolute left-1 right-1 rounded-lg p-2 border shadow-md flex flex-col justify-between overflow-hidden cursor-pointer hover:z-30 hover:scale-[1.02] transition-all group/card ${colorStyle}`}
+                            className={`absolute left-1 right-1 rounded-lg border shadow-md flex flex-col justify-center overflow-hidden cursor-pointer hover:z-30 hover:scale-[1.02] transition-all group/card ${paddingClass} ${colorStyle}`}
                             onClick={(e) => {
                               e.stopPropagation();
                               if (onOpenModalWithDefaults) {
@@ -909,66 +914,94 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                               }
                             }}
                           >
-                            <div className="min-w-0">
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="font-mono text-[9px] font-bold opacity-90 truncate">
-                                  {formatTime12h(block.startTime)} - {formatTime12h(block.endTime)}
-                                </span>
+                            {isCompact ? (
+                              /* SIDE-BY-SIDE LAYOUT FOR LOW SCALE / COMPACT BLOCKS */
+                              <div className="flex items-center justify-between gap-1.5 w-full h-full min-w-0">
+                                <div className="flex items-center gap-1.5 min-w-0 truncate">
+                                  <span className={`font-mono ${timeSize} font-bold opacity-90 shrink-0 leading-none`}>
+                                    {formatTime12h(block.startTime)} - {formatTime12h(block.endTime)}
+                                  </span>
+                                  <span className="text-white/60 font-mono text-[9px] shrink-0 leading-none">•</span>
+                                  <span className={`font-black ${titleSize} uppercase truncate tracking-tight leading-none`}>
+                                    {block.activity}
+                                  </span>
+                                </div>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     onDeleteTimeBlock(block.id);
                                   }}
-                                  className="opacity-0 group-hover/card:opacity-100 p-0.5 hover:bg-black/20 rounded transition-opacity"
+                                  className="opacity-0 group-hover/card:opacity-100 p-0.5 hover:bg-black/20 rounded transition-opacity shrink-0"
                                   title="Delete"
                                 >
                                   <X className="w-3 h-3 text-white" />
                                 </button>
                               </div>
-
-                              <h5 className="font-black text-xs leading-snug tracking-tight truncate mt-0.5 uppercase">
-                                {block.activity}
-                              </h5>
-
-                              {/* SUBTASKS PREVIEW FOR TALLER CARDS */}
-                              {heightPx >= 60 && subtasks.length > 0 && (
-                                <div className="mt-1 space-y-0.5 border-t border-white/20 pt-1">
-                                  {subtasks.slice(0, heightPx >= 100 ? 5 : 2).map(st => (
-                                    <div 
-                                      key={st.id} 
+                            ) : (
+                              /* TALLER BLOCK MULTI-LINE LAYOUT */
+                              <div className="flex flex-col justify-between h-full min-w-0">
+                                <div className="min-w-0">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="font-mono text-[9px] font-bold opacity-90 truncate">
+                                      {formatTime12h(block.startTime)} - {formatTime12h(block.endTime)}
+                                    </span>
+                                    <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        onToggleSubtask && onToggleSubtask(block.id, st.id);
+                                        onDeleteTimeBlock(block.id);
                                       }}
-                                      className="flex items-center gap-1 text-[9px] font-medium opacity-90 hover:opacity-100 truncate cursor-pointer"
+                                      className="opacity-0 group-hover/card:opacity-100 p-0.5 hover:bg-black/20 rounded transition-opacity"
+                                      title="Delete"
                                     >
-                                      {st.completed ? (
-                                        <Check className="w-2.5 h-2.5 shrink-0" />
-                                      ) : (
-                                        <div className="w-2 h-2 rounded-sm border border-white/80 shrink-0" />
+                                      <X className="w-3 h-3 text-white" />
+                                    </button>
+                                  </div>
+
+                                  <h5 className="font-black text-xs leading-snug tracking-tight truncate mt-0.5 uppercase">
+                                    {block.activity}
+                                  </h5>
+
+                                  {/* SUBTASKS PREVIEW FOR TALLER CARDS */}
+                                  {heightPx >= 60 && subtasks.length > 0 && (
+                                    <div className="mt-1 space-y-0.5 border-t border-white/20 pt-1">
+                                      {subtasks.slice(0, heightPx >= 100 ? 5 : 2).map(st => (
+                                        <div 
+                                          key={st.id} 
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            onToggleSubtask && onToggleSubtask(block.id, st.id);
+                                          }}
+                                          className="flex items-center gap-1 text-[9px] font-medium opacity-90 hover:opacity-100 truncate cursor-pointer"
+                                        >
+                                          {st.completed ? (
+                                            <Check className="w-2.5 h-2.5 shrink-0" />
+                                          ) : (
+                                            <div className="w-2 h-2 rounded-sm border border-white/80 shrink-0" />
+                                          )}
+                                          <span className={st.completed ? 'line-through opacity-70' : ''}>
+                                            {st.text}
+                                          </span>
+                                        </div>
+                                      ))}
+                                      {subtasks.length > (heightPx >= 100 ? 5 : 2) && (
+                                        <span className="text-[8px] font-mono opacity-70">
+                                          +{subtasks.length - (heightPx >= 100 ? 5 : 2)} more
+                                        </span>
                                       )}
-                                      <span className={st.completed ? 'line-through opacity-70' : ''}>
-                                        {st.text}
-                                      </span>
                                     </div>
-                                  ))}
-                                  {subtasks.length > (heightPx >= 100 ? 5 : 2) && (
-                                    <span className="text-[8px] font-mono opacity-70">
-                                      +{subtasks.length - (heightPx >= 100 ? 5 : 2)} more
-                                    </span>
                                   )}
                                 </div>
-                              )}
-                            </div>
 
-                            {heightPx > 36 && (
-                              <div className="flex items-center justify-between mt-1 text-[8px] font-mono font-bold uppercase opacity-80">
-                                <span>{durationMins}m</span>
-                                {subtasks.length > 0 && (
-                                  <span className="flex items-center gap-1 bg-black/20 px-1 py-0.5 rounded">
-                                    <CheckSquare className="w-2.5 h-2.5" />
-                                    {completedCount}/{subtasks.length}
-                                  </span>
+                                {heightPx > 36 && (
+                                  <div className="flex items-center justify-between mt-1 text-[8px] font-mono font-bold uppercase opacity-80">
+                                    <span>{durationMins}m</span>
+                                    {subtasks.length > 0 && (
+                                      <span className="flex items-center gap-1 bg-black/20 px-1 py-0.5 rounded">
+                                        <CheckSquare className="w-2.5 h-2.5" />
+                                        {completedCount}/{subtasks.length}
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             )}
