@@ -392,6 +392,8 @@ export default function App() {
     timer: number;
     intent: string;
     willHelpFuture: boolean | null;
+    whyNotReason?: string;
+    whatToDoInstead?: string;
     startTime: number;
     showBreather?: boolean;
   } | null>(null);
@@ -992,6 +994,8 @@ export default function App() {
       timer: 0,
       intent: '',
       willHelpFuture: null,
+      whyNotReason: '',
+      whatToDoInstead: '',
       startTime: Date.now()
     });
   };
@@ -1011,6 +1015,8 @@ export default function App() {
     addDoc(collection(db, 'urgeLogs'), {
       intent: sessionData.intent,
       willHelpFuture: sessionData.willHelpFuture ?? false,
+      whyNotReason: sessionData.whyNotReason || '',
+      whatToDoInstead: sessionData.whatToDoInstead || '',
       outcome,
       durationSeconds: Math.floor((Date.now() - sessionData.startTime) / 1000),
       date: format(startOfToday(), 'yyyy-MM-dd'),
@@ -2392,48 +2398,40 @@ export default function App() {
                               </div>
                             </div>
 
-                            {/* GUIDANCE 1: WHY SHOULDN'T I DO IT? */}
-                            <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-xl space-y-2">
-                              <div className="flex items-center gap-2 text-red-600 dark:text-red-400 font-black text-xs uppercase tracking-wider">
-                                <AlertTriangle className="w-4 h-4 shrink-0" />
-                                <span>Why Shouldn't I Do It?</span>
+                            {/* USER EDITABLE SECTION 1: WHY SHOULDN'T I DO IT? */}
+                            <div className="p-3.5 bg-red-500/5 border border-red-500/20 rounded-xl space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-red-600 dark:text-red-400 font-black text-xs uppercase tracking-wider">
+                                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                                  <span>Why Shouldn't I Do It?</span>
+                                </div>
+                                <span className="text-[9px] font-mono text-zinc-400 dark:text-zinc-500">Write your reason</span>
                               </div>
-                              <ul className="text-xs text-zinc-700 dark:text-zinc-300 space-y-1.5 pl-1 font-medium">
-                                <li className="flex items-start gap-1.5">
-                                  <span className="text-red-500 font-bold">•</span>
-                                  <span><strong>Dopamine Trap:</strong> Delivers a brief 5-second pleasure spike followed by regret and brain fog.</span>
-                                </li>
-                                <li className="flex items-start gap-1.5">
-                                  <span className="text-red-500 font-bold">•</span>
-                                  <span><strong>Lost Focus:</strong> Takes up to 23 minutes to regain deep focus after a single distraction.</span>
-                                </li>
-                                <li className="flex items-start gap-1.5">
-                                  <span className="text-red-500 font-bold">•</span>
-                                  <span><strong>Reinforces Urges:</strong> Yielding trains your brain to break focus whenever work gets challenging.</span>
-                                </li>
-                              </ul>
+                              <textarea 
+                                rows={2}
+                                value={urgeSession.whyNotReason || ''}
+                                onChange={(e) => setUrgeSession({ ...urgeSession, whyNotReason: e.target.value })}
+                                placeholder="e.g. Brief 5-sec dopamine spike, followed by regret, brain fog & 30 mins lost focus..."
+                                className="w-full bg-white dark:bg-zinc-900/90 border border-red-200 dark:border-red-900/40 rounded-lg p-2.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all resize-none font-medium placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
+                              />
                             </div>
 
-                            {/* GUIDANCE 2: WHAT SHOULD I DO INSTEAD? */}
-                            <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl space-y-2">
-                              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-black text-xs uppercase tracking-wider">
-                                <Sparkles className="w-4 h-4 shrink-0" />
-                                <span>What Should I Do Instead?</span>
+                            {/* USER EDITABLE SECTION 2: WHAT SHOULD I DO INSTEAD? */}
+                            <div className="p-3.5 bg-emerald-500/5 border border-emerald-500/20 rounded-xl space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-black text-xs uppercase tracking-wider">
+                                  <Sparkles className="w-4 h-4 shrink-0" />
+                                  <span>What Should I Do Instead?</span>
+                                </div>
+                                <span className="text-[9px] font-mono text-zinc-400 dark:text-zinc-500">Write your plan</span>
                               </div>
-                              <ul className="text-xs text-zinc-700 dark:text-zinc-300 space-y-1.5 pl-1 font-medium">
-                                <li className="flex items-start gap-1.5">
-                                  <span className="text-emerald-500 font-bold">•</span>
-                                  <span><strong>Take 3 Deep Breaths:</strong> Inhale for 4s, hold for 7s, exhale for 8s to calm your nervous system.</span>
-                                </li>
-                                <li className="flex items-start gap-1.5">
-                                  <span className="text-emerald-500 font-bold">•</span>
-                                  <span><strong>Physical Reset:</strong> Drink a glass of water, stand up, or stretch for 30 seconds.</span>
-                                </li>
-                                <li className="flex items-start gap-1.5">
-                                  <span className="text-emerald-500 font-bold">•</span>
-                                  <span><strong>5-Minute Rule:</strong> Re-engage with your current task or schedule block for just 5 minutes.</span>
-                                </li>
-                              </ul>
+                              <textarea 
+                                rows={2}
+                                value={urgeSession.whatToDoInstead || ''}
+                                onChange={(e) => setUrgeSession({ ...urgeSession, whatToDoInstead: e.target.value })}
+                                placeholder="e.g. Take 3 deep breaths, drink water, or work for just 5 more minutes..."
+                                className="w-full bg-white dark:bg-zinc-900/90 border border-emerald-200 dark:border-emerald-900/40 rounded-lg p-2.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all resize-none font-medium placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
+                              />
                             </div>
                           </div>
 
