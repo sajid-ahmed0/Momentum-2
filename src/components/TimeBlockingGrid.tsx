@@ -775,7 +775,7 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
           {/* COLUMN HEADERS */}
           <div className="flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-900/90 sticky top-0 z-20">
             {/* Time Axis Header Space */}
-            <div className="w-16 sm:w-20 shrink-0 border-r border-zinc-200 dark:border-zinc-800 p-3 text-[10px] font-mono font-bold text-zinc-400 text-center uppercase tracking-wider">
+            <div className="w-14 sm:w-16 shrink-0 border-r border-zinc-200 dark:border-zinc-800 py-1.5 text-[9px] font-mono font-bold text-zinc-400 text-center uppercase tracking-wider">
               Time
             </div>
 
@@ -788,15 +788,15 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                   <div 
                     key={day.toISOString()}
                     onClick={() => setSelectedDate(day)}
-                    className={`p-2.5 sm:p-3 text-center border-r border-zinc-200 dark:border-zinc-800/80 cursor-pointer transition-colors ${
+                    className={`py-1.5 px-2 text-center border-r border-zinc-200 dark:border-zinc-800/80 cursor-pointer transition-colors ${
                       isDayToday ? 'bg-amber-500/10 dark:bg-amber-500/10' : 'hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50'
                     }`}
                   >
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                    <div className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
                       {format(day, 'EEE')}
                     </div>
                     <div className="mt-0.5 flex items-center justify-center">
-                      <span className={`text-xs sm:text-sm font-black w-7 h-7 flex items-center justify-center rounded-full transition-all ${
+                      <span className={`text-xs font-black w-6 h-6 flex items-center justify-center rounded-full transition-all ${
                         isDayToday 
                           ? 'bg-amber-500 text-white shadow-md' 
                           : isSelected 
@@ -817,7 +817,7 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
             <div className="flex relative" style={{ minHeight: `${24 * HOUR_HEIGHT}px` }}>
               
               {/* TIME AXIS */}
-              <div className="w-16 sm:w-20 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 sticky left-0 z-10 select-none">
+              <div className="w-14 sm:w-16 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 sticky left-0 z-10 select-none">
                 {hours.map(h => (
                   <div 
                     key={h} 
@@ -892,8 +892,8 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                         const completedCount = subtasks.filter(t => t.completed).length;
 
                         // Layout thresholds based on pixel height
-                        const paddingClass = heightPx < 32 ? 'px-1.5 py-0.5' : heightPx < 60 ? 'px-2 py-1' : 'px-2.5 py-1.5';
-                        const titleSize = heightPx < 32 ? 'text-[10px]' : 'text-xs';
+                        const paddingClass = heightPx < 32 ? 'px-1 py-0.5' : heightPx < 60 ? 'px-1.5 py-0.5' : 'px-2 py-1';
+                        const titleSize = heightPx < 32 ? 'text-[9.5px]' : 'text-xs';
                         const timeSize = heightPx < 32 ? 'text-[8px]' : 'text-[9px]';
 
                         return (
@@ -905,7 +905,7 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                               top: `${topPx}px`,
                               height: `${heightPx}px`,
                             }}
-                            className={`absolute left-1 right-1 rounded-lg border shadow-md flex items-center overflow-hidden cursor-pointer hover:z-30 hover:scale-[1.01] transition-all group/card ${paddingClass} ${colorStyle}`}
+                            className={`absolute left-0.5 right-0.5 rounded-md border shadow-sm flex items-center overflow-hidden cursor-pointer hover:z-30 hover:scale-[1.01] transition-all group/card ${paddingClass} ${colorStyle}`}
                             onClick={(e) => {
                               e.stopPropagation();
                               if (onOpenModalWithDefaults) {
@@ -919,13 +919,13 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                             }}
                           >
                             {/* UNIFIED SIDE-BY-SIDE HORIZONTAL LAYOUT FOR ALL SCALES */}
-                            <div className="flex items-center justify-between gap-1.5 w-full h-full min-w-0">
-                              <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
+                            <div className="flex items-center justify-between gap-1 w-full h-full min-w-0">
+                              <div className="flex items-center gap-1 min-w-0 flex-1 truncate">
                                 <span className={`font-mono ${timeSize} font-bold opacity-90 shrink-0 leading-none`}>
                                   {formatTime12h(block.startTime)} {heightPx >= 48 ? `- ${formatTime12h(block.endTime)}` : ''}
                                 </span>
                                 <span className="text-white/60 font-mono text-[8px] shrink-0 leading-none">•</span>
-                                <span className={`font-black ${titleSize} uppercase shrink-0 leading-none flex items-center gap-1`}>
+                                <span className={`font-black ${titleSize} uppercase shrink-0 leading-none flex items-center gap-0.5`}>
                                   {block.emoji && <span className="normal-case leading-none">{block.emoji}</span>}
                                   <span className="truncate">{block.activity}</span>
                                 </span>
@@ -934,7 +934,7 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                                 {subtasks.length > 0 && (
                                   <>
                                     <span className="text-white/60 font-mono text-[8px] shrink-0 leading-none">•</span>
-                                    <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar flex-1 min-w-0 py-0.5">
+                                    <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 min-w-0 py-0.5">
                                       {subtasks.map(st => (
                                         <span
                                           key={st.id}
@@ -942,7 +942,7 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                                             e.stopPropagation();
                                             onToggleSubtask && onToggleSubtask(block.id, st.id);
                                           }}
-                                          className="inline-flex items-center gap-1.5 text-[9px] font-semibold bg-black/25 hover:bg-black/40 px-1.5 py-0.5 rounded cursor-pointer shrink-0 max-w-[140px] truncate transition-colors shadow-sm"
+                                          className="inline-flex items-center gap-1 text-[8.5px] font-semibold bg-black/25 hover:bg-black/40 px-1 py-0.5 rounded cursor-pointer shrink-0 max-w-[100px] truncate transition-colors shadow-xs"
                                           title={st.text}
                                         >
                                           {st.completed ? (

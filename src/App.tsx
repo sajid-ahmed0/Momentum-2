@@ -59,6 +59,8 @@ import {
   Edit,
   Pen,
   ShieldAlert,
+  AlertTriangle,
+  Sparkles,
   Timer,
   Wind,
   ArrowRight,
@@ -987,7 +989,7 @@ export default function App() {
   const startUrgeSession = () => {
     setUrgeSession({
       stage: 1,
-      timer: 8,
+      timer: 0,
       intent: '',
       willHelpFuture: null,
       startTime: Date.now()
@@ -2333,58 +2335,55 @@ export default function App() {
                       {urgeSession.stage === 1 && (
                         <motion.div 
                           key="stage-1"
-                          initial={{ opacity: 0, scale: 0.9 }}
+                          initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          className="w-full max-w-md p-10 border-2 border-zinc-900 dark:border-zinc-100 rounded-lg shadow-2xl space-y-8 bg-white dark:bg-zinc-950"
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          className="w-full max-w-lg p-6 sm:p-8 border-2 border-zinc-900 dark:border-zinc-100 rounded-2xl shadow-2xl space-y-6 bg-white dark:bg-zinc-950 text-left my-auto"
                         >
-                          <div className="text-center">
-                             <div className="inline-flex items-center gap-2 text-xl font-mono font-black mb-1">
-                               <Timer className="w-5 h-5 text-amber-500" />
-                               WAIT {urgeSession.timer} sec
-                             </div>
-                             <div className="h-1.5 w-full bg-zinc-100 dark:bg-zinc-800 mt-4 overflow-hidden rounded-full">
-                               <motion.div 
-                                 className="h-full bg-zinc-900 dark:bg-zinc-100"
-                                 initial={{ width: "100%" }}
-                                 animate={{ width: "0%" }}
-                                 transition={{ duration: 8, ease: "linear" }}
-                               />
-                             </div>
+                          <div className="text-center pb-4 border-b border-zinc-100 dark:border-zinc-800">
+                            <div className="inline-flex items-center justify-center gap-2 text-xl font-mono font-black text-amber-500 mb-1 uppercase tracking-tight">
+                              <Zap className="w-6 h-6 animate-pulse" />
+                              Circuit Breaker Pause
+                            </div>
+                            <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                              Interrupt the impulse loop. Reflect before acting.
+                            </p>
                           </div>
 
-                          <div className="space-y-6">
+                          <div className="space-y-5">
                             <div>
-                              <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3 leading-tight">What are you about to do?</label>
+                              <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2 leading-tight">What are you about to do?</label>
                               <input 
                                 type="text"
                                 value={urgeSession.intent}
                                 onChange={(e) => setUrgeSession({ ...urgeSession, intent: e.target.value })}
-                                placeholder="[Describe the action]"
-                                className="w-full bg-transparent border-b-2 border-zinc-200 dark:border-zinc-800 p-2 text-lg font-bold focus:outline-none focus:border-zinc-900 dark:focus:border-zinc-100 transition-colors"
+                                placeholder="e.g. Check social media, order junk food, binge videos..."
+                                className="w-full bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 text-sm font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors"
                               />
                             </div>
 
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em]">Will this help your future?</span>
+                            <div className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-900/50 rounded-xl border border-zinc-200/80 dark:border-zinc-800">
+                              <span className="text-[10px] font-bold uppercase text-zinc-500 dark:text-zinc-400 tracking-[0.15em]">Will this help your future?</span>
                               <div className="flex gap-2">
                                 <button 
+                                  type="button"
                                   onClick={() => setUrgeSession({ ...urgeSession, willHelpFuture: true })}
                                   className={cn(
-                                    "px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ring-1",
+                                    "px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ring-1",
                                     urgeSession.willHelpFuture === true 
-                                      ? "bg-zinc-900 text-white ring-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:ring-zinc-100" 
+                                      ? "bg-zinc-900 text-white ring-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:ring-zinc-100 shadow-sm" 
                                       : "ring-zinc-200 text-zinc-400 hover:ring-zinc-400 dark:ring-zinc-800"
                                   )}
                                 >
                                   Yes
                                 </button>
                                 <button 
+                                  type="button"
                                   onClick={() => setUrgeSession({ ...urgeSession, willHelpFuture: false })}
                                   className={cn(
-                                    "px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ring-1",
+                                    "px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ring-1",
                                     urgeSession.willHelpFuture === false 
-                                      ? "bg-red-500 text-white ring-red-500" 
+                                      ? "bg-red-500 text-white ring-red-500 shadow-sm" 
                                       : "ring-zinc-200 text-zinc-400 hover:ring-zinc-400 dark:ring-zinc-800"
                                   )}
                                 >
@@ -2392,6 +2391,63 @@ export default function App() {
                                 </button>
                               </div>
                             </div>
+
+                            {/* GUIDANCE 1: WHY SHOULDN'T I DO IT? */}
+                            <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-xl space-y-2">
+                              <div className="flex items-center gap-2 text-red-600 dark:text-red-400 font-black text-xs uppercase tracking-wider">
+                                <AlertTriangle className="w-4 h-4 shrink-0" />
+                                <span>Why Shouldn't I Do It?</span>
+                              </div>
+                              <ul className="text-xs text-zinc-700 dark:text-zinc-300 space-y-1.5 pl-1 font-medium">
+                                <li className="flex items-start gap-1.5">
+                                  <span className="text-red-500 font-bold">•</span>
+                                  <span><strong>Dopamine Trap:</strong> Delivers a brief 5-second pleasure spike followed by regret and brain fog.</span>
+                                </li>
+                                <li className="flex items-start gap-1.5">
+                                  <span className="text-red-500 font-bold">•</span>
+                                  <span><strong>Lost Focus:</strong> Takes up to 23 minutes to regain deep focus after a single distraction.</span>
+                                </li>
+                                <li className="flex items-start gap-1.5">
+                                  <span className="text-red-500 font-bold">•</span>
+                                  <span><strong>Reinforces Urges:</strong> Yielding trains your brain to break focus whenever work gets challenging.</span>
+                                </li>
+                              </ul>
+                            </div>
+
+                            {/* GUIDANCE 2: WHAT SHOULD I DO INSTEAD? */}
+                            <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl space-y-2">
+                              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-black text-xs uppercase tracking-wider">
+                                <Sparkles className="w-4 h-4 shrink-0" />
+                                <span>What Should I Do Instead?</span>
+                              </div>
+                              <ul className="text-xs text-zinc-700 dark:text-zinc-300 space-y-1.5 pl-1 font-medium">
+                                <li className="flex items-start gap-1.5">
+                                  <span className="text-emerald-500 font-bold">•</span>
+                                  <span><strong>Take 3 Deep Breaths:</strong> Inhale for 4s, hold for 7s, exhale for 8s to calm your nervous system.</span>
+                                </li>
+                                <li className="flex items-start gap-1.5">
+                                  <span className="text-emerald-500 font-bold">•</span>
+                                  <span><strong>Physical Reset:</strong> Drink a glass of water, stand up, or stretch for 30 seconds.</span>
+                                </li>
+                                <li className="flex items-start gap-1.5">
+                                  <span className="text-emerald-500 font-bold">•</span>
+                                  <span><strong>5-Minute Rule:</strong> Re-engage with your current task or schedule block for just 5 minutes.</span>
+                                </li>
+                              </ul>
+                            </div>
+                          </div>
+
+                          {/* CONTINUE TO NEXT PAGE BUTTON */}
+                          <div className="pt-2">
+                            <motion.button 
+                              whileHover={{ scale: 1.01 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => setUrgeSession({ ...urgeSession, stage: 2 })}
+                              className="w-full py-3.5 px-5 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-xl font-black uppercase tracking-wider text-xs hover:bg-zinc-800 dark:hover:bg-white transition-all shadow-lg flex items-center justify-center gap-2 group"
+                            >
+                              <span>Continue to Action Options</span>
+                              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-amber-400 dark:text-amber-600" />
+                            </motion.button>
                           </div>
                         </motion.div>
                       )}
@@ -2402,56 +2458,78 @@ export default function App() {
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.9 }}
-                          className="w-full max-w-md p-10 border-2 border-zinc-900 dark:border-zinc-100 rounded-lg shadow-2xl space-y-8 bg-white dark:bg-zinc-950 text-center"
+                          className="w-full max-w-md p-8 sm:p-10 border-2 border-zinc-900 dark:border-zinc-100 rounded-2xl shadow-2xl space-y-6 bg-white dark:bg-zinc-950 text-center my-auto"
                         >
-                          <h3 className="text-xl font-black uppercase tracking-tighter">Choose your action</h3>
+                          <div className="space-y-1">
+                            <h3 className="text-xl font-black uppercase tracking-tighter dark:text-zinc-100">Choose your action</h3>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">How do you want to handle this impulse?</p>
+                          </div>
                           
-                            <div className="grid gap-4">
-                              <motion.button 
-                                whileHover={{ scale: 1.01, x: 5 }}
-                                whileTap={{ scale: 0.98 }}
-                                onClick={handleLevelUp}
-                                className="w-full p-5 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-amber-500 hover:bg-amber-500/5 transition-all group flex items-center justify-between"
-                              >
-                                <div className="flex items-center gap-4">
-                                  <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
-                                    <Wind className="w-5 h-5" />
-                                  </div>
-                                  <span className="font-black uppercase tracking-tight text-sm">Ride the Urge</span>
+                          <div className="grid gap-3.5">
+                            <motion.button 
+                              whileHover={{ scale: 1.01, x: 4 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={handleLevelUp}
+                              className="w-full p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-amber-500 hover:bg-amber-500/5 transition-all group flex items-center justify-between text-left"
+                            >
+                              <div className="flex items-center gap-3.5">
+                                <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+                                  <Wind className="w-5 h-5" />
                                 </div>
-                                <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </motion.button>
+                                <div>
+                                  <span className="font-black uppercase tracking-tight text-xs block dark:text-zinc-100">Ride the Urge</span>
+                                  <span className="text-[10px] text-zinc-400 block font-medium">Use 2-min timer & 4-7-8 breathing</span>
+                                </div>
+                              </div>
+                              <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-amber-500" />
+                            </motion.button>
 
-                              <motion.button 
-                                whileHover={{ scale: 1.01, x: 5 }}
-                                whileTap={{ scale: 0.98 }}
-                                onClick={() => handleUrgeOutcome('returned_to_focus')}
-                                className="w-full p-5 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-emerald-500 hover:bg-emerald-500/5 transition-all group flex items-center justify-between"
-                              >
-                                <div className="flex items-center gap-4">
-                                  <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                                    <ChevronLeft className="w-5 h-5" />
-                                  </div>
-                                  <span className="font-black uppercase tracking-tight text-sm">Return to Focus</span>
+                            <motion.button 
+                              whileHover={{ scale: 1.01, x: 4 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => handleUrgeOutcome('returned_to_focus')}
+                              className="w-full p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-emerald-500 hover:bg-emerald-500/5 transition-all group flex items-center justify-between text-left"
+                            >
+                              <div className="flex items-center gap-3.5">
+                                <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
+                                  <Check className="w-5 h-5" />
                                 </div>
-                                <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </motion.button>
+                                <div>
+                                  <span className="font-black uppercase tracking-tight text-xs block dark:text-zinc-100">Return to Focus</span>
+                                  <span className="text-[10px] text-zinc-400 block font-medium">I will skip the impulse and lock back in</span>
+                                </div>
+                              </div>
+                              <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-emerald-500" />
+                            </motion.button>
 
-                              <motion.button 
-                                whileHover={{ scale: 1.01, x: 5 }}
-                                whileTap={{ scale: 0.98 }}
-                                onClick={() => handleUrgeOutcome('continued_anyway')}
-                                className="w-full p-5 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-red-500 hover:bg-red-500/5 transition-all group flex items-center justify-between"
-                              >
-                                <div className="flex items-center gap-4">
-                                  <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500">
-                                    <X className="w-5 h-5" />
-                                  </div>
-                                  <span className="font-black uppercase tracking-tight text-sm">Continue Anyway</span>
+                            <motion.button 
+                              whileHover={{ scale: 1.01, x: 4 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => handleUrgeOutcome('continued_anyway')}
+                              className="w-full p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-red-500 hover:bg-red-500/5 transition-all group flex items-center justify-between text-left"
+                            >
+                              <div className="flex items-center gap-3.5">
+                                <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 shrink-0">
+                                  <X className="w-5 h-5" />
                                 </div>
-                                <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </motion.button>
-                            </div>
+                                <div>
+                                  <span className="font-black uppercase tracking-tight text-xs block dark:text-zinc-100">Continue Anyway</span>
+                                  <span className="text-[10px] text-zinc-400 block font-medium">Proceed with action & log it honestly</span>
+                                </div>
+                              </div>
+                              <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-red-500" />
+                            </motion.button>
+                          </div>
+
+                          <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                            <button 
+                              type="button"
+                              onClick={() => setUrgeSession({ ...urgeSession, stage: 1 })}
+                              className="text-xs font-bold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 flex items-center justify-center gap-1 mx-auto transition-colors"
+                            >
+                              <ChevronLeft className="w-3.5 h-3.5" /> Back to Reflection
+                            </button>
+                          </div>
                         </motion.div>
                       )}
 
