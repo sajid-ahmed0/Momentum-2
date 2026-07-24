@@ -79,6 +79,8 @@ interface TimeBlockingGridProps {
   onDeleteTimeBlock: (id: string) => void;
   onToggleSubtask?: (blockId: string, subtaskId: string) => void;
   onOpenModalWithDefaults?: (defaults: { startTime: string; endTime: string; date: string; block?: TimeBlock }) => void;
+  zoomScale?: number;
+  onZoomScaleChange?: (newScale: number) => void;
 }
 
 export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
@@ -88,10 +90,25 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
   onDeleteTimeBlock,
   onToggleSubtask,
   onOpenModalWithDefaults,
+  zoomScale: controlledZoomScale,
+  onZoomScaleChange,
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(startOfToday());
   const [viewMode, setViewMode] = useState<'day' | '3day' | 'week' | 'month' | 'list'>('day');
-  const [zoomScale, setZoomScale] = useState<number>(1.0); // 0.6 = 60%, 1.0 = 100%, 2.0 = 200%
+  const [internalZoomScale, setInternalZoomScale] = useState<number>(1.0); // 0.6 = 60%, 1.0 = 100%, 2.0 = 200%
+  
+  const zoomScale = controlledZoomScale !== undefined ? controlledZoomScale : internalZoomScale;
+
+  const setZoomScale = (action: number | ((prev: number) => number)) => {
+    const nextVal = typeof action === 'function' ? action(zoomScale) : action;
+    const clamped = Math.max(0.5, Math.min(2.0, Math.round(nextVal * 10) / 10));
+    if (onZoomScaleChange) {
+      onZoomScaleChange(clamped);
+    } else {
+      setInternalZoomScale(clamped);
+    }
+  };
+
   const [now, setNow] = useState<Date>(new Date());
   const gridScrollRef = useRef<HTMLDivElement>(null);
 

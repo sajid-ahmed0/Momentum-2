@@ -1499,33 +1499,33 @@ export default function App() {
           </div>
           <div className="flex items-center gap-6">
             <AnimatePresence mode="wait">
-              {activeTab === 'habits' && (
-                <motion.div 
-                  key="zoom-controls"
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  className="flex items-center gap-1.5 p-1 bg-zinc-50 border border-high-line rounded shadow-inner dark:bg-zinc-900 dark:border-zinc-800 dark:shadow-none"
+              <motion.div 
+                key="zoom-controls"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="flex items-center gap-1.5 p-1 bg-zinc-50 border border-high-line rounded shadow-inner dark:bg-zinc-900 dark:border-zinc-800 dark:shadow-none"
+              >
+                <button 
+                  onClick={() => setZoom(prev => Math.max(0.5, Math.round((prev - 0.1) * 10) / 10))}
+                  disabled={zoom <= 0.5}
+                  className="p-1.5 hover:bg-white hover:shadow-sm rounded transition-all text-zinc-400 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 disabled:opacity-30"
+                  title="Zoom Out"
                 >
-                  <button 
-                    onClick={() => setZoom(prev => Math.max(0.4, prev - 0.2))}
-                    className="p-1.5 hover:bg-white hover:shadow-sm rounded transition-all text-zinc-400 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-                    title="Zoom Out"
-                  >
-                    <ZoomOut className="w-4 h-4" />
-                  </button>
-                  <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-700" />
-                  <span className="text-[9px] font-mono font-bold text-zinc-400 px-1 w-8 text-center">{Math.round(zoom * 100)}%</span>
-                  <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-700" />
-                  <button 
-                    onClick={() => setZoom(prev => Math.min(1.4, prev + 0.2))}
-                    className="p-1.5 hover:bg-white hover:shadow-sm rounded transition-all text-zinc-400 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-                    title="Zoom In"
-                  >
-                    <ZoomIn className="w-4 h-4" />
-                  </button>
-                </motion.div>
-              )}
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-700" />
+                <span className="text-[9px] font-mono font-bold text-zinc-400 px-1 w-8 text-center">{Math.round(zoom * 100)}%</span>
+                <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-700" />
+                <button 
+                  onClick={() => setZoom(prev => Math.min(2.0, Math.round((prev + 0.1) * 10) / 10))}
+                  disabled={zoom >= 2.0}
+                  className="p-1.5 hover:bg-white hover:shadow-sm rounded transition-all text-zinc-400 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 disabled:opacity-30"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+              </motion.div>
             </AnimatePresence>
             
             <div className="flex items-center gap-1.5">
@@ -2016,6 +2016,8 @@ export default function App() {
                   onEditTimeBlock={(id, data) => handleEditTimeBlock(id, data)}
                   onDeleteTimeBlock={handleDeleteTimeBlock}
                   onToggleSubtask={handleToggleSubtask}
+                  zoomScale={zoom}
+                  onZoomScaleChange={setZoom}
                   onOpenModalWithDefaults={(defaults) => {
                     setEditingTimeBlock(defaults.block || null);
                     setScheduleDefaults(defaults);
