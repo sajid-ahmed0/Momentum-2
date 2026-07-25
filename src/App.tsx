@@ -1299,6 +1299,16 @@ export default function App() {
     return streak;
   };
 
+  const urgeLogsByDate = urgeLogs.reduce((acc, log) => {
+    if (!acc[log.date]) acc[log.date] = [];
+    acc[log.date].push(log);
+    return acc;
+  }, {} as Record<string, UrgeLog[]>);
+
+  const urgeHistoryDates = Object.keys(urgeLogsByDate)
+    .filter(d => d !== format(new Date(), 'yyyy-MM-dd'))
+    .sort((a, b) => b.localeCompare(a));
+
   return (
     <div className="flex h-screen bg-white text-zinc-900 font-sans selection:bg-high-accent/10 overflow-hidden dark:bg-zinc-950 dark:text-zinc-100 transition-colors duration-300">
       {/* Sidebar - Aside */}
@@ -2283,25 +2293,29 @@ export default function App() {
                       <p className="mt-8 text-xs font-bold text-zinc-400 uppercase tracking-widest">Momentary urge? Push to pause.</p>
                     </div>
 
-                    <div className="mt-12">
-                        <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 mb-6 border-b border-zinc-100 dark:border-zinc-800 pb-2">Recent Sessions</h4>
+                    <div className="mt-12 space-y-12">
+                      <div>
+                        <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 mb-6 border-b border-zinc-100 dark:border-zinc-800 pb-2">Today's Sessions</h4>
+                        
                         <div className="grid grid-cols-2 gap-4 mb-8">
                           <div className="p-6 bg-zinc-50/50 dark:bg-zinc-900/50 rounded-xl border border-zinc-100 dark:border-zinc-800 text-center">
-                            <p className="text-[9px] font-bold uppercase text-zinc-400 mb-1">Success Rate (All-Time)</p>
+                            <p className="text-[9px] font-bold uppercase text-zinc-400 mb-1">Today's Success Rate</p>
                             <p className="stat-value text-emerald-500">
-                              {urgeLogs.length > 0 
-                                ? Math.round((urgeLogs.filter(l => l.outcome === 'resisted' || l.outcome === 'returned_to_focus').length / urgeLogs.length) * 100)
+                              {urgeLogs.filter(l => l.date === format(new Date(), 'yyyy-MM-dd')).length > 0 
+                                ? Math.round((urgeLogs.filter(l => l.date === format(new Date(), 'yyyy-MM-dd')).filter(l => l.outcome === 'resisted' || l.outcome === 'returned_to_focus').length / urgeLogs.filter(l => l.date === format(new Date(), 'yyyy-MM-dd')).length) * 100)
                                 : 0}%
                             </p>
                           </div>
                           <div className="p-6 bg-zinc-50/50 dark:bg-zinc-900/50 rounded-xl border border-zinc-100 dark:border-zinc-800 text-center">
-                            <p className="text-[9px] font-bold uppercase text-zinc-400 mb-1">Total Cycles Broken</p>
-                            <p className="stat-value text-amber-500">{urgeLogs.length}</p>
+                            <p className="text-[9px] font-bold uppercase text-zinc-400 mb-1">Cycles Broken Today</p>
+                            <p className="stat-value text-amber-500">{urgeLogs.filter(l => l.date === format(new Date(), 'yyyy-MM-dd')).length}</p>
                           </div>
                         </div>
 
                         <div className="space-y-4">
-                          {urgeLogs.slice(0, 15).map(log => {
+                          {urgeLogs.filter(l => l.date === format(new Date(), 'yyyy-MM-dd')).length === 0 ? (
+                            <p className="text-xs text-zinc-500 font-medium text-center py-8">No sessions today. Great job staying focused!</p>
+                          ) : urgeLogs.filter(l => l.date === format(new Date(), 'yyyy-MM-dd')).map(log => {
                             const isEditing = editingUrgeLog?.id === log.id;
 
                             if (isEditing && editingUrgeLog) {
@@ -2511,6 +2525,53 @@ export default function App() {
                           })}
                         </div>
                       </div>
+
+                      {urgeHistoryDates.length > 0 && (
+                        <div>
+                          <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 mb-6 border-b border-zinc-100 dark:border-zinc-800 pb-2">History & Insights</h4>
+                          <div className="space-y-4">
+                            {urgeHistoryDates.map(date => {
+                              const dayLogs = urgeLogsByDate[date];
+                              const successes = dayLogs.filter(l => l.outcome === 'resisted' || l.outcome === 'returned_to_focus').length;
+                              const rate = dayLogs.length > 0 ? Math.round((successes / dayLogs.length) * 100) : 0;
+                              return (
+                                <div key={date} className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <p className="text-xs font-bold uppercase tracking-widest text-zinc-600 dark:text-zinc-400">
+                                      {format(new Date(date + 'T00:00:00'), 'MMM d, yyyy')}
+                                    </p>
+                                    <span className={cn(
+                                      "px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider",
+                                      rate >= 80 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
+                                      rate >= 50 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
+                                      "bg-red-500/10 text-red-600 dark:text-red-400"
+                                    )}>
+                                      {rate}% Success
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-0.5">Total Cycles</p>
+                                      <p className="text-lg font-black text-zinc-800 dark:text-zinc-200">{dayLogs.length}</p>
+                                    </div>
+                                    <div className="flex flex-col gap-1 justify-center">
+                                      <div className="flex justify-between items-center text-[10px]">
+                                        <span className="text-zinc-500 uppercase tracking-wider font-bold">Back to Focus:</span>
+                                        <span className="font-black text-emerald-500">{successes}</span>
+                                      </div>
+                                      <div className="flex justify-between items-center text-[10px]">
+                                        <span className="text-zinc-500 uppercase tracking-wider font-bold">Given In/Continued:</span>
+                                        <span className="font-black text-red-500">{dayLogs.length - successes}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className="flex-1 flex flex-col items-center justify-center py-10">
