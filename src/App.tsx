@@ -2036,22 +2036,20 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
                 className="w-full h-[calc(100vh-80px)] flex flex-col p-0"
               >
-                {useMemo(() => (
-                  <TimeBlockingGrid 
-                    timeBlocks={timeBlocks}
-                    onAddTimeBlock={handleAddTimeBlock}
-                    onEditTimeBlock={handleEditTimeBlock}
-                    onDeleteTimeBlock={handleDeleteTimeBlock}
-                    onToggleSubtask={handleToggleSubtask}
-                    zoomScale={zoom}
-                    onZoomScaleChange={setZoom}
-                    onOpenModalWithDefaults={(defaults: any) => {
-                      setEditingTimeBlock(defaults.block || null);
-                      setScheduleDefaults(defaults);
-                      setShowScheduleModal(true);
-                    }}
-                  />
-                ), [timeBlocks, zoom])}
+                <TimeBlockingGrid 
+                  timeBlocks={timeBlocks}
+                  onAddTimeBlock={handleAddTimeBlock}
+                  onEditTimeBlock={handleEditTimeBlock}
+                  onDeleteTimeBlock={handleDeleteTimeBlock}
+                  onToggleSubtask={handleToggleSubtask}
+                  zoomScale={zoom}
+                  onZoomScaleChange={setZoom}
+                  onOpenModalWithDefaults={(defaults: any) => {
+                    setEditingTimeBlock(defaults.block || null);
+                    setScheduleDefaults(defaults);
+                    setShowScheduleModal(true);
+                  }}
+                />
               </motion.div>
             ) : activeTab === 'overthinking' ? (
               <motion.div 
