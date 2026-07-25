@@ -227,6 +227,23 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     return (h || 0) * 60 + (m || 0);
   };
 
+  // Format minutes into readable hours & minutes (e.g. 420 mins -> 7 hrs, 90 mins -> 1 hr 30 mins)
+  const formatMinutesToHM = (totalMins: number) => {
+    if (totalMins <= 0) return '0 mins';
+    const hours = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    if (hours === 0) return `${mins} mins`;
+    if (mins === 0) return `${hours} hr${hours > 1 ? 's' : ''}`;
+    return `${hours} hr${hours > 1 ? 's' : ''} ${mins} min${mins > 1 ? 's' : ''}`;
+  };
+
+  const formatBlockDuration = (startStr: string, endStr: string) => {
+    let startMins = getMinutes(startStr);
+    let endMins = getMinutes(endStr);
+    if (endMins < startMins) endMins += 1440;
+    return formatMinutesToHM(endMins - startMins);
+  };
+
   // Days to show based on view mode
   const getDisplayedDays = (): Date[] => {
     if (viewMode === 'day' || viewMode === 'list') {
@@ -501,7 +518,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
               >
                 <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
                 <span>{preset.name}</span>
-                <span className="text-[9px] font-mono opacity-60">({preset.durationMinutes}m)</span>
+                <span className="text-[9px] font-mono opacity-60">({formatMinutesToHM(preset.durationMinutes)})</span>
               </button>
             );
           })}
@@ -700,7 +717,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                             <span>{block.activity}</span>
                           </h4>
                           <p className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500">
-                            {formatTime12h(block.startTime)} – {formatTime12h(block.endTime)} ({getMinutes(block.endTime) - getMinutes(block.startTime)} mins)
+                            {formatTime12h(block.startTime)} – {formatTime12h(block.endTime)} ({formatBlockDuration(block.startTime, block.endTime)})
                           </p>
                         </div>
                       </div>
@@ -924,7 +941,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                             <div className="flex items-center justify-between gap-1 w-full h-full min-w-0">
                               <div className="flex items-center gap-1 min-w-0 flex-1 truncate">
                                 <span className={`font-mono ${timeSize} font-bold opacity-90 shrink-0 leading-none`}>
-                                  {formatTime12h(block.startTime)} {heightPx >= 48 ? `- ${formatTime12h(block.endTime)}` : ''}
+                                  {formatTime12h(block.startTime)} – {formatTime12h(block.endTime)}
                                 </span>
                                 <span className="text-white/60 font-mono text-[8px] shrink-0 leading-none">•</span>
                                 <span className={`font-black ${titleSize} uppercase shrink-0 leading-none flex items-center gap-0.5`}>
