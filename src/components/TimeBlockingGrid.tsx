@@ -83,7 +83,7 @@ interface TimeBlockingGridProps {
   onZoomScaleChange?: (newScale: number) => void;
 }
 
-export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
+export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   timeBlocks,
   onAddTimeBlock,
   onEditTimeBlock,
@@ -1169,4 +1169,4 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
       </AnimatePresence>
     </div>
   );
-};
+});
