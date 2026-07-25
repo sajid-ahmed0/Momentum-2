@@ -824,9 +824,11 @@ export const TimeBlockingGrid: React.FC<TimeBlockingGridProps> = ({
                     style={{ height: `${HOUR_HEIGHT}px` }}
                     className="border-b border-zinc-100 dark:border-zinc-800/40 relative pr-2 flex justify-end items-start"
                   >
-                    <span className={`text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-500 bg-white dark:bg-zinc-950 px-1 rounded ${h === 0 ? 'mt-1' : '-mt-2'}`}>
-                      {format(new Date().setHours(h, 0, 0, 0), 'h a')}
-                    </span>
+                    {h !== 0 && (
+                      <span className="text-[9px] font-mono font-bold text-zinc-400 dark:text-zinc-500 bg-zinc-50/50 dark:bg-zinc-900/30 px-1 rounded -mt-2 relative z-10">
+                        {format(new Date().setHours(h, 0, 0, 0), 'h a')}
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
