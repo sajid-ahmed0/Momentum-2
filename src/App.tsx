@@ -2526,9 +2526,9 @@ export default function App() {
                         </div>
                       </div>
 
-                      {urgeHistoryDates.length > 0 && (
-                        <div>
-                          <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 mb-6 border-b border-zinc-100 dark:border-zinc-800 pb-2">History & Insights</h4>
+                      <div>
+                        <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 mb-6 border-b border-zinc-100 dark:border-zinc-800 pb-2">History & Insights</h4>
+                        {urgeHistoryDates.length > 0 ? (
                           <div className="space-y-4">
                             {urgeHistoryDates.map(date => {
                               const dayLogs = urgeLogsByDate[date];
@@ -2569,8 +2569,13 @@ export default function App() {
                               );
                             })}
                           </div>
-                        </div>
-                      )}
+                        ) : (
+                          <div className="py-8 text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-xl border border-zinc-100 dark:border-zinc-800 border-dashed">
+                            <p className="text-xs text-zinc-400 font-medium">No past sessions to display yet.</p>
+                            <p className="text-[10px] text-zinc-500 mt-1">Tomorrow, your stats for today will appear here.</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ) : (
