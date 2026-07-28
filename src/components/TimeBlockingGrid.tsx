@@ -38,7 +38,7 @@ import {
   RotateCcw,
   SlidersHorizontal
 } from 'lucide-react';
-import { TimeBlock, BlockTask } from '../types';
+import { TimeBlock, BlockTask, QuickPreset, DEFAULT_PRESETS } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const COLOR_OPTIONS = [
@@ -57,23 +57,10 @@ export const getBlockColorStyle = (colorId?: string) => {
   return matched ? matched.bg : 'bg-indigo-600 border-indigo-700 text-white';
 };
 
-export interface QuickPreset {
-  id: string;
-  name: string;
-  durationMinutes: number;
-  color: string;
-}
-
-const DEFAULT_PRESETS: QuickPreset[] = [
-  { id: '1', name: '⚡ Deep Work', durationMinutes: 120, color: 'indigo' },
-  { id: '2', name: '💪 Gym & Fitness', durationMinutes: 60, color: 'emerald' },
-  { id: '3', name: '🥗 Lunch Break', durationMinutes: 45, color: 'amber' },
-  { id: '4', name: '📚 Reading', durationMinutes: 30, color: 'purple' },
-  { id: '5', name: '☕ Short Break', durationMinutes: 15, color: 'sky' },
-];
-
 interface TimeBlockingGridProps {
   timeBlocks: TimeBlock[];
+  quickPresets?: QuickPreset[];
+  onUpdateQuickPresets?: (presets: QuickPreset[]) => void;
   onAddTimeBlock: (data: { startTime: string; endTime: string; activity: string; date: string; color?: string; emoji?: string; subtasks?: BlockTask[] }) => void;
   onEditTimeBlock: (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; emoji?: string; subtasks?: BlockTask[] }) => void;
   onDeleteTimeBlock: (id: string) => void;
@@ -85,6 +72,8 @@ interface TimeBlockingGridProps {
 
 export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   timeBlocks,
+  quickPresets,
+  onUpdateQuickPresets,
   onAddTimeBlock,
   onEditTimeBlock,
   onDeleteTimeBlock,
@@ -113,15 +102,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   const gridScrollRef = useRef<HTMLDivElement>(null);
 
   // Quick presets state persisted in localStorage
-  const [quickPresets, setQuickPresets] = useState<QuickPreset[]>(() => {
-    try {
-      const saved = localStorage.getItem('schedule_quick_presets');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error(e);
-    }
-    return DEFAULT_PRESETS;
-  });
+  const activeQuickPresets = quickPresets || DEFAULT_PRESETS;
 
   const [showCustomizeModal, setShowCustomizeModal] = useState<boolean>(false);
   const [presetNameInput, setPresetNameInput] = useState<string>('');
@@ -178,11 +159,14 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   }, [viewMode]);
 
   const savePresets = (newPresets: QuickPreset[]) => {
-    setQuickPresets(newPresets);
-    try {
-      localStorage.setItem('schedule_quick_presets', JSON.stringify(newPresets));
-    } catch (e) {
-      console.error(e);
+    if (onUpdateQuickPresets) {
+      onUpdateQuickPresets(newPresets);
+    } else {
+      try {
+        localStorage.setItem('schedule_quick_presets', JSON.stringify(newPresets));
+      } catch (e) {
+        console.error(e);
+      }
     }
   };
 
@@ -197,13 +181,13 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
       color: presetColorInput
     };
 
-    savePresets([...quickPresets, newPreset]);
+    savePresets([...activeQuickPresets, newPreset]);
     setPresetNameInput('');
     setPresetDurationInput(60);
   };
 
   const handleDeletePreset = (id: string) => {
-    savePresets(quickPresets.filter(p => p.id !== id));
+    savePresets(activeQuickPresets.filter(p => p.id !== id));
   };
 
   const handleResetPresets = () => {
@@ -505,7 +489,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
             <Sparkles className="w-3 h-3 text-amber-500" /> Quick Add:
           </span>
 
-          {quickPresets.map(preset => {
+          {activeQuickPresets.map(preset => {
             const dotColor = COLOR_OPTIONS.find(c => c.id === preset.color)?.dot || '#4f46e5';
             return (
               <button 
@@ -716,8 +700,11 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                             {block.emoji && <span className="normal-case text-base leading-none">{block.emoji}</span>}
                             <span>{block.activity}</span>
                           </h4>
-                          <p className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500">
-                            {formatTime12h(block.startTime)} – {formatTime12h(block.endTime)} ({formatBlockDuration(block.startTime, block.endTime)})
+                          <p className="text-xs font-mono font-bold text-zinc-500 dark:text-zinc-400 mt-0.5">
+                            {formatTime12h(block.startTime)} – {formatTime12h(block.endTime)}
+                            <span className="block text-[10px] font-normal text-zinc-400 dark:text-zinc-500 mt-0.5">
+                              {formatBlockDuration(block.startTime, block.endTime)}
+                            </span>
                           </p>
                         </div>
                       </div>
@@ -912,8 +899,8 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
 
                         // Layout thresholds based on pixel height
                         const paddingClass = heightPx < 32 ? 'px-1 py-0.5' : heightPx < 60 ? 'px-1.5 py-0.5' : 'px-2 py-1';
-                        const titleSize = heightPx < 32 ? 'text-[9.5px]' : 'text-xs';
-                        const timeSize = heightPx < 32 ? 'text-[8px]' : 'text-[9px]';
+                        const titleSize = heightPx < 32 ? 'text-[10px]' : 'text-sm';
+                        const timeSize = heightPx < 32 ? 'text-[9px]' : 'text-[11px]';
 
                         return (
                           <motion.div
@@ -941,14 +928,14 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                             <div className="flex items-center justify-between gap-1 w-full h-full min-w-0">
                               <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
                                 <div className="flex flex-col justify-center shrink-0 min-w-0">
-                                  <span className={`font-mono ${timeSize} font-bold opacity-90 leading-none`}>
+                                  <span className={`font-mono ${timeSize} font-black leading-none text-white`}>
                                     {formatTime12h(block.startTime)} – {formatTime12h(block.endTime)}
                                     {heightPx < 48 && (
-                                      <span className="font-normal opacity-75 ml-1">({formatBlockDuration(block.startTime, block.endTime)})</span>
+                                      <span className="font-medium opacity-90 ml-1">({formatBlockDuration(block.startTime, block.endTime)})</span>
                                     )}
                                   </span>
                                   {heightPx >= 48 && (
-                                    <span className="font-mono text-[9px] opacity-75 mt-1 leading-none font-medium">
+                                    <span className="font-mono text-[10px] font-bold opacity-90 mt-1 leading-none text-white/90">
                                       {formatBlockDuration(block.startTime, block.endTime)}
                                     </span>
                                   )}
@@ -1079,10 +1066,10 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
               {/* CURRENT PRESETS LIST */}
               <div className="space-y-2">
                 <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-wider">
-                  Active Presets ({quickPresets.length})
+                  Active Presets ({activeQuickPresets.length})
                 </label>
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                  {quickPresets.map(preset => {
+                  {activeQuickPresets.map(preset => {
                     const dotColor = COLOR_OPTIONS.find(c => c.id === preset.color)?.dot || '#4f46e5';
                     return (
                       <div key={preset.id} className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs">

@@ -1,3 +1,18 @@
+export interface QuickPreset {
+  id: string;
+  name: string;
+  durationMinutes: number;
+  color: string;
+}
+
+export const DEFAULT_PRESETS: QuickPreset[] = [
+  { id: '1', name: '⚡ Deep Work', durationMinutes: 120, color: 'indigo' },
+  { id: '2', name: '💪 Gym & Fitness', durationMinutes: 60, color: 'emerald' },
+  { id: '3', name: '🥗 Lunch Break', durationMinutes: 45, color: 'amber' },
+  { id: '4', name: '📚 Reading', durationMinutes: 30, color: 'purple' },
+  { id: '5', name: '☕ Short Break', durationMinutes: 15, color: 'sky' },
+];
+
 export interface Habit {
   id: string;
   name: string;

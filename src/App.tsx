@@ -72,7 +72,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail, loginAnonymously } from './firebase';
-import { Habit, HabitLog, TimeBlock, OverthinkingLog, DailyTask, JournalEntry, UrgeLog, Exam, BlockTask } from './types';
+import { Habit, HabitLog, TimeBlock, OverthinkingLog, DailyTask, JournalEntry, UrgeLog, Exam, BlockTask, QuickPreset, DEFAULT_PRESETS } from './types';
 import { cn } from './lib/utils';
 import { BreathingGuide } from './components/BreathingGuide';
 import { TimeBlockingGrid, COLOR_OPTIONS } from './components/TimeBlockingGrid';
@@ -407,6 +407,7 @@ export default function App() {
   });
   const [expandedMonths, setExpandedMonths] = useState<string[]>([format(new Date(), 'MMMM yyyy')]);
   const [zoom, setZoom] = useState(1);
+  const [quickPresets, setQuickPresets] = useState<QuickPreset[]>(DEFAULT_PRESETS);
   const previousTabRef = useRef<'home' | 'habits' | 'tasks' | 'schedule' | 'overthinking' | 'journal' | 'urge'>(activeTab);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
@@ -570,6 +571,14 @@ export default function App() {
       setHabits(data);
     });
 
+    const unsubUserSettings = onSnapshot(doc(db, 'userSettings', user.uid), (doc) => {
+      if (doc.exists() && doc.data().quickPresets) {
+        setQuickPresets(doc.data().quickPresets);
+      } else {
+        setQuickPresets(DEFAULT_PRESETS);
+      }
+    });
+
     const qLogs = query(collection(db, 'habitLogs'), where('uid', '==', user.uid));
     const unsubLogs = onSnapshot(qLogs, (snap) => {
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as HabitLog[];
@@ -614,6 +623,7 @@ export default function App() {
 
     return () => {
       unsubHabits();
+      unsubUserSettings();
       unsubLogs();
       unsubBlocks();
       unsubOverthinking();
@@ -761,6 +771,16 @@ export default function App() {
       });
     } catch (err) {
       console.error("Error toggling subtask:", err);
+    }
+  };
+
+  const handleUpdateQuickPresets = async (newPresets: QuickPreset[]) => {
+    if (!user) return;
+    setQuickPresets(newPresets);
+    try {
+      await setDoc(doc(db, 'userSettings', user.uid), { quickPresets: newPresets }, { merge: true });
+    } catch (err) {
+      console.error("Failed to save quick presets:", err);
     }
   };
 
@@ -2038,6 +2058,8 @@ export default function App() {
               >
                 <TimeBlockingGrid 
                   timeBlocks={timeBlocks}
+                  quickPresets={quickPresets}
+                  onUpdateQuickPresets={handleUpdateQuickPresets}
                   onAddTimeBlock={handleAddTimeBlock}
                   onEditTimeBlock={handleEditTimeBlock}
                   onDeleteTimeBlock={handleDeleteTimeBlock}
