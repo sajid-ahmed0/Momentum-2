@@ -926,53 +926,90 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                           >
                             {/* UNIFIED SIDE-BY-SIDE HORIZONTAL LAYOUT FOR ALL SCALES */}
                             <div className="flex items-center justify-between gap-1 w-full h-full min-w-0">
-                              <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
-                                <div className="flex flex-col justify-center shrink-0 min-w-0">
-                                  <span className={`font-mono ${timeSize} font-black leading-none text-white`}>
+                              <div className="flex flex-col justify-center min-w-0 flex-1 h-full">
+                                <div className="flex items-center gap-1.5 min-w-0 w-full truncate">
+                                  <span className={`font-mono ${timeSize} font-bold opacity-90 leading-none text-white shrink-0`}>
                                     {formatTime12h(block.startTime)} – {formatTime12h(block.endTime)}
-                                    {heightPx < 48 && (
-                                      <span className="font-medium opacity-90 ml-1">({formatBlockDuration(block.startTime, block.endTime)})</span>
-                                    )}
                                   </span>
-                                  {heightPx >= 48 && (
-                                    <span className="font-mono text-[10px] font-bold opacity-90 mt-1 leading-none text-white/90">
-                                      {formatBlockDuration(block.startTime, block.endTime)}
-                                    </span>
+                                  <span className="text-white/60 font-mono text-[8px] shrink-0 leading-none">•</span>
+                                  <span className={`font-black ${titleSize} uppercase shrink-0 leading-none flex items-center gap-0.5`}>
+                                    {block.emoji && <span className="normal-case leading-none">{block.emoji}</span>}
+                                    <span className="truncate">{block.activity}</span>
+                                  </span>
+
+                                  {heightPx < 48 && (
+                                    <>
+                                      <span className="text-white/60 font-mono text-[8px] shrink-0 leading-none">•</span>
+                                      <span className="font-mono text-[10px] font-medium opacity-60 leading-none text-white shrink-0">
+                                        ({formatBlockDuration(block.startTime, block.endTime)})
+                                      </span>
+                                    </>
+                                  )}
+
+                                  {/* TASKS VISIBLE ON LINE 1 IF HEIGHT < 48 */}
+                                  {heightPx < 48 && subtasks.length > 0 && (
+                                    <>
+                                      <span className="text-white/60 font-mono text-[8px] shrink-0 leading-none">•</span>
+                                      <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 min-w-0 py-0.5">
+                                        {subtasks.map(st => (
+                                          <span
+                                            key={st.id}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onToggleSubtask && onToggleSubtask(block.id, st.id);
+                                            }}
+                                            className="inline-flex items-center gap-1 text-[8.5px] font-semibold bg-black/25 hover:bg-black/40 px-1 py-0.5 rounded cursor-pointer shrink-0 max-w-[100px] truncate transition-colors shadow-xs"
+                                            title={st.text}
+                                          >
+                                            {st.completed ? (
+                                              <Check className="w-2.5 h-2.5 shrink-0 text-emerald-300" />
+                                            ) : (
+                                              <div className="w-2 h-2 rounded-sm border border-white/80 shrink-0" />
+                                            )}
+                                            <span className={st.completed ? 'line-through opacity-70 truncate' : 'truncate font-bold text-white'}>
+                                              {st.text}
+                                            </span>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </>
                                   )}
                                 </div>
-                                <span className="text-white/60 font-mono text-[8px] shrink-0 leading-none">•</span>
-                                <span className={`font-black ${titleSize} uppercase shrink-0 leading-none flex items-center gap-0.5`}>
-                                  {block.emoji && <span className="normal-case leading-none">{block.emoji}</span>}
-                                  <span className="truncate">{block.activity}</span>
-                                </span>
-
-                                {/* TASKS ALWAYS VISIBLE SIDE-BY-SIDE */}
-                                {subtasks.length > 0 && (
-                                  <>
-                                    <span className="text-white/60 font-mono text-[8px] shrink-0 leading-none">•</span>
-                                    <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 min-w-0 py-0.5">
-                                      {subtasks.map(st => (
-                                        <span
-                                          key={st.id}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            onToggleSubtask && onToggleSubtask(block.id, st.id);
-                                          }}
-                                          className="inline-flex items-center gap-1 text-[8.5px] font-semibold bg-black/25 hover:bg-black/40 px-1 py-0.5 rounded cursor-pointer shrink-0 max-w-[100px] truncate transition-colors shadow-xs"
-                                          title={st.text}
-                                        >
-                                          {st.completed ? (
-                                            <Check className="w-2.5 h-2.5 shrink-0 text-emerald-300" />
-                                          ) : (
-                                            <div className="w-2 h-2 rounded-sm border border-white/80 shrink-0" />
-                                          )}
-                                          <span className={st.completed ? 'line-through opacity-70 truncate' : 'truncate font-bold text-white'}>
-                                            {st.text}
-                                          </span>
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </>
+                                
+                                {/* TASKS AND DURATION VISIBLE ON LINE 2 IF HEIGHT >= 48 */}
+                                {heightPx >= 48 && (
+                                  <div className="flex items-center gap-1.5 w-full min-w-0 mt-0.5">
+                                    <span className="font-mono text-[10px] font-medium opacity-60 leading-none text-white shrink-0">
+                                      ({formatBlockDuration(block.startTime, block.endTime)})
+                                    </span>
+                                    {subtasks.length > 0 && (
+                                      <>
+                                        <span className="text-white/60 font-mono text-[8px] shrink-0 leading-none">•</span>
+                                        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 min-w-0 py-0.5">
+                                          {subtasks.map(st => (
+                                            <span
+                                              key={st.id}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                onToggleSubtask && onToggleSubtask(block.id, st.id);
+                                              }}
+                                              className="inline-flex items-center gap-1 text-[8.5px] font-semibold bg-black/25 hover:bg-black/40 px-1 py-0.5 rounded cursor-pointer shrink-0 max-w-[100px] truncate transition-colors shadow-xs"
+                                              title={st.text}
+                                            >
+                                              {st.completed ? (
+                                                <Check className="w-2.5 h-2.5 shrink-0 text-emerald-300" />
+                                              ) : (
+                                                <div className="w-2 h-2 rounded-sm border border-white/80 shrink-0" />
+                                              )}
+                                              <span className={st.completed ? 'line-through opacity-70 truncate' : 'truncate font-bold text-white'}>
+                                                {st.text}
+                                              </span>
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
                                 )}
                               </div>
 
