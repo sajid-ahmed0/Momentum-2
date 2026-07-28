@@ -939,10 +939,20 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                           >
                             {/* UNIFIED SIDE-BY-SIDE HORIZONTAL LAYOUT FOR ALL SCALES */}
                             <div className="flex items-center justify-between gap-1 w-full h-full min-w-0">
-                              <div className="flex items-center gap-1 min-w-0 flex-1 truncate">
-                                <span className={`font-mono ${timeSize} font-bold opacity-90 shrink-0 leading-none`}>
-                                  {formatTime12h(block.startTime)} – {formatTime12h(block.endTime)}
-                                </span>
+                              <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
+                                <div className="flex flex-col justify-center shrink-0 min-w-0">
+                                  <span className={`font-mono ${timeSize} font-bold opacity-90 leading-none`}>
+                                    {formatTime12h(block.startTime)} – {formatTime12h(block.endTime)}
+                                    {heightPx < 48 && (
+                                      <span className="font-normal opacity-75 ml-1">({formatBlockDuration(block.startTime, block.endTime)})</span>
+                                    )}
+                                  </span>
+                                  {heightPx >= 48 && (
+                                    <span className="font-mono text-[9px] opacity-75 mt-1 leading-none font-medium">
+                                      {formatBlockDuration(block.startTime, block.endTime)}
+                                    </span>
+                                  )}
+                                </div>
                                 <span className="text-white/60 font-mono text-[8px] shrink-0 leading-none">•</span>
                                 <span className={`font-black ${titleSize} uppercase shrink-0 leading-none flex items-center gap-0.5`}>
                                   {block.emoji && <span className="normal-case leading-none">{block.emoji}</span>}
