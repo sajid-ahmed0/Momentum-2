@@ -688,23 +688,23 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className="w-24 text-right shrink-0 font-mono text-xs font-black text-amber-500">
-                          {formatTime12h(block.startTime)}
-                        </div>
                         <div 
                           className="w-1.5 h-10 rounded-full shrink-0" 
                           style={{ backgroundColor: COLOR_OPTIONS.find(c => c.id === block.color)?.dot || '#4f46e5' }}
                         />
                         <div>
-                          <h4 className="font-black text-sm uppercase dark:text-zinc-100 flex items-center gap-1.5">
-                            {block.emoji && <span className="normal-case text-base leading-none">{block.emoji}</span>}
-                            <span>{block.activity}</span>
-                          </h4>
-                          <p className="text-xs font-mono font-bold text-zinc-500 dark:text-zinc-400 mt-0.5">
-                            {formatTime12h(block.startTime)} – {formatTime12h(block.endTime)}
-                            <span className="block text-[10px] font-normal text-zinc-400 dark:text-zinc-500 mt-0.5">
-                              {formatBlockDuration(block.startTime, block.endTime)}
+                          <h4 className="font-bold text-sm uppercase dark:text-zinc-100 flex items-center gap-2">
+                            <span className="font-mono text-zinc-500 dark:text-zinc-400">
+                              {formatTime12h(block.startTime)} – {formatTime12h(block.endTime)}
                             </span>
+                            <span className="text-zinc-300 dark:text-zinc-600 font-mono text-[10px]">•</span>
+                            <span className="flex items-center gap-1.5 font-black">
+                              {block.emoji && <span className="normal-case text-base leading-none">{block.emoji}</span>}
+                              <span>{block.activity}</span>
+                            </span>
+                          </h4>
+                          <p className="text-[11px] font-mono font-medium text-zinc-400/70 dark:text-zinc-500/70 mt-1">
+                            ({formatBlockDuration(block.startTime, block.endTime)})
                           </p>
                         </div>
                       </div>

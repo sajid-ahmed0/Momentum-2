@@ -407,7 +407,7 @@ export default function App() {
   });
   const [expandedMonths, setExpandedMonths] = useState<string[]>([format(new Date(), 'MMMM yyyy')]);
   const [zoom, setZoom] = useState(1);
-  const [quickPresets, setQuickPresets] = useState<QuickPreset[]>(DEFAULT_PRESETS);
+  const [quickPresets, setQuickPresets] = useState<QuickPreset[]>(() => { try { const saved = localStorage.getItem("schedule_quick_presets"); if (saved) return JSON.parse(saved); } catch (e) { console.error(e); } return DEFAULT_PRESETS; });
   const previousTabRef = useRef<'home' | 'habits' | 'tasks' | 'schedule' | 'overthinking' | 'journal' | 'urge'>(activeTab);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
@@ -777,6 +777,7 @@ export default function App() {
   const handleUpdateQuickPresets = async (newPresets: QuickPreset[]) => {
     if (!user) return;
     setQuickPresets(newPresets);
+    try { localStorage.setItem("schedule_quick_presets", JSON.stringify(newPresets)); } catch (e) {}
     try {
       await setDoc(doc(db, 'userSettings', user.uid), { quickPresets: newPresets }, { merge: true });
     } catch (err) {
