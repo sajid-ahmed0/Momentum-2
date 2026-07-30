@@ -321,7 +321,7 @@ export const DecisionAssistant: React.FC<DecisionAssistantProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">Rational Decision Coach</h3>
-                  <p className="text-[11px] text-zinc-400">Powered by Gemini 2.5 Flash • Rational vs Emotional Clarity</p>
+                  <p className="text-[11px] text-zinc-400">Powered by Gemini 3.6 Flash • Rational vs Emotional Clarity</p>
                 </div>
               </div>
               <button
