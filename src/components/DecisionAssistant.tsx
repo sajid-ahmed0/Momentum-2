@@ -111,6 +111,7 @@ export const DecisionAssistant: React.FC<DecisionAssistantProps> = ({
     if (!promptOverride) setChatInput('');
     setIsChatLoading(true);
 
+    let data: any;
     try {
       const historyPayload = messages.slice(-6).map(m => ({
         role: m.sender === 'user' ? 'user' : 'model',
@@ -127,7 +128,12 @@ export const DecisionAssistant: React.FC<DecisionAssistantProps> = ({
         })
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Server returned an unexpected non-JSON response. Please retry in a moment.');
+      }
+
+      data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Server returned an error');
       }
@@ -143,7 +149,7 @@ export const DecisionAssistant: React.FC<DecisionAssistantProps> = ({
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         sender: 'ai',
-        text: "⚠️ Couldn't reach the Prefrontal Cortex AI server. Error: " + (err.message || 'Unknown error'),
+        text: "⚠️ Prefrontal Cortex AI notice: " + (err.message || 'Unable to reach server. Please try again.'),
         timestamp: new Date()
       }]);
     } finally {
@@ -170,6 +176,11 @@ export const DecisionAssistant: React.FC<DecisionAssistantProps> = ({
         })
       });
 
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Server returned an unexpected response format. Please retry.');
+      }
+
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Server returned an error');
@@ -181,7 +192,7 @@ export const DecisionAssistant: React.FC<DecisionAssistantProps> = ({
     } catch (err: any) {
       console.error(err);
       setDilemmaResult({
-        reply: `⚠️ API Error: ${err.message || 'Unknown error'}\n\n### 🔴 Limbic Impulse (${optionA || 'Short-term'})\nOffers instant comfort or escape from effort.\n\n### 🟢 Prefrontal Choice (${optionB || 'Long-term'})\nAligns with your primary long-term targets.\n\n**Verdict**: Choose **${optionB || 'Option B'}**. Commit to just 5 minutes right now.`
+        reply: `### 🔴 Limbic Impulse (${optionA || 'Short-term'})\nOffers instant comfort or escape from cognitive friction.\n\n### 🟢 Prefrontal Choice (${optionB || 'Long-term'})\nAligns with your primary long-term targets.\n\n**Verdict**: Choose **${optionB || 'Option B'}**. Commit to just 5 minutes right now.`
       });
     } finally {
       setIsDilemmaLoading(false);
@@ -215,6 +226,11 @@ export const DecisionAssistant: React.FC<DecisionAssistantProps> = ({
         })
       });
 
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Server returned an unexpected response format. Please retry.');
+      }
+
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Server returned an error');
@@ -227,7 +243,7 @@ export const DecisionAssistant: React.FC<DecisionAssistantProps> = ({
       }
     } catch (err: any) {
       console.error(err);
-      alert(`API Error: ${err.message || 'Unknown error'}`);
+      alert(`API Notice: ${err.message || 'Unable to connect'}`);
     } finally {
       setIsSchedLoading(false);
     }
