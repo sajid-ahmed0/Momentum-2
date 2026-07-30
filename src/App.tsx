@@ -68,8 +68,7 @@ import {
   Share2,
   ListTodo,
   GraduationCap,
-  Palette,
-  Brain
+  Palette
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail, loginAnonymously } from './firebase';
@@ -77,7 +76,6 @@ import { Habit, HabitLog, TimeBlock, OverthinkingLog, DailyTask, JournalEntry, U
 import { cn } from './lib/utils';
 import { BreathingGuide } from './components/BreathingGuide';
 import { TimeBlockingGrid, COLOR_OPTIONS } from './components/TimeBlockingGrid';
-import { DecisionAssistant } from './components/DecisionAssistant';
 
 import { requestNotificationPermission, sendNotification, subscribeToPushNotifications } from './lib/notifications';
 
@@ -352,10 +350,10 @@ export default function App() {
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [urgeLogs, setUrgeLogs] = useState<UrgeLog[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
-  const [activeTab, setActiveTab] = useState<'home' | 'habits' | 'tasks' | 'schedule' | 'decisions' | 'overthinking' | 'journal' | 'urge'>(() => {
+  const [activeTab, setActiveTab] = useState<'home' | 'habits' | 'tasks' | 'schedule' | 'overthinking' | 'journal' | 'urge'>(() => {
     if (typeof window !== 'undefined' && window.location.hash) {
       const hash = window.location.hash.replace('#', '') as any;
-      const validTabs = ['home', 'habits', 'tasks', 'schedule', 'decisions', 'overthinking', 'journal', 'urge'];
+      const validTabs = ['home', 'habits', 'tasks', 'schedule', 'overthinking', 'journal', 'urge'];
       if (validTabs.includes(hash)) return hash;
     }
     return 'home';
@@ -410,7 +408,7 @@ export default function App() {
   const [expandedMonths, setExpandedMonths] = useState<string[]>([format(new Date(), 'MMMM yyyy')]);
   const [zoom, setZoom] = useState(1);
   const [quickPresets, setQuickPresets] = useState<QuickPreset[]>(() => { try { const saved = localStorage.getItem("schedule_quick_presets"); if (saved) return JSON.parse(saved); } catch (e) { console.error(e); } return DEFAULT_PRESETS; });
-  const previousTabRef = useRef<'home' | 'habits' | 'tasks' | 'schedule' | 'decisions' | 'overthinking' | 'journal' | 'urge'>(activeTab);
+  const previousTabRef = useRef<'home' | 'habits' | 'tasks' | 'schedule' | 'overthinking' | 'journal' | 'urge'>(activeTab);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('momentum-app-theme');
@@ -1144,7 +1142,6 @@ export default function App() {
   const navItems = [
     { id: 'tasks', icon: ListTodo, label: 'Tasks' },
     { id: 'schedule', icon: Clock, label: 'Schedule' },
-    { id: 'decisions', icon: Brain, label: 'Cortex AI' },
     { id: 'overthinking', icon: Activity, label: 'Thinking' },
     { id: 'habits', icon: Flame, label: 'Habits' },
     { id: 'journal', icon: BookOpen, label: 'Journal' },
@@ -1404,17 +1401,6 @@ export default function App() {
                 <Clock className="w-4 h-4 mr-3" /> Schedule
               </button>
               <button 
-                onClick={() => setActiveTab('decisions')}
-                className={cn(
-                  "w-full flex items-center px-3 py-2 rounded transition-all text-xs font-bold uppercase tracking-tight",
-                  activeTab === 'decisions' 
-                    ? "bg-amber-500 text-white shadow-lg dark:bg-amber-500 dark:text-white" 
-                    : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                )}
-              >
-                <Brain className="w-4 h-4 mr-3 text-amber-500 dark:text-amber-400" /> Cortex AI
-              </button>
-              <button 
                 onClick={() => setActiveTab('overthinking')}
                 className={cn(
                   "w-full flex items-center px-3 py-2 rounded transition-all text-xs font-bold uppercase tracking-tight",
@@ -1571,7 +1557,6 @@ export default function App() {
               {activeTab === 'home' ? 'Momentum Dashboard' :
                activeTab === 'habits' ? 'Habit Database' : 
                activeTab === 'schedule' ? 'Daily Schedule' : 
-               activeTab === 'decisions' ? 'The Cortex Engine' :
                activeTab === 'overthinking' ? 'Overthinking Tracker' : 
                activeTab === 'journal' ? 'Daily Journal' : 
                activeTab === 'tasks' ? 'Daily Tasks' : 'The Circuit Breaker'}
@@ -2205,19 +2190,6 @@ export default function App() {
                     ))
                   )}
                 </div>
-              </motion.div>
-            ) : activeTab === 'decisions' ? (
-              <motion.div 
-                key="decisions-tab"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-4 sm:p-8"
-              >
-                <DecisionAssistant
-                  onAddBatchTimeBlocks={handleAddBatchTimeBlocks}
-                  onNavigateToSchedule={() => setActiveTab('schedule')}
-                />
               </motion.div>
             ) : activeTab === 'journal' ? (
               <motion.div 
@@ -3073,18 +3045,6 @@ export default function App() {
                           )}
                         >
                           <Clock className="w-4 h-4 mr-4" /> Schedule
-                        </button>
-                        <button 
-                          onClick={() => {
-                            setActiveTab('decisions');
-                            setIsMenuOpen(false);
-                          }}
-                          className={cn(
-                            "w-full flex items-center px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-tight",
-                            activeTab === 'decisions' ? "bg-amber-500 text-white shadow-lg" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
-                          )}
-                        >
-                          <Brain className="w-4 h-4 mr-4" /> Cortex AI
                         </button>
                         <button 
                           onClick={() => {
