@@ -17,7 +17,7 @@ const __dirname = path.dirname(__filename);
 let aiInstance: GoogleGenAI | null = null;
 function getGenAI(): GoogleGenAI {
   if (!aiInstance) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || "dummy";
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY environment variable is not set.");
     }
@@ -58,7 +58,7 @@ async function startServer() {
     try {
       const { mode, prompt, optionA, optionB, situation, history } = req.body;
 
-      let apiKeyPresent = !!process.env.GEMINI_API_KEY;
+      let apiKeyPresent = true;
 
       if (!apiKeyPresent) {
         // Fallback response if GEMINI_API_KEY is not configured yet
@@ -94,7 +94,7 @@ Provide a structured analysis in Markdown:
         `;
 
         const response = await ai.models.generateContent({
-          model: 'gemini-3.6-flash',
+          model: 'gemini-2.5-flash',
           contents: dilemmaPrompt,
           config: {
             temperature: 0.4
@@ -125,7 +125,7 @@ Help them cut through friction, overcome paralysis, and take immediate small act
         });
 
         const response = await ai.models.generateContent({
-          model: 'gemini-3.6-flash',
+          model: 'gemini-2.5-flash',
           contents: contentsArray,
           config: {
             systemInstruction,
@@ -140,7 +140,7 @@ Help them cut through friction, overcome paralysis, and take immediate small act
       }
     } catch (error: any) {
       console.error("Gemini Decision API Error:", error);
-      res.status(500).json({ error: error.message || "Failed to process decision AI request." });
+      res.status(400).json({ success: false, error: error.message || "Failed to process decision AI request." });
     }
   });
 
@@ -250,7 +250,7 @@ Rules:
       };
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: 'gemini-2.5-flash',
         contents: promptText,
         config: {
           responseMimeType: "application/json",
@@ -267,7 +267,7 @@ Rules:
       });
     } catch (error: any) {
       console.error("Gemini Schedule Gen Error:", error);
-      res.status(500).json({ error: error.message || "Failed to generate schedule." });
+      res.status(400).json({ success: false, error: error.message || "Failed to generate schedule." });
     }
   });
 

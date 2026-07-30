@@ -128,6 +128,9 @@ export const DecisionAssistant: React.FC<DecisionAssistantProps> = ({
       });
 
       const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Server returned an error');
+      }
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: 'ai',
@@ -135,12 +138,12 @@ export const DecisionAssistant: React.FC<DecisionAssistantProps> = ({
         timestamp: new Date()
       };
       setMessages(prev => [...prev, aiMsg]);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         sender: 'ai',
-        text: "⚠️ Couldn't reach the Prefrontal Cortex AI server. Take a deep breath, pick the single most urgent task, and spend just 5 minutes on it.",
+        text: "⚠️ Couldn't reach the Prefrontal Cortex AI server. Error: " + (err.message || 'Unknown error'),
         timestamp: new Date()
       }]);
     } finally {
@@ -168,14 +171,17 @@ export const DecisionAssistant: React.FC<DecisionAssistantProps> = ({
       });
 
       const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Server returned an error');
+      }
       setDilemmaResult({
         reply: data.reply,
         recommendedOption: data.recommendedOption
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
       setDilemmaResult({
-        reply: `### 🔴 Limbic Impulse (${optionA || 'Short-term'})\nOffers instant comfort or escape from effort.\n\n### 🟢 Prefrontal Choice (${optionB || 'Long-term'})\nAligns with your primary long-term targets.\n\n**Verdict**: Choose **${optionB || 'Option B'}**. Commit to just 5 minutes right now.`
+        reply: `⚠️ API Error: ${err.message || 'Unknown error'}\n\n### 🔴 Limbic Impulse (${optionA || 'Short-term'})\nOffers instant comfort or escape from effort.\n\n### 🟢 Prefrontal Choice (${optionB || 'Long-term'})\nAligns with your primary long-term targets.\n\n**Verdict**: Choose **${optionB || 'Option B'}**. Commit to just 5 minutes right now.`
       });
     } finally {
       setIsDilemmaLoading(false);
@@ -210,14 +216,18 @@ export const DecisionAssistant: React.FC<DecisionAssistantProps> = ({
       });
 
       const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Server returned an error');
+      }
       if (data.success && data.timeBlocks) {
         setGeneratedSchedule({
           summary: data.summary,
           timeBlocks: data.timeBlocks
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      alert(`API Error: ${err.message || 'Unknown error'}`);
     } finally {
       setIsSchedLoading(false);
     }
@@ -311,7 +321,7 @@ export const DecisionAssistant: React.FC<DecisionAssistantProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">Rational Decision Coach</h3>
-                  <p className="text-[11px] text-zinc-400">Powered by Gemini 3.6 Flash • Rational vs Emotional Clarity</p>
+                  <p className="text-[11px] text-zinc-400">Powered by Gemini 2.5 Flash • Rational vs Emotional Clarity</p>
                 </div>
               </div>
               <button

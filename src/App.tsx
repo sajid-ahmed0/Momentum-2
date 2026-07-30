@@ -1144,7 +1144,7 @@ export default function App() {
   const navItems = [
     { id: 'tasks', icon: ListTodo, label: 'Tasks' },
     { id: 'schedule', icon: Clock, label: 'Schedule' },
-    { id: 'decisions', icon: Brain, label: 'Decisions' },
+    { id: 'decisions', icon: Brain, label: 'Cortex AI' },
     { id: 'overthinking', icon: Activity, label: 'Thinking' },
     { id: 'habits', icon: Flame, label: 'Habits' },
     { id: 'journal', icon: BookOpen, label: 'Journal' },
@@ -1412,7 +1412,7 @@ export default function App() {
                     : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 )}
               >
-                <Brain className="w-4 h-4 mr-3 text-amber-500 dark:text-amber-400" /> Decision Making
+                <Brain className="w-4 h-4 mr-3 text-amber-500 dark:text-amber-400" /> Cortex AI
               </button>
               <button 
                 onClick={() => setActiveTab('overthinking')}
@@ -1571,7 +1571,7 @@ export default function App() {
               {activeTab === 'home' ? 'Momentum Dashboard' :
                activeTab === 'habits' ? 'Habit Database' : 
                activeTab === 'schedule' ? 'Daily Schedule' : 
-               activeTab === 'decisions' ? 'Decision Making' :
+               activeTab === 'decisions' ? 'The Cortex Engine' :
                activeTab === 'overthinking' ? 'Overthinking Tracker' : 
                activeTab === 'journal' ? 'Daily Journal' : 
                activeTab === 'tasks' ? 'Daily Tasks' : 'The Circuit Breaker'}
@@ -3084,7 +3084,7 @@ export default function App() {
                             activeTab === 'decisions' ? "bg-amber-500 text-white shadow-lg" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
                           )}
                         >
-                          <Brain className="w-4 h-4 mr-4" /> Decision Making
+                          <Brain className="w-4 h-4 mr-4" /> Cortex AI
                         </button>
                         <button 
                           onClick={() => {
