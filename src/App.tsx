@@ -1474,119 +1474,96 @@ export default function App() {
   return (
     <div className="flex h-screen bg-white text-zinc-900 font-sans selection:bg-high-accent/10 overflow-hidden dark:bg-zinc-950 dark:text-zinc-100 transition-colors duration-300">
       {/* Sidebar - Aside */}
-      <aside className="w-64 bg-zinc-50/50 border-r border-high-line flex flex-col px-5 py-6 shrink-0 hidden lg:flex dark:bg-zinc-900/50 dark:border-zinc-800">
-        <div className="text-lg font-black tracking-tighter mb-5 flex items-center justify-between">
-          <button 
-            onClick={() => setActiveTab('home')}
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity focus:outline-none"
-          >
-            <div className="w-6 h-6 bg-zinc-900 rounded-sm flex items-center justify-center text-white dark:bg-zinc-100 dark:text-zinc-900">
-              <Flame className="w-4 h-4" />
-            </div>
-            MOMENTUM
-          </button>
-          <button 
-            onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
-            className="p-1.5 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors text-zinc-500"
-            title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-          >
-            {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-          </button>
-        </div>
-        
-        <div className="space-y-5 flex-1 overflow-y-auto pr-1 scrollbar-none">
+      <aside className="w-64 bg-zinc-50/50 border-r border-high-line flex flex-col p-6 shrink-0 hidden lg:flex dark:bg-zinc-900/50 dark:border-zinc-800 justify-between">
+        <div className="flex flex-col flex-1 overflow-y-auto pr-1 scrollbar-none">
+          <div className="text-lg font-black tracking-tighter mb-8 flex items-center justify-between">
+            <button 
+              onClick={() => setActiveTab('home')}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity focus:outline-none"
+            >
+              <div className="w-7 h-7 bg-zinc-900 rounded-sm flex items-center justify-center text-white dark:bg-zinc-100 dark:text-zinc-900">
+                <Flame className="w-4 h-4" />
+              </div>
+              <span className="font-black text-xl tracking-tighter">MOMENTUM</span>
+            </button>
+            <button 
+              onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
+              className="p-2 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors text-zinc-500"
+              title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+            >
+              {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            </button>
+          </div>
+          
           <div className="nav-group">
-            <h5 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 mb-2.5">NAVIGATION</h5>
-            <div className="space-y-0.5">
+            <h5 className="text-[11px] font-black uppercase tracking-[0.25em] text-zinc-400 dark:text-zinc-500 mb-4 px-1">NAVIGATION</h5>
+            <div className="space-y-2">
               <button 
                 onClick={() => setActiveTab('tasks')}
                 className={cn(
-                  "w-full flex items-center px-3 py-1.5 rounded transition-all text-xs font-bold uppercase tracking-tight",
+                  "w-full flex items-center px-4 py-2.5 rounded-xl transition-all text-xs font-black uppercase tracking-wider",
                   activeTab === 'tasks' 
                     ? "bg-zinc-900 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900" 
-                    : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/80 hover:text-zinc-900 dark:hover:text-zinc-100"
                 )}
               >
-                <ListTodo className="w-4 h-4 mr-3" /> Daily Tasks
+                <ListTodo className="w-4.5 h-4.5 mr-3 shrink-0" /> Daily Tasks
               </button>
               <button 
                 onClick={() => setActiveTab('schedule')}
                 className={cn(
-                  "w-full flex items-center px-3 py-1.5 rounded transition-all text-xs font-bold uppercase tracking-tight",
+                  "w-full flex items-center px-4 py-2.5 rounded-xl transition-all text-xs font-black uppercase tracking-wider",
                   activeTab === 'schedule' 
                     ? "bg-zinc-900 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900" 
-                    : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/80 hover:text-zinc-900 dark:hover:text-zinc-100"
                 )}
               >
-                <Clock className="w-4 h-4 mr-3" /> Schedule
+                <Clock className="w-4.5 h-4.5 mr-3 shrink-0" /> Schedule
               </button>
               <button 
                 onClick={() => setActiveTab('overthinking')}
                 className={cn(
-                  "w-full flex items-center px-3 py-1.5 rounded transition-all text-xs font-bold uppercase tracking-tight",
+                  "w-full flex items-center px-4 py-2.5 rounded-xl transition-all text-xs font-black uppercase tracking-wider",
                   activeTab === 'overthinking' 
                     ? "bg-zinc-900 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900" 
-                    : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/80 hover:text-zinc-900 dark:hover:text-zinc-100"
                 )}
               >
-                <Activity className="w-4 h-4 mr-3" /> Overthinking
+                <Activity className="w-4.5 h-4.5 mr-3 shrink-0" /> Overthinking
               </button>
               <button 
                 onClick={() => setActiveTab('habits')}
                 className={cn(
-                  "w-full flex items-center px-3 py-1.5 rounded transition-all text-xs font-bold uppercase tracking-tight",
+                  "w-full flex items-center px-4 py-2.5 rounded-xl transition-all text-xs font-black uppercase tracking-wider",
                   activeTab === 'habits' 
                     ? "bg-zinc-900 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900" 
-                    : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/80 hover:text-zinc-900 dark:hover:text-zinc-100"
                 )}
               >
-                <Layout className="w-4 h-4 mr-3" /> Habits
+                <Layout className="w-4.5 h-4.5 mr-3 shrink-0" /> Habits
               </button>
               <button 
                 onClick={() => setActiveTab('journal')}
                 className={cn(
-                  "w-full flex items-center px-3 py-1.5 rounded transition-all text-xs font-bold uppercase tracking-tight",
+                  "w-full flex items-center px-4 py-2.5 rounded-xl transition-all text-xs font-black uppercase tracking-wider",
                   activeTab === 'journal' 
                     ? "bg-zinc-900 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900" 
-                    : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/80 hover:text-zinc-900 dark:hover:text-zinc-100"
                 )}
               >
-                <BookOpen className="w-4 h-4 mr-3" /> Daily Journal
+                <BookOpen className="w-4.5 h-4.5 mr-3 shrink-0" /> Daily Journal
               </button>
               <button 
                 onClick={() => setActiveTab('urge')}
                 className={cn(
-                  "w-full flex items-center px-3 py-1.5 rounded transition-all text-xs font-bold uppercase tracking-tight",
+                  "w-full flex items-center px-4 py-2.5 rounded-xl transition-all text-xs font-black uppercase tracking-wider",
                   activeTab === 'urge' 
                     ? "bg-amber-500 text-white shadow-lg dark:bg-amber-500 dark:text-white" 
-                    : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/80 hover:text-zinc-900 dark:hover:text-zinc-100"
                 )}
               >
-                <Zap className="w-4 h-4 mr-3" /> Circuit Breaker
+                <Zap className="w-4.5 h-4.5 mr-3 shrink-0" /> Circuit Breaker
               </button>
-            </div>
-          </div>
-
-          <div className="nav-group">
-            <h5 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 mb-2.5">HABIT STATS</h5>
-            <div className="space-y-2">
-              {habits.map(h => {
-                const streak = calculateStreak(h.id);
-                return (
-                  <div key={h.id} className="group">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-bold text-zinc-700 truncate dark:text-zinc-300">{h.name}</span>
-                      <span className="text-[10px] font-mono text-high-accent font-bold bg-high-accent/5 px-1.5 rounded">{streak}d</span>
-                    </div>
-                    <div className="h-1 bg-zinc-100 rounded-full overflow-hidden dark:bg-zinc-800">
-                      <div 
-                        className="h-full bg-zinc-900 transition-all duration-500 dark:bg-zinc-100" 
-                        style={{ width: `${Math.min((streak / 21) * 100, 100)}%` }} 
-                      />
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </div>
         </div>
