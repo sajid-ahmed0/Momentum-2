@@ -92,6 +92,7 @@ export interface JournalEntry {
   trigger?: string;
   improvementTomorrow?: string;
   learningFromMistake?: string;
+  sketchData?: string; // Base64 data URL for stylus sketch page
   uid: string;
   timestamp: number;
 }

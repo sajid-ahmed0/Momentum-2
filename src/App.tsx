@@ -388,6 +388,9 @@ export default function App() {
   const [includeSketchPage, setIncludeSketchPage] = useState<boolean>(false);
   const [currentSketch, setCurrentSketch] = useState<string | undefined>(undefined);
   const [viewingSketchLog, setViewingSketchLog] = useState<OverthinkingLog | null>(null);
+  const [includeJournalSketchPage, setIncludeJournalSketchPage] = useState<boolean>(false);
+  const [currentJournalSketch, setCurrentJournalSketch] = useState<string | undefined>(undefined);
+  const [viewingJournalSketchEntry, setViewingJournalSketchEntry] = useState<JournalEntry | null>(null);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [editingUrgeLog, setEditingUrgeLog] = useState<UrgeLog | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -994,12 +997,15 @@ export default function App() {
     lostControl?: string,
     trigger?: string,
     improvementTomorrow?: string,
-    learningFromMistake?: string
+    learningFromMistake?: string,
+    sketchData?: string
   }) => {
     if (!user) return;
     // Close modal immediately
     setShowJournalModal(false);
     setEditingJournalEntry(null);
+    setIncludeJournalSketchPage(false);
+    setCurrentJournalSketch(undefined);
     try {
       if (editingJournalEntry) {
         await updateDoc(doc(db, 'journalEntries', editingJournalEntry.id), {
@@ -1650,7 +1656,12 @@ export default function App() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                 >
-                  <Button onClick={() => setShowJournalModal(true)} className="h-9 py-0 rounded px-4 text-xs tracking-tight font-bold">
+                  <Button onClick={() => {
+                    setEditingJournalEntry(null);
+                    setIncludeJournalSketchPage(false);
+                    setCurrentJournalSketch(undefined);
+                    setShowJournalModal(true);
+                  }} className="h-9 py-0 rounded px-4 text-xs tracking-tight font-bold">
                     <Pen className="w-3.5 h-3.5" /> Write Entry
                   </Button>
                 </motion.div>
@@ -2308,6 +2319,8 @@ export default function App() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setEditingJournalEntry(entry);
+                                setIncludeJournalSketchPage(Boolean(entry.sketchData));
+                                setCurrentJournalSketch(entry.sketchData);
                                 setShowJournalModal(true);
                               }}
                               className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors"
@@ -2360,6 +2373,60 @@ export default function App() {
                                 <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.learningFromMistake}</p>
                               </div>
                             )}
+                          </div>
+                        )}
+
+                        {/* Optional Stylus Sketch Page Preview */}
+                        {entry.sketchData ? (
+                          <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800/80">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                <Pencil className="w-3 h-3" />
+                                Stylus Sketch Page
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setViewingJournalSketchEntry(entry);
+                                }}
+                                className="text-[10px] font-bold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded flex items-center gap-1 transition-all"
+                              >
+                                <Maximize2 className="w-2.5 h-2.5" /> Expand Page
+                              </button>
+                            </div>
+                            <div 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewingJournalSketchEntry(entry);
+                              }}
+                              className="relative rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white p-1.5 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group"
+                            >
+                              <img 
+                                src={entry.sketchData} 
+                                alt="Stylus sketch" 
+                                className="w-full h-40 object-contain rounded bg-white" 
+                              />
+                              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <span className="bg-zinc-900/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full backdrop-blur flex items-center gap-1.5 shadow-xl">
+                                  <Maximize2 className="w-3 h-3" /> Click to Expand Sketch
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-4 pt-2 border-t border-zinc-100 dark:border-zinc-800/60 flex justify-end">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingJournalEntry(entry);
+                                setIncludeJournalSketchPage(true);
+                                setCurrentJournalSketch(undefined);
+                                setShowJournalModal(true);
+                              }}
+                              className="text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
+                            >
+                              <Pencil className="w-3 h-3" /> Add Stylus Sketch Page
+                            </button>
                           </div>
                         )}
                       </div>
@@ -3800,8 +3867,11 @@ export default function App() {
             onClose={() => {
               setShowJournalModal(false);
               setEditingJournalEntry(null);
+              setIncludeJournalSketchPage(false);
+              setCurrentJournalSketch(undefined);
             }} 
             title={editingJournalEntry ? "Edit Entry" : "New Journal Entry"}
+            maxWidth={includeJournalSketchPage ? "max-w-3xl" : "max-w-md"}
           >
             <form onSubmit={(e) => {
               e.preventDefault();
@@ -3813,8 +3883,11 @@ export default function App() {
                 lostControl: fd.get('lostControl') as string,
                 trigger: fd.get('trigger') as string,
                 improvementTomorrow: fd.get('improvementTomorrow') as string,
-                learningFromMistake: fd.get('learningFromMistake') as string
+                learningFromMistake: fd.get('learningFromMistake') as string,
+                sketchData: includeJournalSketchPage ? currentJournalSketch : undefined
               });
+              setIncludeJournalSketchPage(false);
+              setCurrentJournalSketch(undefined);
             }} className="space-y-6">
               <div>
                 <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Title</label>
@@ -3896,16 +3969,138 @@ export default function App() {
                   className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-medium text-sm dark:text-zinc-100 leading-relaxed resize-none"
                 />
               </div>
+
+              {/* Optional Stylus Sketch Page Toggle & Canvas */}
+              <div className="border-t border-zinc-100 dark:border-zinc-800/80 pt-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Pencil className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-bold uppercase tracking-wider dark:text-zinc-200">
+                      Blank Page Sketch <span className="text-[10px] text-zinc-400 font-normal lowercase">(optional stylus page)</span>
+                    </span>
+                  </div>
+                  {!includeJournalSketchPage ? (
+                    <button
+                      type="button"
+                      onClick={() => setIncludeJournalSketchPage(true)}
+                      className="text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-500/30 transition-all flex items-center gap-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Sketch Page</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIncludeJournalSketchPage(false);
+                        setCurrentJournalSketch(undefined);
+                      }}
+                      className="text-xs font-semibold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-2.5 py-1 rounded-lg transition-all"
+                    >
+                      Remove Page
+                    </button>
+                  )}
+                </div>
+
+                {includeJournalSketchPage && (
+                  <div className="mt-3">
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mb-2 font-medium">
+                      Draw diagrams, mind maps, or handwritten notes with your stylus or finger on this blank journal page:
+                    </p>
+                    <SketchCanvas
+                      initialData={currentJournalSketch}
+                      onChange={(dataUrl) => setCurrentJournalSketch(dataUrl)}
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="pt-4 flex gap-3 sticky bottom-0 bg-white dark:bg-zinc-950 pb-2">
                 <Button type="button" variant="secondary" onClick={() => {
                   setShowJournalModal(false);
                   setEditingJournalEntry(null);
+                  setIncludeJournalSketchPage(false);
+                  setCurrentJournalSketch(undefined);
                 }} className="flex-1 text-xs dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 h-10">Cancel</Button>
                 <Button type="submit" className="flex-[2] text-xs font-bold dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white h-10">
                   {editingJournalEntry ? "Update Entry" : "Save Entry"}
                 </Button>
               </div>
             </form>
+          </Modal>
+        )}
+
+        {/* Lightbox Modal for Fullscreen View of Journal Sketch Page */}
+        {viewingJournalSketchEntry && (
+          <Modal
+            key="view-journal-sketch-modal"
+            isOpen={Boolean(viewingJournalSketchEntry)}
+            onClose={() => setViewingJournalSketchEntry(null)}
+            title={`Stylus Sketch Page — ${viewingJournalSketchEntry.title || format(new Date(viewingJournalSketchEntry.timestamp), 'MMM d, yyyy')}`}
+            maxWidth="max-w-4xl"
+          >
+            <div className="space-y-4">
+              {viewingJournalSketchEntry.title && (
+                <div className="bg-zinc-50 dark:bg-zinc-900 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-0.5">Journal Entry</span>
+                  <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200">{viewingJournalSketchEntry.title}</span>
+                </div>
+              )}
+              
+              {viewingJournalSketchEntry.sketchData ? (
+                <div className="rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700 shadow-lg bg-white p-2">
+                  <img 
+                    src={viewingJournalSketchEntry.sketchData} 
+                    alt="Full Stylus Sketch Page" 
+                    className="w-full max-h-[70vh] object-contain rounded bg-white"
+                  />
+                </div>
+              ) : (
+                <div className="p-8 text-center text-zinc-400">No sketch data available</div>
+              )}
+
+              <div className="flex flex-wrap justify-between items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!viewingJournalSketchEntry.sketchData) return;
+                    const a = document.createElement('a');
+                    a.href = viewingJournalSketchEntry.sketchData;
+                    a.download = `journal-sketch-${viewingJournalSketchEntry.id}.png`;
+                    a.click();
+                  }}
+                  className="px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-bold text-zinc-700 dark:text-zinc-200 rounded-lg flex items-center gap-2 transition-all"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Image</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const entryToEdit = viewingJournalSketchEntry;
+                      setViewingJournalSketchEntry(null);
+                      setEditingJournalEntry(entryToEdit);
+                      setIncludeJournalSketchPage(true);
+                      setCurrentJournalSketch(entryToEdit.sketchData);
+                      setShowJournalModal(true);
+                    }}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-md"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Edit with Stylus</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewingJournalSketchEntry(null)}
+                    className="px-4 py-2 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-bold rounded-lg hover:opacity-90 transition-all"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
           </Modal>
         )}
 
