@@ -12,7 +12,8 @@ import {
   setDoc,
   serverTimestamp,
   orderBy,
-  limit
+  limit,
+  deleteField
 } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { 
@@ -1041,6 +1042,7 @@ export default function App() {
     try {
       await updateDoc(doc(db, 'overthinkingLogs', id), cleanFirestoreData({
         ...data,
+        sketchData: data.sketchData || deleteField(),
         updatedAt: Date.now()
       }));
     } catch (error) {
@@ -1179,6 +1181,7 @@ export default function App() {
       if (currentEditing) {
         await updateDoc(doc(db, 'journalEntries', currentEditing.id), cleanFirestoreData({
           ...data,
+          sketchData: data.sketchData || deleteField(),
           title: titleToSave,
           content: contentToSave,
           timestamp: Date.now()
