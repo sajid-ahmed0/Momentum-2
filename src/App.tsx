@@ -994,6 +994,16 @@ export default function App() {
     }
   };
 
+  const cleanFirestoreData = (obj: any) => {
+    const copy = { ...obj };
+    Object.keys(copy).forEach(key => {
+      if (copy[key] === undefined) {
+        delete copy[key];
+      }
+    });
+    return copy;
+  };
+
   const handleAddOverthinking = async (data: { intensity: number, trigger: string, thoughts: string, sketchData?: string }) => {
     setShowOverthinkingModal(false);
     setEditingOverthinkingLog(null);
@@ -1013,12 +1023,12 @@ export default function App() {
     if (!targetUid) return;
 
     try {
-      await addDoc(collection(db, 'overthinkingLogs'), {
+      await addDoc(collection(db, 'overthinkingLogs'), cleanFirestoreData({
         ...data,
         date: format(startOfToday(), 'yyyy-MM-dd'),
         uid: targetUid,
         timestamp: Date.now()
-      });
+      }));
     } catch (err) {
       console.error(err);
     }
@@ -1029,10 +1039,10 @@ export default function App() {
     setShowOverthinkingModal(false);
     setEditingOverthinkingLog(null);
     try {
-      await updateDoc(doc(db, 'overthinkingLogs', id), {
+      await updateDoc(doc(db, 'overthinkingLogs', id), cleanFirestoreData({
         ...data,
         updatedAt: Date.now()
-      });
+      }));
     } catch (error) {
       console.error('Error updating log:', error);
     }
@@ -1160,28 +1170,28 @@ export default function App() {
     if (!targetUid) return;
 
     const titleToSave = data.title?.trim() || (data.sketchData ? 'Stylus Sketch Entry' : 'Daily Reflections');
-    const contentToSave = data.content?.trim() || '';
+    const contentToSave = data.content?.trim() || (data.sketchData ? '[Sketch Only]' : 'Reflections');
 
     const currentEditing = editingJournalEntry;
     setEditingJournalEntry(null);
 
     try {
       if (currentEditing) {
-        await updateDoc(doc(db, 'journalEntries', currentEditing.id), {
+        await updateDoc(doc(db, 'journalEntries', currentEditing.id), cleanFirestoreData({
           ...data,
           title: titleToSave,
           content: contentToSave,
           timestamp: Date.now()
-        });
+        }));
       } else {
-        await addDoc(collection(db, 'journalEntries'), {
+        await addDoc(collection(db, 'journalEntries'), cleanFirestoreData({
           ...data,
           title: titleToSave,
           content: contentToSave,
           date: format(startOfToday(), 'yyyy-MM-dd'),
           uid: targetUid,
           timestamp: Date.now()
-        });
+        }));
       }
     } catch (err) {
       console.error(err);
@@ -3856,15 +3866,10 @@ export default function App() {
                 <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Current Thoughts</label>
                 <textarea 
                   name="thoughts"
-                  rows={3}
+                  rows={4}
                   defaultValue={editingOverthinkingLog?.thoughts || ""}
-                  onInput={(e) => {
-                    const target = e.currentTarget;
-                    target.style.height = 'auto';
-                    target.style.height = `${target.scrollHeight}px`;
-                  }}
                   placeholder="What's spinning in your head?"
-                  className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100 no-scrollbar overflow-hidden"
+                  className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100 resize-none overflow-y-auto"
                 />
               </div>
 
@@ -4169,15 +4174,10 @@ export default function App() {
                 </label>
                 <textarea 
                   name="content"
-                  rows={4}
+                  rows={6}
                   defaultValue={editingJournalEntry?.content || ''}
-                  onInput={(e) => {
-                    const target = e.currentTarget;
-                    target.style.height = 'auto';
-                    target.style.height = `${target.scrollHeight}px`;
-                  }}
                   placeholder="Let your thoughts flow..."
-                  className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-medium text-sm dark:text-zinc-100 leading-relaxed no-scrollbar overflow-hidden"
+                  className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-medium text-sm dark:text-zinc-100 leading-relaxed resize-none overflow-y-auto"
                 />
               </div>
 
