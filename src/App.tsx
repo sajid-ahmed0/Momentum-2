@@ -71,7 +71,10 @@ import {
   Palette,
   Pencil,
   Maximize2,
-  FileText
+  FileText,
+  RefreshCw,
+  Copy,
+  Quote
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail, loginAnonymously } from './firebase';
@@ -341,6 +344,37 @@ const ExamCountdown = ({ exam, onEdit, onDelete }: ExamCountdownProps) => {
   );
 };
 
+const FALLBACK_QUOTES = [
+  { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+  { text: "Discipline is choosing between what you want now and what you want most.", author: "Abraham Lincoln" },
+  { text: "We are what we repeatedly do. Excellence, then, is not an act, but a habit.", author: "Aristotle" },
+  { text: "Your focus determines your reality.", author: "Qui-Gon Jinn" },
+  { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+  { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" },
+  { text: "He who has a why to live can bear almost any how.", author: "Friedrich Nietzsche" },
+  { text: "The master has failed more times than the beginner has even tried.", author: "Stephen McCranie" },
+  { text: "You don't have to be great to start, but you have to start to be great.", author: "Zig Ziglar" },
+  { text: "Amateurs sit and wait for inspiration, the rest of us just get up and go to work.", author: "Stephen King" },
+  { text: "Hard work betrays none.", author: "Hachiman Hikigaya" },
+  { text: "Suffer the pain of discipline or suffer the pain of regret.", author: "Jim Rohn" },
+  { text: "Motivation is what gets you started. Habit is what keeps you going.", author: "Jim Ryun" },
+  { text: "Small daily improvements are the key to staggering long-term results.", author: "Robin Sharma" },
+  { text: "Your future is created by what you do today, not tomorrow.", author: "Robert Kiyosaki" },
+  { text: "You have power over your mind - not outside events. Realize this, and you will find strength.", author: "Marcus Aurelius" },
+  { text: "Don't count the days, make the days count.", author: "Muhammad Ali" },
+  { text: "Great things are done by a series of small things brought together.", author: "Vincent Van Gogh" },
+  { text: "Action is the foundational key to all success.", author: "Pablo Picasso" },
+  { text: "Believe you can and you're halfway there.", author: "Theodore Roosevelt" },
+  { text: "What we achieve inwardly will change outer reality.", author: "Plutarch" },
+  { text: "Continuous improvement is better than delayed perfection.", author: "Mark Twain" },
+  { text: "Everything you've ever wanted is on the other side of fear.", author: "George Addair" },
+  { text: "When you feel like stopping, think about why you started.", author: "Unknown" },
+  { text: "The best time to plant a tree was 20 years ago. The second best time is now.", author: "Chinese Proverb" },
+  { text: "Out of obstacle comes opportunity.", author: "Seneca" },
+  { text: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
+  { text: "Be dedicated to the process, not attached to the outcome.", author: "James Clear" }
+];
+
 // --- App ---
 
 export default function App() {
@@ -396,6 +430,97 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
+
+  // Dynamic Daily Motivational Quote State (Updates Automatically Every Day)
+  const [currentQuote, setCurrentQuote] = useState<{ text: string; author: string }>(() => {
+    if (typeof window !== 'undefined') {
+      const todayStr = format(startOfToday(), 'yyyy-MM-dd');
+      const saved = localStorage.getItem('momentum_daily_quote');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.date === todayStr && parsed.quote?.text) {
+            return parsed.quote;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+    const dayAsNumber = parseInt(format(startOfToday(), 'yyyyMMdd'));
+    return FALLBACK_QUOTES[dayAsNumber % FALLBACK_QUOTES.length];
+  });
+  const [copiedQuote, setCopiedQuote] = useState<boolean>(false);
+
+  // Automatically fetches or sets quote for the current day
+  const updateDailyQuote = async () => {
+    const todayStr = format(startOfToday(), 'yyyy-MM-dd');
+    const saved = localStorage.getItem('momentum_daily_quote');
+    
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.date === todayStr && parsed.quote?.text) {
+          setCurrentQuote(parsed.quote);
+          return;
+        }
+      } catch (e) {
+        // continue to fetch new quote for today
+      }
+    }
+
+    try {
+      const res = await fetch('https://dummyjson.com/quotes/random');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.quote) {
+          const newQ = { text: data.quote, author: data.author || 'Unknown' };
+          setCurrentQuote(newQ);
+          localStorage.setItem('momentum_daily_quote', JSON.stringify({ date: todayStr, quote: newQ }));
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Quote API request failed, selecting day-seeded fallback quote', err);
+    }
+
+    // Fallback to deterministic day-seeded selection so every day gets a unique fresh quote
+    const dayAsNumber = parseInt(format(startOfToday(), 'yyyyMMdd'));
+    const newQ = FALLBACK_QUOTES[dayAsNumber % FALLBACK_QUOTES.length];
+    setCurrentQuote(newQ);
+    localStorage.setItem('momentum_daily_quote', JSON.stringify({ date: todayStr, quote: newQ }));
+  };
+
+  useEffect(() => {
+    updateDailyQuote();
+    // Check periodically (every 10 minutes) if date changed to rollover daily quote automatically
+    const interval = setInterval(() => {
+      const todayStr = format(startOfToday(), 'yyyy-MM-dd');
+      const saved = localStorage.getItem('momentum_daily_quote');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.date !== todayStr) {
+            updateDailyQuote();
+          }
+        } catch (e) {
+          updateDailyQuote();
+        }
+      } else {
+        updateDailyQuote();
+      }
+    }, 10 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleCopyQuote = () => {
+    if (!currentQuote) return;
+    const textToCopy = `"${currentQuote.text}" — ${currentQuote.author}`;
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedQuote(true);
+    setTimeout(() => setCopiedQuote(false), 2000);
+  };
   
   // Urge Surfing State
   const [urgeSession, setUrgeSession] = useState<{
@@ -1132,32 +1257,6 @@ export default function App() {
     return { habitComp, currentBlock, nextBlock, urgeSuccess, todayUrgeCount: todayUrgeLogs.length };
   };
 
-  const quotes = [
-    { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
-    { text: "Discipline is choosing between what you want now and what you want most.", author: "Abraham Lincoln" },
-    { text: "We are what we repeatedly do. Excellence, then, is not an act, but a habit.", author: "Aristotle" },
-    { text: "Your focus determines your reality.", author: "Qui-Gon Jinn" },
-    { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
-    { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" },
-    { text: "He who has a why to live can bear almost any how.", author: "Friedrich Nietzsche" },
-    { text: "The master has failed more times than the beginner has even tried.", author: "Stephen McCranie" },
-    { text: "You don't have to be great to start, but you have to start to be great.", author: "Zig Ziglar" },
-    { text: "Amateurs sit and wait for inspiration, the rest of us just get up and go to work.", author: "Stephen King" },
-    { text: "Hard work betrays none.", author: "Hachiman Hikigaya" },
-    { text: "Suffer the pain of discipline or suffer the pain of regret.", author: "Jim Rohn" },
-    { text: "Motivation is what gets you started. Habit is what keeps you going.", author: "Jim Ryun" },
-    { text: "Small daily improvements are the key to staggering long-term results.", author: "Robin Sharma" },
-    { text: "Your future is created by what you do today, not tomorrow.", author: "Robert Kiyosaki" }
-  ];
-
-  // Daily quote selection based on date (rotates every 24h)
-  const quote = useMemo(() => {
-    const today = format(startOfToday(), 'yyyyMMdd');
-    const dayAsNumber = parseInt(today);
-    const index = dayAsNumber % quotes.length;
-    return quotes[index];
-  }, [quotes.length]);
-
   const { habitComp, currentBlock, nextBlock, urgeSuccess, todayUrgeCount } = getStats();
 
   const navItems = [
@@ -1807,12 +1906,32 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-                  <div className="col-span-1 md:col-span-2 p-10 bg-zinc-900 text-white rounded-2xl shadow-2xl relative overflow-hidden dark:bg-zinc-100 dark:text-zinc-900">
+                  <div className="col-span-1 md:col-span-2 p-8 sm:p-10 bg-zinc-900 text-white rounded-2xl shadow-2xl relative overflow-hidden dark:bg-zinc-100 dark:text-zinc-900 flex flex-col justify-between">
                      <div className="relative z-10">
-                        <p className="text-2xl font-serif italic mb-6 leading-relaxed">"{quote.text}"</p>
-                        <p className="text-xs font-bold uppercase tracking-widest opacity-60">— {quote.author}</p>
+                        <div className="flex items-center justify-between mb-6">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400 dark:text-amber-600 flex items-center gap-1.5 bg-amber-500/10 dark:bg-amber-500/20 px-2.5 py-1 rounded-full border border-amber-500/20">
+                            <Sparkles className="w-3 h-3" /> Daily Motivational Quote
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 bg-zinc-800/60 dark:bg-zinc-200/60 px-2 py-1 rounded">
+                              Auto-Updates Daily
+                            </span>
+                            <button
+                              onClick={handleCopyQuote}
+                              title="Copy quote"
+                              className="p-2 rounded-lg bg-zinc-800 dark:bg-zinc-200 hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors text-xs font-semibold flex items-center gap-1 text-zinc-300 dark:text-zinc-700"
+                            >
+                              {copiedQuote ? <Check className="w-3.5 h-3.5 text-emerald-400 dark:text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                              <span className="text-[10px] uppercase font-bold tracking-wider">{copiedQuote ? 'Copied' : 'Copy'}</span>
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-xl sm:text-2xl font-serif italic mb-6 leading-relaxed">"{currentQuote.text}"</p>
+                        <p className="text-xs font-bold uppercase tracking-widest opacity-70 flex items-center gap-2">
+                          <span>— {currentQuote.author}</span>
+                        </p>
                      </div>
-                     <Activity className="absolute bottom-[-20px] right-[-20px] w-64 h-64 opacity-[0.03] rotate-12" />
+                     <Activity className="absolute bottom-[-20px] right-[-20px] w-64 h-64 opacity-[0.03] rotate-12 pointer-events-none" />
                   </div>
                   
                   <div className="p-10 bg-emerald-600 text-white rounded-2xl shadow-xl flex flex-col justify-between group cursor-pointer hover:scale-[1.02] transition-transform" onClick={() => setActiveTab('tasks')}>
