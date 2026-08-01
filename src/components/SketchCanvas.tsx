@@ -64,6 +64,7 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
   const [canRedo, setCanRedo] = useState(false);
 
   const lastPointRef = useRef<{ x: number; y: number; pressure: number } | null>(null);
+  const lastMidRef = useRef<{ x: number; y: number } | null>(null);
 
   // Redraw background pattern (grid, lines, dots) on bgCanvas
   const drawPaperBackground = useCallback(() => {
@@ -243,32 +244,38 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
     const pos = getPointerPos(e);
     setIsDrawing(true);
     lastPointRef.current = pos;
+    lastMidRef.current = { x: pos.x, y: pos.y };
 
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // Draw initial dot at tap point
     ctx.beginPath();
-    ctx.arc(pos.x, pos.y, (strokeWidth / 2), 0, Math.PI * 2);
+    const radius = activeTool === 'eraser' 
+      ? (strokeWidth * 1.5) 
+      : activeTool === 'highlighter' 
+      ? (strokeWidth * 1.5) 
+      : (strokeWidth / 2);
+
+    ctx.arc(pos.x, pos.y, Math.max(1, radius), 0, Math.PI * 2);
     
     if (activeTool === 'eraser') {
       ctx.globalCompositeOperation = 'destination-out';
       ctx.fillStyle = 'rgba(0,0,0,1)';
-      ctx.fill();
     } else if (activeTool === 'highlighter') {
       ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = activeColor + '66'; // 40% opacity
-      ctx.fill();
+      ctx.fillStyle = activeColor + '44';
     } else {
       ctx.globalCompositeOperation = 'source-over';
       ctx.fillStyle = activeColor;
-      ctx.fill();
     }
+    ctx.fill();
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || readOnly || !lastPointRef.current) return;
+    if (!isDrawing || readOnly || !lastPointRef.current || !lastMidRef.current) return;
     e.preventDefault();
 
     const canvas = canvasRef.current;
@@ -276,47 +283,99 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const currentPos = getPointerPos(e);
-    const lastPos = lastPointRef.current;
-
-    ctx.beginPath();
-    ctx.moveTo(lastPos.x, lastPos.y);
-
-    // Smooth midpoint curve
-    const midX = (lastPos.x + currentPos.x) / 2;
-    const midY = (lastPos.y + currentPos.y) / 2;
-    ctx.quadraticCurveTo(lastPos.x, lastPos.y, midX, midY);
-
-    // Apply pressure adjustments if available
-    const adjustedWidth = strokeWidth * (0.6 + currentPos.pressure * 0.8);
+    // Support high-frequency pointer coalescing for stylus inputs
+    const nativeEv = e.nativeEvent as any;
+    const coalescedEvents = (nativeEv && typeof nativeEv.getCoalescedEvents === 'function')
+      ? nativeEv.getCoalescedEvents()
+      : [e];
 
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    if (activeTool === 'eraser') {
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.lineWidth = strokeWidth * 3;
-      ctx.strokeStyle = 'rgba(0,0,0,1)';
-    } else if (activeTool === 'highlighter') {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.lineWidth = strokeWidth * 3;
-      ctx.strokeStyle = activeColor + '44'; // highlighter sheer
-    } else {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.lineWidth = adjustedWidth;
-      ctx.strokeStyle = activeColor;
-    }
+    for (const ptEv of coalescedEvents) {
+      const rect = canvas.getBoundingClientRect();
+      const currentPos = {
+        x: ptEv.clientX - rect.left,
+        y: ptEv.clientY - rect.top,
+        pressure: ptEv.pressure > 0 ? ptEv.pressure : 0.5
+      };
 
-    ctx.stroke();
-    lastPointRef.current = currentPos;
+      const lastPos = lastPointRef.current!;
+      const lastMid = lastMidRef.current!;
+
+      // Midpoint between last point and current point
+      const currentMid = {
+        x: (lastPos.x + currentPos.x) / 2,
+        y: (lastPos.y + currentPos.y) / 2
+      };
+
+      ctx.beginPath();
+      // Start continuously from the previous midpoint! No gaps!
+      ctx.moveTo(lastMid.x, lastMid.y);
+      // Smooth curve through lastPos to currentMid
+      ctx.quadraticCurveTo(lastPos.x, lastPos.y, currentMid.x, currentMid.y);
+
+      const adjustedWidth = strokeWidth * (0.5 + currentPos.pressure * 0.8);
+
+      if (activeTool === 'eraser') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineWidth = strokeWidth * 3;
+        ctx.strokeStyle = 'rgba(0,0,0,1)';
+      } else if (activeTool === 'highlighter') {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.lineWidth = strokeWidth * 3;
+        ctx.strokeStyle = activeColor + '44';
+      } else {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.lineWidth = Math.max(1, adjustedWidth);
+        ctx.strokeStyle = activeColor;
+      }
+
+      ctx.stroke();
+
+      lastMidRef.current = currentMid;
+      lastPointRef.current = currentPos;
+    }
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
     e.preventDefault();
     canvasRef.current?.releasePointerCapture(e.pointerId);
+
+    // Finish stroke seamlessly to the final point
+    if (lastPointRef.current && lastMidRef.current) {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.beginPath();
+          ctx.moveTo(lastMidRef.current.x, lastMidRef.current.y);
+          ctx.lineTo(lastPointRef.current.x, lastPointRef.current.y);
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+
+          if (activeTool === 'eraser') {
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.lineWidth = strokeWidth * 3;
+            ctx.strokeStyle = 'rgba(0,0,0,1)';
+          } else if (activeTool === 'highlighter') {
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.lineWidth = strokeWidth * 3;
+            ctx.strokeStyle = activeColor + '44';
+          } else {
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.lineWidth = Math.max(1, strokeWidth);
+            ctx.strokeStyle = activeColor;
+          }
+          ctx.stroke();
+        }
+      }
+    }
+
     setIsDrawing(false);
     lastPointRef.current = null;
+    lastMidRef.current = null;
     saveState();
   };
 
