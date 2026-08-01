@@ -10,8 +10,13 @@ import {
   Highlighter, 
   Maximize2, 
   Minimize2,
-  FileText
+  FileText,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Layers
 } from 'lucide-react';
+import { parseSketchPages, formatSketchPages } from '../utils/sketchUtils';
 
 interface SketchCanvasProps {
   initialData?: string;
@@ -57,7 +62,12 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
-  // Undo / Redo history stack (storing Canvas DataURLs or ImageData)
+  // Multi-page state
+  const pagesRef = useRef<string[]>(parseSketchPages(initialData));
+  const [pages, setPages] = useState<string[]>(pagesRef.current);
+  const [pageIndex, setPageIndex] = useState<number>(0);
+
+  // Undo / Redo history stack (for current page)
   const historyRef = useRef<ImageData[]>([]);
   const historyIndexRef = useRef<number>(-1);
   const [canUndo, setCanUndo] = useState(false);
@@ -88,14 +98,12 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
 
     if (paperBg === 'lines') {
       const lineGap = 28;
-      // Top margin space
       for (let y = 40; y < height; y += lineGap) {
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(width, y);
         ctx.stroke();
       }
-      // Red margin line on left
       ctx.strokeStyle = '#fca5a5';
       ctx.beginPath();
       ctx.moveTo(48, 0);
@@ -125,7 +133,23 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
     }
   }, [paperBg]);
 
-  // Save current state to history
+  // Export current page canvas as DataURL
+  const exportCurrentPage = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return '';
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = canvas.width;
+    exportCanvas.height = canvas.height;
+    const exportCtx = exportCanvas.getContext('2d');
+    if (exportCtx && bgCanvasRef.current) {
+      exportCtx.drawImage(bgCanvasRef.current, 0, 0);
+      exportCtx.drawImage(canvas, 0, 0);
+      return exportCanvas.toDataURL('image/png');
+    }
+    return '';
+  }, []);
+
+  // Save state for active stroke / edit
   const saveState = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -134,11 +158,9 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
 
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-    // Truncate redo stack if new stroke occurs
     const newHistory = historyRef.current.slice(0, historyIndexRef.current + 1);
     newHistory.push(imageData);
 
-    // Limit history length to 25
     if (newHistory.length > 25) {
       newHistory.shift();
     }
@@ -149,20 +171,46 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
     setCanUndo(historyIndexRef.current > 0);
     setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
 
-    // Trigger parent callback
+    // Save page content to pages array & notify parent
+    const dataUrl = exportCurrentPage();
+    pagesRef.current[pageIndex] = dataUrl;
+    setPages([...pagesRef.current]);
+
     if (onChange) {
-      // Export composite image (background + drawing)
-      const exportCanvas = document.createElement('canvas');
-      exportCanvas.width = canvas.width;
-      exportCanvas.height = canvas.height;
-      const exportCtx = exportCanvas.getContext('2d');
-      if (exportCtx && bgCanvasRef.current) {
-        exportCtx.drawImage(bgCanvasRef.current, 0, 0);
-        exportCtx.drawImage(canvas, 0, 0);
-        onChange(exportCanvas.toDataURL('image/png'));
-      }
+      onChange(formatSketchPages(pagesRef.current));
     }
-  }, [onChange]);
+  }, [exportCurrentPage, onChange, pageIndex]);
+
+  // Load a image DataURL into active canvas
+  const loadPageToCanvas = useCallback((dataUrl?: string) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    historyRef.current = [];
+    historyIndexRef.current = -1;
+
+    if (dataUrl && dataUrl.trim().length > 0) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1));
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        historyRef.current = [imageData];
+        historyIndexRef.current = 0;
+        setCanUndo(false);
+        setCanRedo(false);
+      };
+      img.src = dataUrl;
+    } else {
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      historyRef.current = [imageData];
+      historyIndexRef.current = 0;
+      setCanUndo(false);
+      setCanRedo(false);
+    }
+  }, []);
 
   // Initialize or Resize Canvases
   useEffect(() => {
@@ -177,52 +225,86 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
 
     const dpr = window.devicePixelRatio || 1;
 
-    // Set internal resolution
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     bgCanvas.width = width * dpr;
     bgCanvas.height = height * dpr;
 
-    // Scale canvas CSS size
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
     bgCanvas.style.width = `${width}px`;
     bgCanvas.style.height = `${height}px`;
 
     const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.scale(dpr, dpr);
-    }
+    if (ctx) ctx.scale(dpr, dpr);
     const bgCtx = bgCanvas.getContext('2d');
-    if (bgCtx) {
-      bgCtx.scale(dpr, dpr);
-    }
+    if (bgCtx) bgCtx.scale(dpr, dpr);
 
     drawPaperBackground();
+    loadPageToCanvas(pagesRef.current[pageIndex]);
+  }, [drawPaperBackground, loadPageToCanvas, pageIndex]);
 
-    // Load initial data if present and history is empty
-    if (initialData && historyRef.current.length === 0) {
-      const img = new Image();
-      img.onload = () => {
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          saveState();
-        }
-      };
-      img.src = initialData;
-    } else if (historyRef.current.length === 0) {
-      // Push initial blank state
-      saveState();
-    } else if (historyIndexRef.current >= 0 && ctx) {
-      // Restore current history state on resize
-      ctx.putImageData(historyRef.current[historyIndexRef.current], 0, 0);
+  // Sync with initialData changes from parent
+  useEffect(() => {
+    const parsed = parseSketchPages(initialData);
+    const formattedCurrent = formatSketchPages(pagesRef.current);
+    const formattedInitial = formatSketchPages(parsed);
+    if (formattedCurrent !== formattedInitial) {
+      pagesRef.current = parsed;
+      setPages(parsed);
+      setPageIndex(0);
+      loadPageToCanvas(parsed[0]);
     }
-  }, [drawPaperBackground, initialData, saveState]);
+  }, [initialData, loadPageToCanvas]);
 
   // Redraw background whenever paperBg changes
   useEffect(() => {
     drawPaperBackground();
   }, [paperBg, drawPaperBackground]);
+
+  // Multi-page switching & operations
+  const handleSwitchPage = (targetIndex: number) => {
+    if (targetIndex < 0 || targetIndex >= pagesRef.current.length || targetIndex === pageIndex) return;
+    // Save current page state
+    const currentDataUrl = exportCurrentPage();
+    pagesRef.current[pageIndex] = currentDataUrl;
+    
+    setPageIndex(targetIndex);
+    loadPageToCanvas(pagesRef.current[targetIndex]);
+  };
+
+  const handleAddPage = () => {
+    // Save current page state
+    const currentDataUrl = exportCurrentPage();
+    pagesRef.current[pageIndex] = currentDataUrl;
+
+    // Append new empty page
+    pagesRef.current.push('');
+    const newIdx = pagesRef.current.length - 1;
+    setPages([...pagesRef.current]);
+    setPageIndex(newIdx);
+    loadPageToCanvas('');
+
+    if (onChange) {
+      onChange(formatSketchPages(pagesRef.current));
+    }
+  };
+
+  const handleDeletePage = (indexToDelete: number) => {
+    if (pagesRef.current.length <= 1) {
+      handleClear();
+      return;
+    }
+    pagesRef.current.splice(indexToDelete, 1);
+    const newIdx = Math.min(indexToDelete, pagesRef.current.length - 1);
+    setPages([...pagesRef.current]);
+    setPageIndex(newIdx);
+    loadPageToCanvas(pagesRef.current[newIdx]);
+
+    if (onChange) {
+      onChange(formatSketchPages(pagesRef.current));
+    }
+  };
 
   // Pointer position helper
   const getPointerPos = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -251,7 +333,6 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Draw initial dot at tap point
     ctx.beginPath();
     const radius = activeTool === 'eraser' 
       ? (strokeWidth * 1.5) 
@@ -283,7 +364,6 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Support high-frequency pointer coalescing for stylus inputs
     const nativeEv = e.nativeEvent as any;
     const coalescedEvents = (nativeEv && typeof nativeEv.getCoalescedEvents === 'function')
       ? nativeEv.getCoalescedEvents()
@@ -303,16 +383,13 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
       const lastPos = lastPointRef.current!;
       const lastMid = lastMidRef.current!;
 
-      // Midpoint between last point and current point
       const currentMid = {
         x: (lastPos.x + currentPos.x) / 2,
         y: (lastPos.y + currentPos.y) / 2
       };
 
       ctx.beginPath();
-      // Start continuously from the previous midpoint! No gaps!
       ctx.moveTo(lastMid.x, lastMid.y);
-      // Smooth curve through lastPos to currentMid
       ctx.quadraticCurveTo(lastPos.x, lastPos.y, currentMid.x, currentMid.y);
 
       const adjustedWidth = strokeWidth * (0.5 + currentPos.pressure * 0.8);
@@ -343,7 +420,6 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
     e.preventDefault();
     canvasRef.current?.releasePointerCapture(e.pointerId);
 
-    // Finish stroke seamlessly to the final point
     if (lastPointRef.current && lastMidRef.current) {
       const canvas = canvasRef.current;
       if (canvas) {
@@ -392,17 +468,10 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
       setCanUndo(historyIndexRef.current > 0);
       setCanRedo(true);
 
-      if (onChange) {
-        const exportCanvas = document.createElement('canvas');
-        exportCanvas.width = canvas.width;
-        exportCanvas.height = canvas.height;
-        const exportCtx = exportCanvas.getContext('2d');
-        if (exportCtx && bgCanvasRef.current) {
-          exportCtx.drawImage(bgCanvasRef.current, 0, 0);
-          exportCtx.drawImage(canvas, 0, 0);
-          onChange(exportCanvas.toDataURL('image/png'));
-        }
-      }
+      const dataUrl = exportCurrentPage();
+      pagesRef.current[pageIndex] = dataUrl;
+      setPages([...pagesRef.current]);
+      if (onChange) onChange(formatSketchPages(pagesRef.current));
     }
   };
 
@@ -418,17 +487,10 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
       setCanUndo(true);
       setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
 
-      if (onChange) {
-        const exportCanvas = document.createElement('canvas');
-        exportCanvas.width = canvas.width;
-        exportCanvas.height = canvas.height;
-        const exportCtx = exportCanvas.getContext('2d');
-        if (exportCtx && bgCanvasRef.current) {
-          exportCtx.drawImage(bgCanvasRef.current, 0, 0);
-          exportCtx.drawImage(canvas, 0, 0);
-          onChange(exportCanvas.toDataURL('image/png'));
-        }
-      }
+      const dataUrl = exportCurrentPage();
+      pagesRef.current[pageIndex] = dataUrl;
+      setPages([...pagesRef.current]);
+      if (onChange) onChange(formatSketchPages(pagesRef.current));
     }
   };
 
@@ -445,7 +507,7 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
 
   return (
     <div className={`flex flex-col bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl ${isFullscreen ? 'fixed inset-4 z-50 m-auto max-w-5xl h-[90vh]' : className}`}>
-      {/* Top Toolbar */}
+      {/* Top Main Toolbar */}
       {!readOnly && (
         <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-zinc-950 border-b border-zinc-800 text-zinc-300">
           {/* Tools & Colors */}
@@ -570,7 +632,7 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
                 type="button"
                 onClick={handleClear}
                 className="p-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
-                title="Clear Sketch"
+                title="Clear Current Page"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -585,6 +647,74 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
             >
               {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Multi-Page Navigation Control Bar */}
+      {!readOnly && (
+        <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-900/90 border-b border-zinc-800 text-xs text-zinc-300">
+          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 scrollbar-none">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 mr-1 flex items-center gap-1 shrink-0">
+              <Layers className="w-3 h-3" /> Pages ({pages.length}):
+            </span>
+            {pages.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleSwitchPage(idx)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                  pageIndex === idx 
+                    ? 'bg-amber-500 text-white shadow-md' 
+                    : 'bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700'
+                }`}
+              >
+                Page {idx + 1}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={handleAddPage}
+              className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition-all flex items-center gap-1 shrink-0"
+              title="Add a new page to this sketch session"
+            >
+              <Plus className="w-3 h-3" />
+              <span>Add Page</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0 ml-2">
+            <button
+              type="button"
+              onClick={() => handleSwitchPage(pageIndex - 1)}
+              disabled={pageIndex === 0}
+              className="p-1 rounded-md text-zinc-400 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-400 bg-zinc-800/80"
+              title="Previous Page"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <span className="text-[10px] font-mono font-bold text-zinc-300 px-1">
+              {pageIndex + 1} / {pages.length}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleSwitchPage(pageIndex + 1)}
+              disabled={pageIndex === pages.length - 1}
+              className="p-1 rounded-md text-zinc-400 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-400 bg-zinc-800/80"
+              title="Next Page"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+            {pages.length > 1 && (
+              <button
+                type="button"
+                onClick={() => handleDeletePage(pageIndex)}
+                className="p-1 ml-1 rounded-md text-rose-400 hover:text-rose-300 hover:bg-rose-500/20 bg-zinc-800/80"
+                title="Delete Current Page"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -612,9 +742,10 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
 
       {/* Footer Instructions */}
       <div className="px-4 py-2 bg-zinc-950 border-t border-zinc-800 flex items-center justify-between text-[11px] text-zinc-500">
-        <span>✏️ Stylus & Touch Enabled (Touch-action disabled for smooth sketching)</span>
-        <span className="font-mono text-[10px] uppercase text-zinc-400">Blank Page Studio</span>
+        <span>✏️ Stylus & Touch Enabled (Multi-page drawing active)</span>
+        <span className="font-mono text-[10px] uppercase text-amber-400/80 font-bold">Page {pageIndex + 1} of {pages.length}</span>
       </div>
     </div>
   );
 };
+

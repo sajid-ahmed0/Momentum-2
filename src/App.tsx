@@ -74,7 +74,8 @@ import {
   FileText,
   RefreshCw,
   Copy,
-  Quote
+  Quote,
+  Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail, loginAnonymously } from './firebase';
@@ -83,6 +84,7 @@ import { cn } from './lib/utils';
 import { BreathingGuide } from './components/BreathingGuide';
 import { TimeBlockingGrid, COLOR_OPTIONS } from './components/TimeBlockingGrid';
 import { SketchCanvas } from './components/SketchCanvas';
+import { parseSketchPages } from './utils/sketchUtils';
 
 import { requestNotificationPermission, sendNotification, subscribeToPushNotifications } from './lib/notifications';
 
@@ -422,9 +424,11 @@ export default function App() {
   const [includeSketchPage, setIncludeSketchPage] = useState<boolean>(false);
   const [currentSketch, setCurrentSketch] = useState<string | undefined>(undefined);
   const [viewingSketchLog, setViewingSketchLog] = useState<OverthinkingLog | null>(null);
+  const [viewingSketchPageIndex, setViewingSketchPageIndex] = useState<number>(0);
   const [includeJournalSketchPage, setIncludeJournalSketchPage] = useState<boolean>(false);
   const [currentJournalSketch, setCurrentJournalSketch] = useState<string | undefined>(undefined);
   const [viewingJournalSketchEntry, setViewingJournalSketchEntry] = useState<JournalEntry | null>(null);
+  const [viewingJournalSketchPageIndex, setViewingJournalSketchPageIndex] = useState<number>(0);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [editingUrgeLog, setEditingUrgeLog] = useState<UrgeLog | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -2292,43 +2296,57 @@ export default function App() {
                         )}
 
                         {/* Optional Stylus Sketch Page Preview */}
-                        {log.sketchData ? (
-                          <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800/80">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                <Pencil className="w-3 h-3" />
-                                Stylus Sketch Page
-                              </span>
-                              <button
+                        {log.sketchData ? (() => {
+                          const pages = parseSketchPages(log.sketchData);
+                          const firstPage = pages[0];
+                          const pageCount = pages.length;
+
+                          return (
+                            <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800/80">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                                  <Pencil className="w-3 h-3" />
+                                  Stylus Sketch Page {pageCount > 1 ? `(1 of ${pageCount})` : ''}
+                                </span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setViewingSketchLog(log);
+                                    setViewingSketchPageIndex(0);
+                                  }}
+                                  className="text-[10px] font-bold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded flex items-center gap-1 transition-all"
+                                >
+                                  <Maximize2 className="w-2.5 h-2.5" /> 
+                                  <span>{pageCount > 1 ? `View All ${pageCount} Pages` : 'Expand Page'}</span>
+                                </button>
+                              </div>
+                              <div 
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setViewingSketchLog(log);
+                                  setViewingSketchPageIndex(0);
                                 }}
-                                className="text-[10px] font-bold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded flex items-center gap-1 transition-all"
+                                className="relative rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white p-1.5 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group"
                               >
-                                <Maximize2 className="w-2.5 h-2.5" /> Expand Page
-                              </button>
-                            </div>
-                            <div 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setViewingSketchLog(log);
-                              }}
-                              className="relative rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white p-1.5 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group"
-                            >
-                              <img 
-                                src={log.sketchData} 
-                                alt="Stylus sketch" 
-                                className="w-full h-36 object-contain rounded bg-white" 
-                              />
-                              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <span className="bg-zinc-900/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full backdrop-blur flex items-center gap-1.5 shadow-xl">
-                                  <Maximize2 className="w-3 h-3" /> Click to Expand Sketch
-                                </span>
+                                <img 
+                                  src={firstPage} 
+                                  alt="Stylus sketch" 
+                                  className="w-full h-36 object-contain rounded bg-white" 
+                                />
+                                {pageCount > 1 && (
+                                  <div className="absolute top-2 right-2 bg-zinc-900/85 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur border border-amber-500/30 shadow-md flex items-center gap-1">
+                                    <Layers className="w-3 h-3" /> {pageCount} Pages
+                                  </div>
+                                )}
+                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <span className="bg-zinc-900/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full backdrop-blur flex items-center gap-1.5 shadow-xl">
+                                    <Maximize2 className="w-3 h-3" /> {pageCount > 1 ? `Click to View ${pageCount} Pages` : 'Click to Expand Sketch'}
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ) : (
+                          );
+                        })() : (
                           <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800/60 flex justify-end">
                             <button
                               onClick={(e) => {
@@ -2463,43 +2481,57 @@ export default function App() {
                         )}
 
                         {/* Optional Stylus Sketch Page Preview */}
-                        {entry.sketchData ? (
-                          <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800/80">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                <Pencil className="w-3 h-3" />
-                                Stylus Sketch Page
-                              </span>
-                              <button
+                        {entry.sketchData ? (() => {
+                          const pages = parseSketchPages(entry.sketchData);
+                          const firstPage = pages[0];
+                          const pageCount = pages.length;
+
+                          return (
+                            <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800/80">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                                  <Pencil className="w-3 h-3" />
+                                  Stylus Sketch Page {pageCount > 1 ? `(1 of ${pageCount})` : ''}
+                                </span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setViewingJournalSketchEntry(entry);
+                                    setViewingJournalSketchPageIndex(0);
+                                  }}
+                                  className="text-[10px] font-bold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded flex items-center gap-1 transition-all"
+                                >
+                                  <Maximize2 className="w-2.5 h-2.5" /> 
+                                  <span>{pageCount > 1 ? `View All ${pageCount} Pages` : 'Expand Page'}</span>
+                                </button>
+                              </div>
+                              <div 
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setViewingJournalSketchEntry(entry);
+                                  setViewingJournalSketchPageIndex(0);
                                 }}
-                                className="text-[10px] font-bold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded flex items-center gap-1 transition-all"
+                                className="relative rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white p-1.5 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group"
                               >
-                                <Maximize2 className="w-2.5 h-2.5" /> Expand Page
-                              </button>
-                            </div>
-                            <div 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setViewingJournalSketchEntry(entry);
-                              }}
-                              className="relative rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white p-1.5 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group"
-                            >
-                              <img 
-                                src={entry.sketchData} 
-                                alt="Stylus sketch" 
-                                className="w-full h-40 object-contain rounded bg-white" 
-                              />
-                              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <span className="bg-zinc-900/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full backdrop-blur flex items-center gap-1.5 shadow-xl">
-                                  <Maximize2 className="w-3 h-3" /> Click to Expand Sketch
-                                </span>
+                                <img 
+                                  src={firstPage} 
+                                  alt="Stylus sketch" 
+                                  className="w-full h-40 object-contain rounded bg-white" 
+                                />
+                                {pageCount > 1 && (
+                                  <div className="absolute top-2 right-2 bg-zinc-900/85 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur border border-amber-500/30 shadow-md flex items-center gap-1">
+                                    <Layers className="w-3 h-3" /> {pageCount} Pages
+                                  </div>
+                                )}
+                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <span className="bg-zinc-900/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full backdrop-blur flex items-center gap-1.5 shadow-xl">
+                                    <Maximize2 className="w-3 h-3" /> {pageCount > 1 ? `Click to View ${pageCount} Pages` : 'Click to Expand Sketch'}
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ) : (
+                          );
+                        })() : (
                           <div className="mt-4 pt-2 border-t border-zinc-100 dark:border-zinc-800/60 flex justify-end">
                             <button
                               onClick={(e) => {
@@ -3873,78 +3905,142 @@ export default function App() {
         )}
 
         {/* Lightbox Modal for Fullscreen View of Sketch Page */}
-        {viewingSketchLog && (
-          <Modal
-            key="view-sketch-modal"
-            isOpen={Boolean(viewingSketchLog)}
-            onClose={() => setViewingSketchLog(null)}
-            title={`Stylus Sketch Page — ${format(new Date(viewingSketchLog.timestamp), 'MMM d, h:mm a')}`}
-            maxWidth="max-w-4xl"
-          >
-            <div className="space-y-4">
-              {viewingSketchLog.trigger && (
-                <div className="bg-zinc-50 dark:bg-zinc-900 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-0.5">Trigger</span>
-                  <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{viewingSketchLog.trigger}</span>
-                </div>
-              )}
-              
-              {viewingSketchLog.sketchData ? (
-                <div className="rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700 shadow-lg bg-white p-2">
-                  <img 
-                    src={viewingSketchLog.sketchData} 
-                    alt="Full Stylus Sketch Page" 
-                    className="w-full max-h-[70vh] object-contain rounded bg-white"
-                  />
-                </div>
-              ) : (
-                <div className="p-8 text-center text-zinc-400">No sketch data available</div>
-              )}
+        {viewingSketchLog && (() => {
+          const viewingPages = parseSketchPages(viewingSketchLog.sketchData);
+          const activePageIndex = Math.min(viewingSketchPageIndex, viewingPages.length - 1);
+          const activePageUrl = viewingPages[activePageIndex] || viewingPages[0] || '';
 
-              <div className="flex flex-wrap justify-between items-center gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!viewingSketchLog.sketchData) return;
-                    const a = document.createElement('a');
-                    a.href = viewingSketchLog.sketchData;
-                    a.download = `overthinking-sketch-${viewingSketchLog.id}.png`;
-                    a.click();
-                  }}
-                  className="px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-bold text-zinc-700 dark:text-zinc-200 rounded-lg flex items-center gap-2 transition-all"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download Image</span>
-                </button>
+          return (
+            <Modal
+              key="view-sketch-modal"
+              isOpen={Boolean(viewingSketchLog)}
+              onClose={() => setViewingSketchLog(null)}
+              title={`Stylus Sketch Pages — ${format(new Date(viewingSketchLog.timestamp), 'MMM d, h:mm a')}`}
+              maxWidth="max-w-4xl"
+            >
+              <div className="space-y-4">
+                {viewingSketchLog.trigger && (
+                  <div className="bg-zinc-50 dark:bg-zinc-900 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-0.5">Trigger</span>
+                    <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{viewingSketchLog.trigger}</span>
+                  </div>
+                )}
 
-                <div className="flex items-center gap-2">
+                {/* Page Navigation Header Bar */}
+                <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-900 px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                      Page {activePageIndex + 1} of {viewingPages.length}
+                    </span>
+                  </div>
+
+                  {viewingPages.length > 1 && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setViewingSketchPageIndex(prev => Math.max(0, prev - 1))}
+                        disabled={activePageIndex === 0}
+                        className="px-2.5 py-1 bg-white dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-bold rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 disabled:opacity-30 flex items-center gap-1 transition-all cursor-pointer"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" /> Prev
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setViewingSketchPageIndex(prev => Math.min(viewingPages.length - 1, prev + 1))}
+                        disabled={activePageIndex === viewingPages.length - 1}
+                        className="px-2.5 py-1 bg-white dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-bold rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 disabled:opacity-30 flex items-center gap-1 transition-all cursor-pointer"
+                      >
+                        Next <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                
+                {activePageUrl ? (
+                  <div className="rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700 shadow-lg bg-white p-2">
+                    <img 
+                      src={activePageUrl} 
+                      alt={`Full Stylus Sketch Page ${activePageIndex + 1}`} 
+                      className="w-full max-h-[60vh] object-contain rounded bg-white"
+                    />
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-zinc-400">No sketch data available</div>
+                )}
+
+                {/* Thumbnail Strip */}
+                {viewingPages.length > 1 && (
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 shrink-0">
+                      Pages:
+                    </span>
+                    {viewingPages.map((pageUrl, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setViewingSketchPageIndex(idx)}
+                        className={cn(
+                          "relative w-20 h-14 rounded-lg border-2 overflow-hidden bg-white shrink-0 transition-all p-0.5 shadow-sm cursor-pointer",
+                          activePageIndex === idx 
+                            ? "border-amber-500 ring-2 ring-amber-500/30 scale-105" 
+                            : "border-zinc-200 dark:border-zinc-700 opacity-70 hover:opacity-100"
+                        )}
+                      >
+                        <img src={pageUrl} alt={`Page ${idx + 1}`} className="w-full h-full object-contain bg-white" />
+                        <span className="absolute bottom-0 right-0 bg-zinc-900/90 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-tl">
+                          {idx + 1}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap justify-between items-center gap-3 pt-2">
                   <button
                     type="button"
                     onClick={() => {
-                      const logToEdit = viewingSketchLog;
-                      setViewingSketchLog(null);
-                      setEditingOverthinkingLog(logToEdit);
-                      setIncludeSketchPage(true);
-                      setCurrentSketch(logToEdit.sketchData);
-                      setShowOverthinkingModal(true);
+                      if (!activePageUrl) return;
+                      const a = document.createElement('a');
+                      a.href = activePageUrl;
+                      a.download = `overthinking-sketch-page-${activePageIndex + 1}.png`;
+                      a.click();
                     }}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-md"
+                    className="px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-bold text-zinc-700 dark:text-zinc-200 rounded-lg flex items-center gap-2 transition-all cursor-pointer"
                   >
-                    <Pencil className="w-3.5 h-3.5" />
-                    <span>Edit with Stylus</span>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Page {activePageIndex + 1}</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewingSketchLog(null)}
-                    className="px-4 py-2 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-bold rounded-lg hover:opacity-90 transition-all"
-                  >
-                    Close
-                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const logToEdit = viewingSketchLog;
+                        setViewingSketchLog(null);
+                        setEditingOverthinkingLog(logToEdit);
+                        setIncludeSketchPage(true);
+                        setCurrentSketch(logToEdit.sketchData);
+                        setShowOverthinkingModal(true);
+                      }}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      <span>Edit Sketch Pages</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewingSketchLog(null)}
+                      className="px-4 py-2 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-bold rounded-lg hover:opacity-90 transition-all cursor-pointer"
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Modal>
-        )}
+            </Modal>
+          );
+        })()}
 
         {showJournalModal && (
           <Modal 
@@ -4119,78 +4215,142 @@ export default function App() {
         )}
 
         {/* Lightbox Modal for Fullscreen View of Journal Sketch Page */}
-        {viewingJournalSketchEntry && (
-          <Modal
-            key="view-journal-sketch-modal"
-            isOpen={Boolean(viewingJournalSketchEntry)}
-            onClose={() => setViewingJournalSketchEntry(null)}
-            title={`Stylus Sketch Page — ${viewingJournalSketchEntry.title || format(new Date(viewingJournalSketchEntry.timestamp), 'MMM d, yyyy')}`}
-            maxWidth="max-w-4xl"
-          >
-            <div className="space-y-4">
-              {viewingJournalSketchEntry.title && (
-                <div className="bg-zinc-50 dark:bg-zinc-900 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-0.5">Journal Entry</span>
-                  <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200">{viewingJournalSketchEntry.title}</span>
-                </div>
-              )}
-              
-              {viewingJournalSketchEntry.sketchData ? (
-                <div className="rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700 shadow-lg bg-white p-2">
-                  <img 
-                    src={viewingJournalSketchEntry.sketchData} 
-                    alt="Full Stylus Sketch Page" 
-                    className="w-full max-h-[70vh] object-contain rounded bg-white"
-                  />
-                </div>
-              ) : (
-                <div className="p-8 text-center text-zinc-400">No sketch data available</div>
-              )}
+        {viewingJournalSketchEntry && (() => {
+          const viewingPages = parseSketchPages(viewingJournalSketchEntry.sketchData);
+          const activePageIndex = Math.min(viewingJournalSketchPageIndex, viewingPages.length - 1);
+          const activePageUrl = viewingPages[activePageIndex] || viewingPages[0] || '';
 
-              <div className="flex flex-wrap justify-between items-center gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!viewingJournalSketchEntry.sketchData) return;
-                    const a = document.createElement('a');
-                    a.href = viewingJournalSketchEntry.sketchData;
-                    a.download = `journal-sketch-${viewingJournalSketchEntry.id}.png`;
-                    a.click();
-                  }}
-                  className="px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-bold text-zinc-700 dark:text-zinc-200 rounded-lg flex items-center gap-2 transition-all"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download Image</span>
-                </button>
+          return (
+            <Modal
+              key="view-journal-sketch-modal"
+              isOpen={Boolean(viewingJournalSketchEntry)}
+              onClose={() => setViewingJournalSketchEntry(null)}
+              title={`Stylus Sketch Pages — ${viewingJournalSketchEntry.title || format(new Date(viewingJournalSketchEntry.timestamp), 'MMM d, yyyy')}`}
+              maxWidth="max-w-4xl"
+            >
+              <div className="space-y-4">
+                {viewingJournalSketchEntry.title && (
+                  <div className="bg-zinc-50 dark:bg-zinc-900 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-0.5">Journal Entry</span>
+                    <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200">{viewingJournalSketchEntry.title}</span>
+                  </div>
+                )}
 
-                <div className="flex items-center gap-2">
+                {/* Page Navigation Header Bar */}
+                <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-900 px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                      Page {activePageIndex + 1} of {viewingPages.length}
+                    </span>
+                  </div>
+
+                  {viewingPages.length > 1 && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setViewingJournalSketchPageIndex(prev => Math.max(0, prev - 1))}
+                        disabled={activePageIndex === 0}
+                        className="px-2.5 py-1 bg-white dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-bold rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 disabled:opacity-30 flex items-center gap-1 transition-all cursor-pointer"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" /> Prev
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setViewingJournalSketchPageIndex(prev => Math.min(viewingPages.length - 1, prev + 1))}
+                        disabled={activePageIndex === viewingPages.length - 1}
+                        className="px-2.5 py-1 bg-white dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-bold rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 disabled:opacity-30 flex items-center gap-1 transition-all cursor-pointer"
+                      >
+                        Next <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                
+                {activePageUrl ? (
+                  <div className="rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700 shadow-lg bg-white p-2">
+                    <img 
+                      src={activePageUrl} 
+                      alt={`Full Stylus Sketch Page ${activePageIndex + 1}`} 
+                      className="w-full max-h-[60vh] object-contain rounded bg-white"
+                    />
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-zinc-400">No sketch data available</div>
+                )}
+
+                {/* Thumbnail Strip */}
+                {viewingPages.length > 1 && (
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 shrink-0">
+                      Pages:
+                    </span>
+                    {viewingPages.map((pageUrl, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setViewingJournalSketchPageIndex(idx)}
+                        className={cn(
+                          "relative w-20 h-14 rounded-lg border-2 overflow-hidden bg-white shrink-0 transition-all p-0.5 shadow-sm cursor-pointer",
+                          activePageIndex === idx 
+                            ? "border-amber-500 ring-2 ring-amber-500/30 scale-105" 
+                            : "border-zinc-200 dark:border-zinc-700 opacity-70 hover:opacity-100"
+                        )}
+                      >
+                        <img src={pageUrl} alt={`Page ${idx + 1}`} className="w-full h-full object-contain bg-white" />
+                        <span className="absolute bottom-0 right-0 bg-zinc-900/90 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-tl">
+                          {idx + 1}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap justify-between items-center gap-3 pt-2">
                   <button
                     type="button"
                     onClick={() => {
-                      const entryToEdit = viewingJournalSketchEntry;
-                      setViewingJournalSketchEntry(null);
-                      setEditingJournalEntry(entryToEdit);
-                      setIncludeJournalSketchPage(true);
-                      setCurrentJournalSketch(entryToEdit.sketchData);
-                      setShowJournalModal(true);
+                      if (!activePageUrl) return;
+                      const a = document.createElement('a');
+                      a.href = activePageUrl;
+                      a.download = `journal-sketch-page-${activePageIndex + 1}.png`;
+                      a.click();
                     }}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-md"
+                    className="px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-bold text-zinc-700 dark:text-zinc-200 rounded-lg flex items-center gap-2 transition-all cursor-pointer"
                   >
-                    <Pencil className="w-3.5 h-3.5" />
-                    <span>Edit with Stylus</span>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Page {activePageIndex + 1}</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewingJournalSketchEntry(null)}
-                    className="px-4 py-2 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-bold rounded-lg hover:opacity-90 transition-all"
-                  >
-                    Close
-                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const entryToEdit = viewingJournalSketchEntry;
+                        setViewingJournalSketchEntry(null);
+                        setEditingJournalEntry(entryToEdit);
+                        setIncludeJournalSketchPage(true);
+                        setCurrentJournalSketch(entryToEdit.sketchData);
+                        setShowJournalModal(true);
+                      }}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      <span>Edit Sketch Pages</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewingJournalSketchEntry(null)}
+                      className="px-4 py-2 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-bold rounded-lg hover:opacity-90 transition-all cursor-pointer"
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Modal>
-        )}
+            </Modal>
+          );
+        })()}
 
         {showExamModal && (
           <Modal key="exam-modal" isOpen={showExamModal} onClose={() => { setShowExamModal(false); setEditingExam(null); }} title={editingExam ? "Edit Milestone" : "Add Milestone"}>
