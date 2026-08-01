@@ -67,6 +67,7 @@ export interface OverthinkingLog {
   intensity: number; // 1-10
   trigger?: string;
   thoughts?: string;
+  sketchData?: string; // Base64 data URL for stylus sketch page
   uid: string;
   timestamp: number;
 }

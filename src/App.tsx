@@ -68,7 +68,10 @@ import {
   Share2,
   ListTodo,
   GraduationCap,
-  Palette
+  Palette,
+  Pencil,
+  Maximize2,
+  FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail, loginAnonymously } from './firebase';
@@ -76,6 +79,7 @@ import { Habit, HabitLog, TimeBlock, OverthinkingLog, DailyTask, JournalEntry, U
 import { cn } from './lib/utils';
 import { BreathingGuide } from './components/BreathingGuide';
 import { TimeBlockingGrid, COLOR_OPTIONS } from './components/TimeBlockingGrid';
+import { SketchCanvas } from './components/SketchCanvas';
 
 import { requestNotificationPermission, sendNotification, subscribeToPushNotifications } from './lib/notifications';
 
@@ -225,7 +229,7 @@ const Button = ({
   );
 };
 
-const Modal = ({ isOpen, onClose, title, children }: { key?: React.Key; isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode }) => {
+const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-md" }: { key?: React.Key; isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; maxWidth?: string }) => {
   if (!isOpen) return null;
 
   return (
@@ -241,7 +245,7 @@ const Modal = ({ isOpen, onClose, title, children }: { key?: React.Key; isOpen: 
         initial={{ opacity: 0, scale: 0.98, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.98, y: 10 }}
-        className="relative w-full max-w-md bg-white dark:bg-zinc-950 rounded shadow-2xl overflow-hidden border border-high-line dark:border-zinc-800 max-h-[90vh] flex flex-col"
+        className={cn("relative w-full bg-white dark:bg-zinc-950 rounded shadow-2xl overflow-hidden border border-high-line dark:border-zinc-800 max-h-[90vh] flex flex-col transition-all duration-200", maxWidth)}
       >
         <div className="px-6 py-4 border-b border-high-line dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
           <h3 className="text-sm font-bold font-sans tracking-tight uppercase text-zinc-400 dark:text-zinc-500">/ {title}</h3>
@@ -249,7 +253,7 @@ const Modal = ({ isOpen, onClose, title, children }: { key?: React.Key; isOpen: 
             <X className="w-4 h-4 text-zinc-400 dark:text-zinc-500" />
           </button>
         </div>
-        <div className="p-8 overflow-y-auto custom-scrollbar">
+        <div className="p-6 sm:p-8 overflow-y-auto custom-scrollbar">
           {children}
         </div>
       </motion.div>
@@ -381,6 +385,9 @@ export default function App() {
   const [editingTask, setEditingTask] = useState<DailyTask | null>(null);
   const [editingJournalEntry, setEditingJournalEntry] = useState<JournalEntry | null>(null);
   const [editingOverthinkingLog, setEditingOverthinkingLog] = useState<OverthinkingLog | null>(null);
+  const [includeSketchPage, setIncludeSketchPage] = useState<boolean>(false);
+  const [currentSketch, setCurrentSketch] = useState<string | undefined>(undefined);
+  const [viewingSketchLog, setViewingSketchLog] = useState<OverthinkingLog | null>(null);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [editingUrgeLog, setEditingUrgeLog] = useState<UrgeLog | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -855,7 +862,7 @@ export default function App() {
     }
   };
 
-  const handleAddOverthinking = async (data: { intensity: number, trigger: string, thoughts: string }) => {
+  const handleAddOverthinking = async (data: { intensity: number, trigger: string, thoughts: string, sketchData?: string }) => {
     if (!user) return;
     // Close modal immediately
     setShowOverthinkingModal(false);
@@ -871,7 +878,7 @@ export default function App() {
     }
   };
 
-  const handleUpdateOverthinking = async (id: string, data: { intensity: number, trigger: string, thoughts: string }) => {
+  const handleUpdateOverthinking = async (id: string, data: { intensity: number, trigger: string, thoughts: string, sketchData?: string }) => {
     // Close modal immediately
     setShowOverthinkingModal(false);
     setEditingOverthinkingLog(null);
@@ -2160,6 +2167,8 @@ export default function App() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setEditingOverthinkingLog(log);
+                                setIncludeSketchPage(Boolean(log.sketchData));
+                                setCurrentSketch(log.sketchData);
                                 setShowOverthinkingModal(true);
                               }}
                               className="lg:opacity-0 lg:group-hover:opacity-100 opacity-100 p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-all"
@@ -2184,6 +2193,60 @@ export default function App() {
                             {!expandedLogs.has(log.id) && log.thoughts.length > 100 && (
                               <p className="text-[8px] font-bold uppercase tracking-widest text-emerald-500 mt-2">Click to expand</p>
                             )}
+                          </div>
+                        )}
+
+                        {/* Optional Stylus Sketch Page Preview */}
+                        {log.sketchData ? (
+                          <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800/80">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                <Pencil className="w-3 h-3" />
+                                Stylus Sketch Page
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setViewingSketchLog(log);
+                                }}
+                                className="text-[10px] font-bold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded flex items-center gap-1 transition-all"
+                              >
+                                <Maximize2 className="w-2.5 h-2.5" /> Expand Page
+                              </button>
+                            </div>
+                            <div 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewingSketchLog(log);
+                              }}
+                              className="relative rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white p-1.5 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group"
+                            >
+                              <img 
+                                src={log.sketchData} 
+                                alt="Stylus sketch" 
+                                className="w-full h-36 object-contain rounded bg-white" 
+                              />
+                              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <span className="bg-zinc-900/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full backdrop-blur flex items-center gap-1.5 shadow-xl">
+                                  <Maximize2 className="w-3 h-3" /> Click to Expand Sketch
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800/60 flex justify-end">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingOverthinkingLog(log);
+                                setIncludeSketchPage(true);
+                                setCurrentSketch(undefined);
+                                setShowOverthinkingModal(true);
+                              }}
+                              className="text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
+                            >
+                              <Pencil className="w-3 h-3" /> Add Stylus Sketch Page
+                            </button>
                           </div>
                         )}
                       </div>
@@ -3538,8 +3601,11 @@ export default function App() {
             onClose={() => {
               setShowOverthinkingModal(false);
               setEditingOverthinkingLog(null);
+              setIncludeSketchPage(false);
+              setCurrentSketch(undefined);
             }} 
             title={editingOverthinkingLog ? "Edit Overthinking Log" : "Log Overthinking"}
+            maxWidth={includeSketchPage ? "max-w-3xl" : "max-w-md"}
           >
             <form onSubmit={(e) => {
               e.preventDefault();
@@ -3547,7 +3613,8 @@ export default function App() {
               const data = {
                 intensity: parseInt(fd.get('intensity') as string),
                 trigger: fd.get('trigger') as string,
-                thoughts: fd.get('thoughts') as string
+                thoughts: fd.get('thoughts') as string,
+                sketchData: includeSketchPage ? currentSketch : undefined
               };
 
               if (editingOverthinkingLog) {
@@ -3555,7 +3622,9 @@ export default function App() {
               } else {
                 handleAddOverthinking(data);
               }
-            }} className="space-y-8">
+              setIncludeSketchPage(false);
+              setCurrentSketch(undefined);
+            }} className="space-y-6">
               <div>
                 <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Intensity (1-10)</label>
                 <input 
@@ -3591,16 +3660,138 @@ export default function App() {
                   className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
                 />
               </div>
-              <div className="pt-6 flex gap-3 sticky bottom-0 bg-white dark:bg-zinc-950 pb-2">
+
+              {/* Optional Stylus Sketch Page Toggle & Canvas */}
+              <div className="border-t border-zinc-100 dark:border-zinc-800/80 pt-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Pencil className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-bold uppercase tracking-wider dark:text-zinc-200">
+                      Blank Page Sketch <span className="text-[10px] text-zinc-400 font-normal lowercase">(optional stylus page)</span>
+                    </span>
+                  </div>
+                  {!includeSketchPage ? (
+                    <button
+                      type="button"
+                      onClick={() => setIncludeSketchPage(true)}
+                      className="text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-500/30 transition-all flex items-center gap-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Sketch Page</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIncludeSketchPage(false);
+                        setCurrentSketch(undefined);
+                      }}
+                      className="text-xs font-semibold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-2.5 py-1 rounded-lg transition-all"
+                    >
+                      Remove Page
+                    </button>
+                  )}
+                </div>
+
+                {includeSketchPage && (
+                  <div className="mt-3">
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mb-2 font-medium">
+                      Sketch mind maps, diagrams, or write thoughts using your stylus or finger on this blank page:
+                    </p>
+                    <SketchCanvas
+                      initialData={currentSketch}
+                      onChange={(dataUrl) => setCurrentSketch(dataUrl)}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-4 flex gap-3 sticky bottom-0 bg-white dark:bg-zinc-950 pb-2">
                 <Button type="button" variant="secondary" onClick={() => {
                   setShowOverthinkingModal(false);
                   setEditingOverthinkingLog(null);
+                  setIncludeSketchPage(false);
+                  setCurrentSketch(undefined);
                 }} className="flex-1 text-xs dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 h-10">Cancel</Button>
                 <Button type="submit" className="flex-[2] text-xs font-bold dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white h-10">{editingOverthinkingLog ? "Update Entry" : "Log Entry"}</Button>
               </div>
             </form>
           </Modal>
-      )}
+        )}
+
+        {/* Lightbox Modal for Fullscreen View of Sketch Page */}
+        {viewingSketchLog && (
+          <Modal
+            key="view-sketch-modal"
+            isOpen={Boolean(viewingSketchLog)}
+            onClose={() => setViewingSketchLog(null)}
+            title={`Stylus Sketch Page — ${format(new Date(viewingSketchLog.timestamp), 'MMM d, h:mm a')}`}
+            maxWidth="max-w-4xl"
+          >
+            <div className="space-y-4">
+              {viewingSketchLog.trigger && (
+                <div className="bg-zinc-50 dark:bg-zinc-900 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-0.5">Trigger</span>
+                  <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{viewingSketchLog.trigger}</span>
+                </div>
+              )}
+              
+              {viewingSketchLog.sketchData ? (
+                <div className="rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700 shadow-lg bg-white p-2">
+                  <img 
+                    src={viewingSketchLog.sketchData} 
+                    alt="Full Stylus Sketch Page" 
+                    className="w-full max-h-[70vh] object-contain rounded bg-white"
+                  />
+                </div>
+              ) : (
+                <div className="p-8 text-center text-zinc-400">No sketch data available</div>
+              )}
+
+              <div className="flex flex-wrap justify-between items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!viewingSketchLog.sketchData) return;
+                    const a = document.createElement('a');
+                    a.href = viewingSketchLog.sketchData;
+                    a.download = `overthinking-sketch-${viewingSketchLog.id}.png`;
+                    a.click();
+                  }}
+                  className="px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-bold text-zinc-700 dark:text-zinc-200 rounded-lg flex items-center gap-2 transition-all"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Image</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const logToEdit = viewingSketchLog;
+                      setViewingSketchLog(null);
+                      setEditingOverthinkingLog(logToEdit);
+                      setIncludeSketchPage(true);
+                      setCurrentSketch(logToEdit.sketchData);
+                      setShowOverthinkingModal(true);
+                    }}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-md"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Edit with Stylus</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewingSketchLog(null)}
+                    className="px-4 py-2 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-bold rounded-lg hover:opacity-90 transition-all"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Modal>
+        )}
 
         {showJournalModal && (
           <Modal 
