@@ -995,14 +995,28 @@ export default function App() {
   };
 
   const handleAddOverthinking = async (data: { intensity: number, trigger: string, thoughts: string, sketchData?: string }) => {
-    if (!user) return;
-    // Close modal immediately
     setShowOverthinkingModal(false);
+    setEditingOverthinkingLog(null);
+    setIncludeSketchPage(false);
+    setCurrentSketch(undefined);
+
+    let currentUser = user || auth.currentUser;
+    if (!currentUser) {
+      try {
+        const res = await loginAnonymously();
+        currentUser = res.user;
+      } catch (err) {
+        console.error("Anonymous Sign-in Error:", err);
+      }
+    }
+    const targetUid = currentUser?.uid;
+    if (!targetUid) return;
+
     try {
       await addDoc(collection(db, 'overthinkingLogs'), {
         ...data,
         date: format(startOfToday(), 'yyyy-MM-dd'),
-        uid: user.uid,
+        uid: targetUid,
         timestamp: Date.now()
       });
     } catch (err) {
@@ -1129,19 +1143,31 @@ export default function App() {
     learningFromMistake?: string,
     sketchData?: string
   }) => {
-    if (!user) return;
-    // Close modal immediately
     setShowJournalModal(false);
-    setEditingJournalEntry(null);
     setIncludeJournalSketchPage(false);
     setCurrentJournalSketch(undefined);
+
+    let currentUser = user || auth.currentUser;
+    if (!currentUser) {
+      try {
+        const res = await loginAnonymously();
+        currentUser = res.user;
+      } catch (err) {
+        console.error("Anonymous Sign-in Error:", err);
+      }
+    }
+    const targetUid = currentUser?.uid;
+    if (!targetUid) return;
 
     const titleToSave = data.title?.trim() || (data.sketchData ? 'Stylus Sketch Entry' : 'Daily Reflections');
     const contentToSave = data.content?.trim() || '';
 
+    const currentEditing = editingJournalEntry;
+    setEditingJournalEntry(null);
+
     try {
-      if (editingJournalEntry) {
-        await updateDoc(doc(db, 'journalEntries', editingJournalEntry.id), {
+      if (currentEditing) {
+        await updateDoc(doc(db, 'journalEntries', currentEditing.id), {
           ...data,
           title: titleToSave,
           content: contentToSave,
@@ -1153,7 +1179,7 @@ export default function App() {
           title: titleToSave,
           content: contentToSave,
           date: format(startOfToday(), 'yyyy-MM-dd'),
-          uid: user.uid,
+          uid: targetUid,
           timestamp: Date.now()
         });
       }
@@ -1733,7 +1759,12 @@ export default function App() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                 >
-                  <Button onClick={() => setShowOverthinkingModal(true)} className="h-9 py-0 rounded px-4 text-xs tracking-tight font-bold">
+                  <Button onClick={() => {
+                    setEditingOverthinkingLog(null);
+                    setIncludeSketchPage(false);
+                    setCurrentSketch(undefined);
+                    setShowOverthinkingModal(true);
+                  }} className="h-9 py-0 rounded px-4 text-xs tracking-tight font-bold">
                     <Plus className="w-4 h-4" /> Log Session
                   </Button>
                 </motion.div>
@@ -2218,9 +2249,17 @@ export default function App() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {overthinkingLogs.length === 0 ? (
-                    <div className="col-span-full p-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-xl flex flex-col items-center justify-center text-zinc-300 dark:text-zinc-700">
+                    <div className="col-span-full p-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-xl flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-600">
                       <Activity className="w-12 h-12 mb-4 opacity-20" />
-                      <p className="font-bold uppercase tracking-widest text-[10px]">No overthinking sessions logged</p>
+                      <p className="font-bold uppercase tracking-widest text-[10px] mb-3">No overthinking sessions logged</p>
+                      <Button onClick={() => {
+                        setEditingOverthinkingLog(null);
+                        setIncludeSketchPage(false);
+                        setCurrentSketch(undefined);
+                        setShowOverthinkingModal(true);
+                      }} className="h-9 py-0 rounded px-4 text-xs tracking-tight font-bold">
+                        <Plus className="w-4 h-4" /> Log First Session
+                      </Button>
                     </div>
                   ) : (
                     overthinkingLogs.map(log => (
@@ -2369,9 +2408,17 @@ export default function App() {
 
                 <div className="space-y-6">
                   {journalEntries.length === 0 ? (
-                    <div className="p-20 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-zinc-300 dark:text-zinc-700">
+                    <div className="p-20 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-600">
                       <BookOpen className="w-16 h-16 mb-6 opacity-20" />
-                      <p className="font-bold uppercase tracking-[0.2em] text-[10px]">Your journal is empty</p>
+                      <p className="font-bold uppercase tracking-[0.2em] text-[10px] mb-4">Your journal is empty</p>
+                      <Button onClick={() => {
+                        setEditingJournalEntry(null);
+                        setIncludeJournalSketchPage(false);
+                        setCurrentJournalSketch(undefined);
+                        setShowJournalModal(true);
+                      }} className="h-9 py-0 rounded px-4 text-xs tracking-tight font-bold">
+                        <Pen className="w-3.5 h-3.5" /> Write First Entry
+                      </Button>
                     </div>
                   ) : (
                     journalEntries.map(entry => (
@@ -3811,8 +3858,13 @@ export default function App() {
                   name="thoughts"
                   rows={3}
                   defaultValue={editingOverthinkingLog?.thoughts || ""}
+                  onInput={(e) => {
+                    const target = e.currentTarget;
+                    target.style.height = 'auto';
+                    target.style.height = `${target.scrollHeight}px`;
+                  }}
                   placeholder="What's spinning in your head?"
-                  className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
+                  className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100 no-scrollbar overflow-hidden"
                 />
               </div>
 
@@ -4119,8 +4171,13 @@ export default function App() {
                   name="content"
                   rows={4}
                   defaultValue={editingJournalEntry?.content || ''}
+                  onInput={(e) => {
+                    const target = e.currentTarget;
+                    target.style.height = 'auto';
+                    target.style.height = `${target.scrollHeight}px`;
+                  }}
                   placeholder="Let your thoughts flow..."
-                  className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-medium text-sm dark:text-zinc-100 leading-relaxed resize-none"
+                  className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-medium text-sm dark:text-zinc-100 leading-relaxed no-scrollbar overflow-hidden"
                 />
               </div>
 
