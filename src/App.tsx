@@ -991,8 +991,8 @@ export default function App() {
   };
 
   const handleSaveJournalEntry = async (data: { 
-    title: string, 
-    content: string, 
+    title?: string, 
+    content?: string, 
     mood?: string,
     lostControl?: string,
     trigger?: string,
@@ -1006,15 +1006,23 @@ export default function App() {
     setEditingJournalEntry(null);
     setIncludeJournalSketchPage(false);
     setCurrentJournalSketch(undefined);
+
+    const titleToSave = data.title?.trim() || (data.sketchData ? 'Stylus Sketch Entry' : 'Daily Reflections');
+    const contentToSave = data.content?.trim() || '';
+
     try {
       if (editingJournalEntry) {
         await updateDoc(doc(db, 'journalEntries', editingJournalEntry.id), {
           ...data,
+          title: titleToSave,
+          content: contentToSave,
           timestamp: Date.now()
         });
       } else {
         await addDoc(collection(db, 'journalEntries'), {
           ...data,
+          title: titleToSave,
+          content: contentToSave,
           date: format(startOfToday(), 'yyyy-MM-dd'),
           uid: user.uid,
           timestamp: Date.now()
@@ -2338,12 +2346,14 @@ export default function App() {
                             </button>
                           </div>
                         </div>
-                        <p className={cn(
-                          "text-zinc-600 dark:text-zinc-400 leading-relaxed whitespace-pre-wrap selection:bg-zinc-900 selection:text-white dark:selection:bg-zinc-100 dark:selection:text-zinc-900",
-                          !expandedEntries.has(entry.id) && "line-clamp-4"
-                        )}>{entry.content}</p>
+                        {entry.content ? (
+                          <p className={cn(
+                            "text-zinc-600 dark:text-zinc-400 leading-relaxed whitespace-pre-wrap selection:bg-zinc-900 selection:text-white dark:selection:bg-zinc-100 dark:selection:text-zinc-900",
+                            !expandedEntries.has(entry.id) && "line-clamp-4"
+                          )}>{entry.content}</p>
+                        ) : null}
                         
-                        {!expandedEntries.has(entry.id) && (entry.content.length > 200) && (
+                        {!expandedEntries.has(entry.id) && ((entry.content?.length || 0) > 200) && (
                           <p className="text-[8px] font-bold uppercase tracking-widest text-emerald-500 mt-4">Click to expand</p>
                         )}
 
@@ -3890,11 +3900,12 @@ export default function App() {
               setCurrentJournalSketch(undefined);
             }} className="space-y-6">
               <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Title</label>
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">
+                  Title <span className="text-[10px] text-zinc-400 font-normal lowercase">(optional)</span>
+                </label>
                 <input 
                   name="title"
                   type="text" 
-                  required
                   autoFocus
                   defaultValue={editingJournalEntry?.title || ''}
                   placeholder="Today's Reflections..."
@@ -3959,11 +3970,12 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Content</label>
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">
+                  Content <span className="text-[10px] text-zinc-400 font-normal lowercase">(optional if sketching)</span>
+                </label>
                 <textarea 
                   name="content"
                   rows={4}
-                  required
                   defaultValue={editingJournalEntry?.content || ''}
                   placeholder="Let your thoughts flow..."
                   className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-medium text-sm dark:text-zinc-100 leading-relaxed resize-none"
