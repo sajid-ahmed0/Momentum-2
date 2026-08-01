@@ -2346,22 +2346,7 @@ export default function App() {
                               </div>
                             </div>
                           );
-                        })() : (
-                          <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800/60 flex justify-end">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingOverthinkingLog(log);
-                                setIncludeSketchPage(true);
-                                setCurrentSketch(undefined);
-                                setShowOverthinkingModal(true);
-                              }}
-                              className="text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
-                            >
-                              <Pencil className="w-3 h-3" /> Add Stylus Sketch Page
-                            </button>
-                          </div>
-                        )}
+                        })() : null}
                       </div>
                     ))
                   )}
@@ -2531,22 +2516,7 @@ export default function App() {
                               </div>
                             </div>
                           );
-                        })() : (
-                          <div className="mt-4 pt-2 border-t border-zinc-100 dark:border-zinc-800/60 flex justify-end">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingJournalEntry(entry);
-                                setIncludeJournalSketchPage(true);
-                                setCurrentJournalSketch(undefined);
-                                setShowJournalModal(true);
-                              }}
-                              className="text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
-                            >
-                              <Pencil className="w-3 h-3" /> Add Stylus Sketch Page
-                            </button>
-                          </div>
-                        )}
+                        })() : null}
                       </div>
                     ))
                   )}
