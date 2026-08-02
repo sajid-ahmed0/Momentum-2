@@ -28,7 +28,8 @@ import {
   parseISO,
   isAfter,
   startOfDay,
-  parse
+  parse,
+  addDays
 } from 'date-fns';
 import { 
   Plus, 
@@ -435,6 +436,9 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
+  const [expandedHistoryDates, setExpandedHistoryDates] = useState<Set<string>>(new Set());
+  const [taskSegment, setTaskSegment] = useState<'today' | 'future' | 'all'>('today');
+  const [taskModalDefaultDate, setTaskModalDefaultDate] = useState<string | null>(null);
 
   // Dynamic Daily Motivational Quote State (Updates Automatically Every Day)
   const [currentQuote, setCurrentQuote] = useState<{ text: string; author: string }>(() => {
@@ -2125,102 +2129,259 @@ export default function App() {
                   );
                 })}
               </motion.div>
-            ) : activeTab === 'tasks' ? (
-              <motion.div 
-                key="tasks-tab"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-10 max-w-4xl mx-auto"
-              >
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <h2 className="text-2xl font-black uppercase tracking-tighter dark:text-zinc-100">Daily Tasks</h2>
-                    <p className="text-sm text-zinc-400 font-medium dark:text-zinc-500">Stay organized. One task at a time.</p>
-                  </div>
-                  <Button 
-                    onClick={() => {
-                      setEditingTask(null);
-                      setShowTaskModal(true);
-                    }}
-                    className="h-10 px-6 font-black uppercase tracking-widest text-[10px] flex items-center gap-2"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add Task
-                  </Button>
-                </div>
+            ) : activeTab === 'tasks' ? (() => {
+              const todayStr = format(startOfToday(), 'yyyy-MM-dd');
+              const dailyTasksList = tasks.filter(t => !t.date || t.date <= todayStr);
+              const futureTasksList = tasks.filter(t => t.date && t.date > todayStr);
 
-                <div className="space-y-3">
-                  {tasks.length === 0 ? (
-                    <div className="p-20 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-zinc-300 dark:text-zinc-700">
-                      <ListTodo className="w-12 h-12 mb-4 opacity-20" />
-                      <p className="font-bold uppercase tracking-[0.2em] text-[10px]">Your task list is empty</p>
-                    </div>
-                  ) : (
-                    tasks.map(task => (
-                      <div 
-                        key={task.id} 
+              const renderTaskItem = (task: DailyTask, isFutureSegment: boolean = false) => {
+                const isTomorrow = task.date === format(addDays(startOfToday(), 1), 'yyyy-MM-dd');
+                return (
+                  <div 
+                    key={task.id} 
+                    className={cn(
+                      "group p-4 rounded-xl border transition-all flex items-center justify-between",
+                      task.completed 
+                        ? "bg-zinc-50/50 dark:bg-zinc-900/30 border-zinc-100 dark:border-zinc-800 opacity-60" 
+                        : isFutureSegment
+                          ? "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-indigo-500/40 dark:hover:border-indigo-500/40 shadow-xs"
+                          : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-xs"
+                    )}
+                  >
+                    <div className="flex items-center gap-4 flex-1">
+                      <button 
+                        onClick={() => handleToggleTask(task)}
                         className={cn(
-                          "group p-4 rounded-xl border transition-all flex items-center justify-between",
+                          "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all shrink-0",
                           task.completed 
-                            ? "bg-zinc-50/50 dark:bg-zinc-900/30 border-zinc-100 dark:border-zinc-800 opacity-60" 
-                            : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm"
+                            ? "bg-zinc-900 border-zinc-900 dark:bg-zinc-100 dark:border-zinc-100 text-white dark:text-zinc-900" 
+                            : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-900 dark:hover:border-zinc-100"
                         )}
                       >
-                        <div className="flex items-center gap-4 flex-1">
-                          <button 
-                            onClick={() => handleToggleTask(task)}
-                            className={cn(
-                              "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all shrink-0",
-                              task.completed 
-                                ? "bg-zinc-900 border-zinc-900 dark:bg-zinc-100 dark:border-zinc-100 text-white dark:text-zinc-900" 
-                                : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-900 dark:hover:border-zinc-100"
-                            )}
-                          >
-                            {task.completed && <Check className="w-3 h-3" />}
-                          </button>
-                          <div className="min-w-0 flex-1">
-                            <p className={cn(
-                              "text-sm font-bold tracking-tight dark:text-zinc-100 transition-all break-words whitespace-normal",
-                              task.completed && "line-through text-zinc-400 dark:text-zinc-600"
-                            )}>
-                              {task.task}
-                            </p>
-                            <div className="flex items-center gap-3 mt-1">
-                              {task.time && (
-                                <span className="flex items-center gap-1 text-[9px] font-mono font-bold text-zinc-400 uppercase">
-                                  <Clock className="w-3 h-3" /> {formatTime12h(task.time)}
-                                </span>
-                              )}
-                              <span className="text-[9px] font-mono font-bold text-zinc-400 uppercase">
-                                {format(parseISO(task.date), 'MMM d')}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 opacity-100 transition-opacity">
-                          <button 
-                            onClick={() => {
-                              setEditingTask(task);
-                              setShowTaskModal(true);
-                            }}
-                            className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteTask(task.id)}
-                            className="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-md text-zinc-400 hover:text-red-500"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                        {task.completed && <Check className="w-3 h-3" />}
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <p className={cn(
+                          "text-sm font-bold tracking-tight dark:text-zinc-100 transition-all break-words whitespace-normal",
+                          task.completed && "line-through text-zinc-400 dark:text-zinc-600"
+                        )}>
+                          {task.task}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          {task.time && (
+                            <span className="flex items-center gap-1 text-[9px] font-mono font-bold text-zinc-400 uppercase">
+                              <Clock className="w-3 h-3" /> {formatTime12h(task.time)}
+                            </span>
+                          )}
+                          <span className={cn(
+                            "text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded",
+                            isFutureSegment
+                              ? isTomorrow 
+                                ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20" 
+                                : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                              : "text-zinc-400"
+                          )}>
+                            {isTomorrow ? "Tomorrow" : format(parseISO(task.date), 'MMM d, yyyy')}
+                          </span>
                         </div>
                       </div>
-                    ))
+                    </div>
+                    
+                    <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => {
+                          setEditingTask(task);
+                          setTaskModalDefaultDate(task.date);
+                          setShowTaskModal(true);
+                        }}
+                        className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+                        title="Edit Task"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteTask(task.id)}
+                        className="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-md text-zinc-400 hover:text-red-500"
+                        title="Delete Task"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              };
+
+              return (
+                <motion.div 
+                  key="tasks-tab"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="p-6 md:p-10 max-w-4xl mx-auto space-y-8"
+                >
+                  {/* Title & Add Actions */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-200 dark:border-zinc-800">
+                    <div>
+                      <h2 className="text-2xl font-black uppercase tracking-tighter dark:text-zinc-100 flex items-center gap-2">
+                        <ListTodo className="w-6 h-6 text-amber-500" /> Tasks
+                      </h2>
+                      <p className="text-sm text-zinc-400 font-medium dark:text-zinc-500">Manage daily tasks and schedule future tasks.</p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        onClick={() => {
+                          setEditingTask(null);
+                          setTaskModalDefaultDate(format(startOfToday(), 'yyyy-MM-dd'));
+                          setShowTaskModal(true);
+                        }}
+                        className="h-9 px-4 font-black uppercase tracking-widest text-[10px] flex items-center gap-1.5"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Daily Task
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          setEditingTask(null);
+                          setTaskModalDefaultDate(format(addDays(startOfToday(), 1), 'yyyy-MM-dd'));
+                          setShowTaskModal(true);
+                        }}
+                        className="h-9 px-4 font-black uppercase tracking-widest text-[10px] flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-600 dark:hover:bg-indigo-500"
+                      >
+                        <CalendarIcon className="w-3.5 h-3.5" /> Future Task
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Segment Switcher Tabs */}
+                  <div className="flex items-center bg-zinc-100 dark:bg-zinc-900 p-1.5 rounded-xl border border-zinc-200/80 dark:border-zinc-800">
+                    <button
+                      onClick={() => setTaskSegment('today')}
+                      className={cn(
+                        "flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2",
+                        taskSegment === 'today'
+                          ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs"
+                          : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+                      )}
+                    >
+                      <span>Daily Tasks</span>
+                      <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-mono font-bold", taskSegment === 'today' ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-500")}>
+                        {dailyTasksList.length}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => setTaskSegment('future')}
+                      className={cn(
+                        "flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2",
+                        taskSegment === 'future'
+                          ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs"
+                          : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+                      )}
+                    >
+                      <span>Future Tasks</span>
+                      <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-mono font-bold", taskSegment === 'future' ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-500")}>
+                        {futureTasksList.length}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => setTaskSegment('all')}
+                      className={cn(
+                        "flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2",
+                        taskSegment === 'all'
+                          ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs"
+                          : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+                      )}
+                    >
+                      <span>All Segments</span>
+                      <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-mono font-bold", taskSegment === 'all' ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-500")}>
+                        {tasks.length}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* DAILY TASKS SEGMENT */}
+                  {(taskSegment === 'today' || taskSegment === 'all') && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-900">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+                          <h3 className="text-xs font-black uppercase tracking-widest text-zinc-800 dark:text-zinc-200">
+                            Daily Tasks ({dailyTasksList.length})
+                          </h3>
+                        </div>
+                        {dailyTasksList.length > 0 && (
+                          <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase">
+                            {dailyTasksList.filter(t => t.completed).length}/{dailyTasksList.length} Completed
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-3">
+                        {dailyTasksList.length === 0 ? (
+                          <div className="p-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-zinc-300 dark:text-zinc-700">
+                            <ListTodo className="w-10 h-10 mb-3 opacity-30" />
+                            <p className="font-bold uppercase tracking-[0.2em] text-[10px]">No daily tasks noted down</p>
+                            <Button 
+                              onClick={() => {
+                                setEditingTask(null);
+                                setTaskModalDefaultDate(format(startOfToday(), 'yyyy-MM-dd'));
+                                setShowTaskModal(true);
+                              }}
+                              className="mt-3 h-8 px-4 font-bold uppercase tracking-wider text-[10px]"
+                            >
+                              + Note Daily Task
+                            </Button>
+                          </div>
+                        ) : (
+                          dailyTasksList.map(task => renderTaskItem(task, false))
+                        )}
+                      </div>
+                    </div>
                   )}
-                </div>
-              </motion.div>
-            ) : activeTab === 'schedule' ? (
+
+                  {/* FUTURE TASKS SEGMENT */}
+                  {(taskSegment === 'future' || taskSegment === 'all') && (
+                    <div className="space-y-4 pt-2">
+                      <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-900">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 inline-block"></span>
+                          <h3 className="text-xs font-black uppercase tracking-widest text-zinc-800 dark:text-zinc-200">
+                            Future Tasks ({futureTasksList.length})
+                          </h3>
+                        </div>
+                        {futureTasksList.length > 0 && (
+                          <span className="text-[10px] font-mono font-bold text-indigo-400 uppercase">
+                            Upcoming Schedule
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-3">
+                        {futureTasksList.length === 0 ? (
+                          <div className="p-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-zinc-300 dark:text-zinc-700">
+                            <CalendarIcon className="w-10 h-10 mb-3 opacity-30" />
+                            <p className="font-bold uppercase tracking-[0.2em] text-[10px]">No future tasks noted down</p>
+                            <Button 
+                              onClick={() => {
+                                setEditingTask(null);
+                                setTaskModalDefaultDate(format(addDays(startOfToday(), 1), 'yyyy-MM-dd'));
+                                setShowTaskModal(true);
+                              }}
+                              className="mt-3 h-8 px-4 font-bold uppercase tracking-wider text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white"
+                            >
+                              + Note Future Task
+                            </Button>
+                          </div>
+                        ) : (
+                          futureTasksList.map(task => renderTaskItem(task, true))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })() : activeTab === 'schedule' ? (
               <motion.div 
                 key="schedule-tab"
                 initial={{ opacity: 0, y: 10 }}
@@ -2260,9 +2421,9 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="columns-1 md:columns-2 gap-6">
                   {overthinkingLogs.length === 0 ? (
-                    <div className="col-span-full p-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-xl flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-600">
+                    <div className="p-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-xl flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-600">
                       <Activity className="w-12 h-12 mb-4 opacity-20" />
                       <p className="font-bold uppercase tracking-widest text-[10px] mb-3">No overthinking sessions logged</p>
                       <Button onClick={() => {
@@ -2286,7 +2447,7 @@ export default function App() {
                             return next;
                           });
                         }}
-                        className="p-6 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-xl hover:shadow-lg transition-all border-l-4 group relative cursor-pointer" 
+                        className="break-inside-avoid inline-block w-full mb-6 p-6 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-xl hover:shadow-lg transition-all border-l-4 group relative cursor-pointer" 
                         style={{ borderLeftColor: log.intensity > 7 ? '#ef4444' : log.intensity > 4 ? '#f59e0b' : '#10b981' }}
                       >
                         <div className="flex items-center justify-between mb-4">
@@ -2856,21 +3017,58 @@ export default function App() {
                               const dayLogs = urgeLogsByDate[date];
                               const successes = dayLogs.filter(l => l.outcome === 'resisted' || l.outcome === 'returned_to_focus').length;
                               const rate = dayLogs.length > 0 ? Math.round((successes / dayLogs.length) * 100) : 0;
+                              const isExpanded = expandedHistoryDates.has(date);
                               return (
-                                <div key={date} className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-100 dark:border-zinc-800">
-                                  <div className="flex items-center justify-between mb-3">
-                                    <p className="text-xs font-bold uppercase tracking-widest text-zinc-600 dark:text-zinc-400">
-                                      {format(new Date(date + 'T00:00:00'), 'MMM d, yyyy')}
-                                    </p>
-                                    <span className={cn(
-                                      "px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider",
-                                      rate >= 80 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
-                                      rate >= 50 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
-                                      "bg-red-500/10 text-red-600 dark:text-red-400"
-                                    )}>
-                                      {rate}% Success
-                                    </span>
+                                <div key={date} className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-100 dark:border-zinc-800 space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-xs font-bold uppercase tracking-widest text-zinc-600 dark:text-zinc-400">
+                                        {format(new Date(date + 'T00:00:00'), 'MMM d, yyyy')}
+                                      </p>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setExpandedHistoryDates(prev => {
+                                            const next = new Set(prev);
+                                            if (next.has(date)) next.delete(date);
+                                            else next.add(date);
+                                            return next;
+                                          });
+                                        }}
+                                        className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors rounded"
+                                        title={isExpanded ? "Hide sessions" : "Show sessions"}
+                                      >
+                                        <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200", isExpanded && "rotate-180")} />
+                                      </button>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className={cn(
+                                        "px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider",
+                                        rate >= 80 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
+                                        rate >= 50 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
+                                        "bg-red-500/10 text-red-600 dark:text-red-400"
+                                      )}>
+                                        {rate}% Success
+                                      </span>
+                                      <button 
+                                        type="button"
+                                        onClick={async () => {
+                                          if (window.confirm(`Delete history entry for ${format(new Date(date + 'T00:00:00'), 'MMM d, yyyy')}? (${dayLogs.length} session${dayLogs.length > 1 ? 's' : ''})`)) {
+                                            try {
+                                              await Promise.all(dayLogs.map(l => deleteDoc(doc(db, 'urgeLogs', l.id))));
+                                            } catch (err) {
+                                              console.error('Error deleting urge logs for date:', err);
+                                            }
+                                          }
+                                        }}
+                                        className="p-1 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded transition-all"
+                                        title="Delete entire day history"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
                                   </div>
+
                                   <div className="grid grid-cols-2 gap-4">
                                     <div>
                                       <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-0.5">Total Cycles</p>
@@ -2886,6 +3084,84 @@ export default function App() {
                                         <span className="font-black text-red-500">{dayLogs.length - successes}</span>
                                       </div>
                                     </div>
+                                  </div>
+
+                                  {/* EXPANDABLE SESSIONS LIST */}
+                                  <div className="pt-2 border-t border-zinc-200/60 dark:border-zinc-800/80">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setExpandedHistoryDates(prev => {
+                                          const next = new Set(prev);
+                                          if (next.has(date)) next.delete(date);
+                                          else next.add(date);
+                                          return next;
+                                        });
+                                      }}
+                                      className="text-[10px] font-bold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 flex items-center gap-1 uppercase tracking-wider"
+                                    >
+                                      <span>{isExpanded ? 'Hide Sessions' : `View Sessions (${dayLogs.length})`}</span>
+                                      <ChevronDown className={cn("w-3 h-3 transition-transform duration-200", isExpanded && "rotate-180")} />
+                                    </button>
+
+                                    {isExpanded && (
+                                      <div className="space-y-2.5 mt-3">
+                                        {dayLogs.map(log => (
+                                          <div key={log.id} className="p-3 bg-white dark:bg-zinc-950/70 border border-zinc-200/80 dark:border-zinc-800/80 rounded-lg space-y-2 text-xs shadow-xs">
+                                            <div className="flex items-center justify-between">
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-[10px] font-mono text-zinc-400">
+                                                  {format(new Date(log.timestamp), 'p')}
+                                                </span>
+                                                <span className={cn(
+                                                  "px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider",
+                                                  log.outcome === 'resisted' || log.outcome === 'returned_to_focus' 
+                                                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                                                    : "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
+                                                )}>
+                                                  {log.outcome.replace(/_/g, ' ')}
+                                                </span>
+                                              </div>
+                                              <div className="flex items-center gap-1">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setEditingUrgeLog(log)}
+                                                  className="p-1 text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-all"
+                                                  title="Edit session"
+                                                >
+                                                  <Edit className="w-3 h-3" />
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={async () => {
+                                                    try {
+                                                      await deleteDoc(doc(db, 'urgeLogs', log.id));
+                                                    } catch (err) {
+                                                      console.error('Error deleting urge log:', err);
+                                                    }
+                                                  }}
+                                                  className="p-1 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded transition-all"
+                                                  title="Delete this session"
+                                                >
+                                                  <Trash2 className="w-3 h-3" />
+                                                </button>
+                                              </div>
+                                            </div>
+                                            <div>
+                                              <p className="font-medium text-zinc-800 dark:text-zinc-200">
+                                                "{log.intent || 'Unspecified Action'}"
+                                              </p>
+                                              {(log.whyNotReason || log.whatToDoInstead) && (
+                                                <div className="mt-1.5 space-y-1 text-[11px] text-zinc-600 dark:text-zinc-400">
+                                                  {log.whyNotReason && <p><span className="font-bold text-red-500">Why not:</span> {log.whyNotReason}</p>}
+                                                  {log.whatToDoInstead && <p><span className="font-bold text-emerald-500">Instead:</span> {log.whatToDoInstead}</p>}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -3496,7 +3772,9 @@ export default function App() {
         </Modal>
       )}
 
-      {showTaskModal && (
+      {showTaskModal && (() => {
+        const initialDate = editingTask?.date || taskModalDefaultDate || format(startOfToday(), 'yyyy-MM-dd');
+        return (
           <Modal 
             key="add-task-modal" 
             isOpen={showTaskModal} 
@@ -3504,66 +3782,130 @@ export default function App() {
               setShowTaskModal(false);
               setEditingTask(null);
             }} 
-            title={editingTask ? "Edit Task" : "New Daily Task"}
+            title={editingTask ? "Edit Task" : "Note Task"}
           >
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const fd = new FormData(e.currentTarget);
-              const data = {
-                task: fd.get('task') as string,
-                time: fd.get('time') as string,
-                date: fd.get('date') as string
-              };
-              
-              if (editingTask) {
-                handleUpdateTask(editingTask.id, data);
-              } else {
-                handleAddTask(data);
-              }
-            }} className="space-y-8">
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">What needs to be done?</label>
-                <input 
-                  name="task"
-                  type="text" 
-                  required
-                  autoFocus
-                  defaultValue={editingTask?.task || ''}
-                  placeholder="e.g. Finish project proposal, Buy groceries"
-                  className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-8">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Due Date</label>
-                  <input 
-                    name="date"
-                    type="date" 
-                    required
-                    defaultValue={editingTask?.date || format(startOfToday(), 'yyyy-MM-dd')}
-                    className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Time (Optional)</label>
-                  <input 
-                    name="time"
-                    type="time" 
-                    defaultValue={editingTask?.time || ''}
-                    className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
-                  />
-                </div>
-              </div>
-              <div className="pt-6 flex gap-3 sticky bottom-0 bg-white dark:bg-zinc-950 pb-2">
-                <Button type="button" variant="secondary" onClick={() => {
-                  setShowTaskModal(false);
-                  setEditingTask(null);
-                }} className="flex-1 text-xs dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 h-10">Cancel</Button>
-                <Button type="submit" className="flex-[2] text-xs font-bold dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white h-10">{editingTask ? "Update Task" : "Save Task"}</Button>
-              </div>
-            </form>
+            {React.createElement(() => {
+              const [modalTaskDate, setModalTaskDate] = useState<string>(initialDate);
+              const isFuture = modalTaskDate > format(startOfToday(), 'yyyy-MM-dd');
+
+              return (
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  const fd = new FormData(e.currentTarget);
+                  const data = {
+                    task: fd.get('task') as string,
+                    time: fd.get('time') as string,
+                    date: modalTaskDate
+                  };
+                  
+                  if (editingTask) {
+                    handleUpdateTask(editingTask.id, data);
+                  } else {
+                    handleAddTask(data);
+                  }
+                }} className="space-y-6">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">What needs to be done?</label>
+                    <input 
+                      name="task"
+                      type="text" 
+                      required
+                      autoFocus
+                      defaultValue={editingTask?.task || ''}
+                      placeholder="e.g. Finish project proposal, Buy groceries"
+                      className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
+                    />
+                  </div>
+
+                  {/* Segment Quick Presets */}
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Segment / Quick Preset</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setModalTaskDate(format(startOfToday(), 'yyyy-MM-dd'))}
+                        className={cn(
+                          "py-2 px-3 rounded-md text-xs font-bold uppercase tracking-wider transition-all border flex items-center justify-center gap-1.5",
+                          modalTaskDate === format(startOfToday(), 'yyyy-MM-dd')
+                            ? "bg-amber-500/10 border-amber-500 text-amber-600 dark:text-amber-400 font-black shadow-xs"
+                            : "bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                        )}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Daily (Today)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModalTaskDate(format(addDays(startOfToday(), 1), 'yyyy-MM-dd'))}
+                        className={cn(
+                          "py-2 px-3 rounded-md text-xs font-bold uppercase tracking-wider transition-all border flex items-center justify-center gap-1.5",
+                          modalTaskDate === format(addDays(startOfToday(), 1), 'yyyy-MM-dd')
+                            ? "bg-indigo-500/10 border-indigo-500 text-indigo-600 dark:text-indigo-400 font-black shadow-xs"
+                            : "bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                        )}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Tomorrow
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModalTaskDate(format(addDays(startOfToday(), 7), 'yyyy-MM-dd'))}
+                        className={cn(
+                          "py-2 px-3 rounded-md text-xs font-bold uppercase tracking-wider transition-all border flex items-center justify-center gap-1.5",
+                          modalTaskDate === format(addDays(startOfToday(), 7), 'yyyy-MM-dd')
+                            ? "bg-emerald-500/10 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-black shadow-xs"
+                            : "bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                        )}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Next Week
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Due Date</label>
+                      <input 
+                        name="date"
+                        type="date" 
+                        required
+                        value={modalTaskDate}
+                        onChange={(e) => setModalTaskDate(e.target.value)}
+                        className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Time (Optional)</label>
+                      <input 
+                        name="time"
+                        type="time" 
+                        defaultValue={editingTask?.time || ''}
+                        className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex gap-3 sticky bottom-0 bg-white dark:bg-zinc-950 pb-2">
+                    <Button type="button" variant="secondary" onClick={() => {
+                      setShowTaskModal(false);
+                      setEditingTask(null);
+                    }} className="flex-1 text-xs dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 h-10">Cancel</Button>
+                    <Button 
+                      type="submit" 
+                      className={cn(
+                        "flex-[2] text-xs font-bold h-10 transition-colors",
+                        isFuture 
+                          ? "bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-600 dark:hover:bg-indigo-500" 
+                          : "dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                      )}
+                    >
+                      {editingTask ? "Update Task" : isFuture ? "Save Future Task" : "Save Daily Task"}
+                    </Button>
+                  </div>
+                </form>
+              );
+            })}
           </Modal>
-        )}
+        );
+      })()}
 
       {showScheduleModal && (
           <Modal 
