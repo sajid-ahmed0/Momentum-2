@@ -2233,24 +2233,12 @@ export default function App() {
                       <Button 
                         onClick={() => {
                           setEditingTask(null);
-                          setTaskModalCategory('daily');
-                          setTaskSegment('today');
+                          setTaskModalCategory(taskSegment === 'future' ? 'future' : 'daily');
                           setShowTaskModal(true);
                         }}
-                        className="h-9 px-4 font-black uppercase tracking-widest text-[10px] flex items-center gap-1.5"
+                        className="h-9 px-5 font-black uppercase tracking-widest text-[10px] flex items-center gap-2"
                       >
-                        <Plus className="w-3.5 h-3.5" /> Daily Task
-                      </Button>
-                      <Button 
-                        onClick={() => {
-                          setEditingTask(null);
-                          setTaskModalCategory('future');
-                          setTaskSegment('future');
-                          setShowTaskModal(true);
-                        }}
-                        className="h-9 px-4 font-black uppercase tracking-widest text-[10px] flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-600 dark:hover:bg-indigo-500"
-                      >
-                        <CalendarIcon className="w-3.5 h-3.5" /> Future Task
+                        <Plus className="w-3.5 h-3.5" /> Add Task
                       </Button>
                     </div>
                   </div>
