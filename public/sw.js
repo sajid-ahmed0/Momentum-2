@@ -1,4 +1,4 @@
-const CACHE_NAME = 'momentum-v7';
+const CACHE_NAME = 'momentum-v8';
 const OFFLINE_URL = 'index.html';
 
 const ASSETS_TO_CACHE = [
@@ -35,37 +35,54 @@ self.addEventListener('fetch', (event) => {
   // We only want to cache GET requests
   if (event.request.method !== 'GET') return;
 
+  const url = new URL(event.request.url);
+
+  // For navigate requests (HTML) or index.html, use Network-First
+  if (event.request.mode === 'navigate' || url.pathname.endsWith('index.html') || url.pathname === '/') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match(OFFLINE_URL);
+        })
+    );
+    return;
+  }
+
+  // For other requests, use Stale-While-Revalidate or Cache-First
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-
-      return fetch(event.request).then((response) => {
+      const fetchPromise = fetch(event.request).then((networkResponse) => {
         // Don't cache firestore/auth or media requests
         const isMedia = event.request.destination === 'audio' || 
                         /\.(mp3|wav|ogg|m4a|aac)(\?.*)?$/i.test(event.request.url);
 
-        if (!response || response.status !== 200 || isMedia ||
-            (response.type !== 'basic' || 
+        if (!networkResponse || networkResponse.status !== 200 || isMedia ||
+            (networkResponse.type !== 'basic' && networkResponse.type !== 'cors') || 
              event.request.url.includes('firestore.googleapis.com') ||
-             event.request.url.includes('google.com'))) {
-          return response;
+             event.request.url.includes('google.com')) {
+          return networkResponse;
         }
 
-        const responseToCache = response.clone();
+        const responseToCache = networkResponse.clone();
         caches.open(CACHE_NAME).then((cache) => {
           cache.put(event.request, responseToCache);
         });
 
-        return response;
+        return networkResponse;
       }).catch(() => {
-        // If fetch fails, we already tried caches.match above.
-        // For navigations, return index.html as fallback
-        if (event.request.mode === 'navigate') {
-          return caches.match(OFFLINE_URL);
-        }
+        // Ignore fetch errors for stale-while-revalidate fallback
       });
+
+      return cachedResponse || fetchPromise;
     })
   );
 });
