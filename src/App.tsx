@@ -437,8 +437,8 @@ export default function App() {
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
   const [expandedHistoryDates, setExpandedHistoryDates] = useState<Set<string>>(new Set());
-  const [taskSegment, setTaskSegment] = useState<'today' | 'future' | 'all'>('today');
-  const [taskModalDefaultDate, setTaskModalDefaultDate] = useState<string | null>(null);
+  const [taskSegment, setTaskSegment] = useState<'today' | 'future'>('today');
+  const [taskModalCategory, setTaskModalCategory] = useState<'daily' | 'future'>('daily');
 
   // Dynamic Daily Motivational Quote State (Updates Automatically Every Day)
   const [currentQuote, setCurrentQuote] = useState<{ text: string; author: string }>(() => {
@@ -1062,7 +1062,7 @@ export default function App() {
     }
   };
 
-  const handleAddTask = async (data: { task: string, time?: string, date?: string }) => {
+  const handleAddTask = async (data: { task: string, time?: string, date?: string, category?: 'daily' | 'future' }) => {
     if (!user) return;
     // Close modal immediately
     setShowTaskModal(false);
@@ -1071,6 +1071,7 @@ export default function App() {
         task: data.task,
         time: data.time || "",
         date: data.date || format(startOfToday(), 'yyyy-MM-dd'),
+        category: data.category || 'daily',
         completed: false,
         uid: user.uid,
         timestamp: Date.now()
@@ -2131,8 +2132,8 @@ export default function App() {
               </motion.div>
             ) : activeTab === 'tasks' ? (() => {
               const todayStr = format(startOfToday(), 'yyyy-MM-dd');
-              const dailyTasksList = tasks.filter(t => !t.date || t.date <= todayStr);
-              const futureTasksList = tasks.filter(t => t.date && t.date > todayStr);
+              const dailyTasksList = tasks.filter(t => t.category === 'daily' || (!t.category && (!t.date || t.date <= todayStr)));
+              const futureTasksList = tasks.filter(t => t.category === 'future' || (!t.category && t.date && t.date > todayStr));
 
               const renderTaskItem = (task: DailyTask, isFutureSegment: boolean = false) => {
                 const isTomorrow = task.date === format(addDays(startOfToday(), 1), 'yyyy-MM-dd');
@@ -2191,7 +2192,7 @@ export default function App() {
                       <button 
                         onClick={() => {
                           setEditingTask(task);
-                          setTaskModalDefaultDate(task.date);
+                          setTaskModalCategory(task.category || (task.date && task.date > todayStr ? 'future' : 'daily'));
                           setShowTaskModal(true);
                         }}
                         className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
@@ -2232,7 +2233,8 @@ export default function App() {
                       <Button 
                         onClick={() => {
                           setEditingTask(null);
-                          setTaskModalDefaultDate(format(startOfToday(), 'yyyy-MM-dd'));
+                          setTaskModalCategory('daily');
+                          setTaskSegment('today');
                           setShowTaskModal(true);
                         }}
                         className="h-9 px-4 font-black uppercase tracking-widest text-[10px] flex items-center gap-1.5"
@@ -2242,7 +2244,8 @@ export default function App() {
                       <Button 
                         onClick={() => {
                           setEditingTask(null);
-                          setTaskModalDefaultDate(format(addDays(startOfToday(), 1), 'yyyy-MM-dd'));
+                          setTaskModalCategory('future');
+                          setTaskSegment('future');
                           setShowTaskModal(true);
                         }}
                         className="h-9 px-4 font-black uppercase tracking-widest text-[10px] flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-600 dark:hover:bg-indigo-500"
@@ -2257,12 +2260,13 @@ export default function App() {
                     <button
                       onClick={() => setTaskSegment('today')}
                       className={cn(
-                        "flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2",
+                        "flex-1 py-2.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer",
                         taskSegment === 'today'
                           ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs"
                           : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
                       )}
                     >
+                      <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                       <span>Daily Tasks</span>
                       <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-mono font-bold", taskSegment === 'today' ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-500")}>
                         {dailyTasksList.length}
@@ -2272,36 +2276,22 @@ export default function App() {
                     <button
                       onClick={() => setTaskSegment('future')}
                       className={cn(
-                        "flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2",
+                        "flex-1 py-2.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer",
                         taskSegment === 'future'
                           ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs"
                           : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
                       )}
                     >
+                      <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
                       <span>Future Tasks</span>
                       <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-mono font-bold", taskSegment === 'future' ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-500")}>
                         {futureTasksList.length}
                       </span>
                     </button>
-
-                    <button
-                      onClick={() => setTaskSegment('all')}
-                      className={cn(
-                        "flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2",
-                        taskSegment === 'all'
-                          ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs"
-                          : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
-                      )}
-                    >
-                      <span>All Segments</span>
-                      <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-mono font-bold", taskSegment === 'all' ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-500")}>
-                        {tasks.length}
-                      </span>
-                    </button>
                   </div>
 
                   {/* DAILY TASKS SEGMENT */}
-                  {(taskSegment === 'today' || taskSegment === 'all') && (
+                  {taskSegment === 'today' && (
                     <div className="space-y-4">
                       <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-900">
                         <div className="flex items-center gap-2">
@@ -2325,7 +2315,7 @@ export default function App() {
                             <Button 
                               onClick={() => {
                                 setEditingTask(null);
-                                setTaskModalDefaultDate(format(startOfToday(), 'yyyy-MM-dd'));
+                                setTaskModalCategory('daily');
                                 setShowTaskModal(true);
                               }}
                               className="mt-3 h-8 px-4 font-bold uppercase tracking-wider text-[10px]"
@@ -2341,7 +2331,7 @@ export default function App() {
                   )}
 
                   {/* FUTURE TASKS SEGMENT */}
-                  {(taskSegment === 'future' || taskSegment === 'all') && (
+                  {taskSegment === 'future' && (
                     <div className="space-y-4 pt-2">
                       <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-900">
                         <div className="flex items-center gap-2">
@@ -2365,7 +2355,7 @@ export default function App() {
                             <Button 
                               onClick={() => {
                                 setEditingTask(null);
-                                setTaskModalDefaultDate(format(addDays(startOfToday(), 1), 'yyyy-MM-dd'));
+                                setTaskModalCategory('future');
                                 setShowTaskModal(true);
                               }}
                               className="mt-3 h-8 px-4 font-bold uppercase tracking-wider text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white"
@@ -3773,7 +3763,7 @@ export default function App() {
       )}
 
       {showTaskModal && (() => {
-        const initialDate = editingTask?.date || taskModalDefaultDate || format(startOfToday(), 'yyyy-MM-dd');
+        const defaultDate = editingTask?.date || format(startOfToday(), 'yyyy-MM-dd');
         return (
           <Modal 
             key="add-task-modal" 
@@ -3782,11 +3772,12 @@ export default function App() {
               setShowTaskModal(false);
               setEditingTask(null);
             }} 
-            title={editingTask ? "Edit Task" : "Note Task"}
+            title={editingTask ? "Edit Task" : taskModalCategory === 'future' ? "Note Future Task" : "Note Daily Task"}
           >
             {React.createElement(() => {
-              const [modalTaskDate, setModalTaskDate] = useState<string>(initialDate);
-              const isFuture = modalTaskDate > format(startOfToday(), 'yyyy-MM-dd');
+              const [modalCategory, setModalCategory] = useState<'daily' | 'future'>(
+                editingTask?.category || taskModalCategory || 'daily'
+              );
 
               return (
                 <form onSubmit={(e) => {
@@ -3795,7 +3786,8 @@ export default function App() {
                   const data = {
                     task: fd.get('task') as string,
                     time: fd.get('time') as string,
-                    date: modalTaskDate
+                    date: fd.get('date') as string,
+                    category: modalCategory
                   };
                   
                   if (editingTask) {
@@ -3817,45 +3809,33 @@ export default function App() {
                     />
                   </div>
 
-                  {/* Segment Quick Presets */}
+                  {/* Task Segment Choice */}
                   <div>
-                    <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Segment / Quick Preset</label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Store In Segment</label>
+                    <div className="grid grid-cols-2 gap-3">
                       <button
                         type="button"
-                        onClick={() => setModalTaskDate(format(startOfToday(), 'yyyy-MM-dd'))}
+                        onClick={() => setModalCategory('daily')}
                         className={cn(
-                          "py-2 px-3 rounded-md text-xs font-bold uppercase tracking-wider transition-all border flex items-center justify-center gap-1.5",
-                          modalTaskDate === format(startOfToday(), 'yyyy-MM-dd')
+                          "py-2.5 px-3 rounded-lg text-xs font-bold uppercase tracking-wider transition-all border flex items-center justify-center gap-2 cursor-pointer",
+                          modalCategory === 'daily'
                             ? "bg-amber-500/10 border-amber-500 text-amber-600 dark:text-amber-400 font-black shadow-xs"
                             : "bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
                         )}
                       >
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Daily (Today)
+                        <span className="w-2 h-2 rounded-full bg-amber-500"></span> Daily Tasks
                       </button>
                       <button
                         type="button"
-                        onClick={() => setModalTaskDate(format(addDays(startOfToday(), 1), 'yyyy-MM-dd'))}
+                        onClick={() => setModalCategory('future')}
                         className={cn(
-                          "py-2 px-3 rounded-md text-xs font-bold uppercase tracking-wider transition-all border flex items-center justify-center gap-1.5",
-                          modalTaskDate === format(addDays(startOfToday(), 1), 'yyyy-MM-dd')
+                          "py-2.5 px-3 rounded-lg text-xs font-bold uppercase tracking-wider transition-all border flex items-center justify-center gap-2 cursor-pointer",
+                          modalCategory === 'future'
                             ? "bg-indigo-500/10 border-indigo-500 text-indigo-600 dark:text-indigo-400 font-black shadow-xs"
                             : "bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
                         )}
                       >
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Tomorrow
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setModalTaskDate(format(addDays(startOfToday(), 7), 'yyyy-MM-dd'))}
-                        className={cn(
-                          "py-2 px-3 rounded-md text-xs font-bold uppercase tracking-wider transition-all border flex items-center justify-center gap-1.5",
-                          modalTaskDate === format(addDays(startOfToday(), 7), 'yyyy-MM-dd')
-                            ? "bg-emerald-500/10 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-black shadow-xs"
-                            : "bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                        )}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Next Week
+                        <span className="w-2 h-2 rounded-full bg-indigo-500"></span> Future Tasks
                       </button>
                     </div>
                   </div>
@@ -3867,8 +3847,7 @@ export default function App() {
                         name="date"
                         type="date" 
                         required
-                        value={modalTaskDate}
-                        onChange={(e) => setModalTaskDate(e.target.value)}
+                        defaultValue={defaultDate}
                         className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
                       />
                     </div>
@@ -3892,12 +3871,12 @@ export default function App() {
                       type="submit" 
                       className={cn(
                         "flex-[2] text-xs font-bold h-10 transition-colors",
-                        isFuture 
+                        modalCategory === 'future'
                           ? "bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-600 dark:hover:bg-indigo-500" 
                           : "dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
                       )}
                     >
-                      {editingTask ? "Update Task" : isFuture ? "Save Future Task" : "Save Daily Task"}
+                      {editingTask ? "Update Task" : modalCategory === 'future' ? "Save Future Task" : "Save Daily Task"}
                     </Button>
                   </div>
                 </form>

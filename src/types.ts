@@ -78,6 +78,7 @@ export interface DailyTask {
   completed: boolean;
   date: string; // YYYY-MM-DD
   time?: string; // HH:mm
+  category?: 'daily' | 'future';
   uid: string;
   timestamp: number;
 }
