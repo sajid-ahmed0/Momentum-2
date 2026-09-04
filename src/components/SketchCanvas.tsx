@@ -14,7 +14,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
-  Layers
+  Layers,
+  Ruler,
+  Move,
+  Compass,
+  X
 } from 'lucide-react';
 import { parseSketchPages, formatSketchPages } from '../utils/sketchUtils';
 
@@ -75,6 +79,16 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
 
   const lastPointRef = useRef<{ x: number; y: number; pressure: number } | null>(null);
   const lastMidRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Ruler state & parameters
+  const [showRuler, setShowRuler] = useState<boolean>(false);
+  const [rulerPos, setRulerPos] = useState<{ x: number; y: number }>({ x: 220, y: 200 });
+  const [rulerAngle, setRulerAngle] = useState<number>(0);
+  const [activeRulerEdge, setActiveRulerEdge] = useState<'top' | 'bottom' | null>(null);
+  const rulerActiveEdgeRef = useRef<'top' | 'bottom' | null>(null);
+
+  const rulerLength = 340;
+  const rulerWidth = 54;
 
   // Redraw background pattern (grid, lines, dots) on bgCanvas
   const drawPaperBackground = useCallback(() => {
@@ -306,6 +320,116 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
     }
   };
 
+  // Ruler Drag & Rotate Handlers
+  const handleRulerDragStart = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const startRulerX = rulerPos.x;
+    const startRulerY = rulerPos.y;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      moveEvent.preventDefault();
+      const dx = moveEvent.clientX - startClientX;
+      const dy = moveEvent.clientY - startClientY;
+
+      const container = containerRef.current;
+      const rect = container?.getBoundingClientRect();
+      const maxX = rect ? rect.width : 600;
+      const maxY = rect ? rect.height : 450;
+
+      setRulerPos({
+        x: Math.max(30, Math.min(maxX - 30, Math.round(startRulerX + dx))),
+        y: Math.max(30, Math.min(maxY - 30, Math.round(startRulerY + dy)))
+      });
+    };
+
+    const onPointerUp = (upEvent: PointerEvent) => {
+      upEvent.preventDefault();
+      try {
+        target.releasePointerCapture(e.pointerId);
+      } catch {}
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  };
+
+  const handleRulerRotateStart = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+
+    const container = containerRef.current;
+    if (!container) return;
+    const containerRect = container.getBoundingClientRect();
+    const centerScreenX = containerRect.left + rulerPos.x;
+    const centerScreenY = containerRect.top + rulerPos.y;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      moveEvent.preventDefault();
+      const dx = moveEvent.clientX - centerScreenX;
+      const dy = moveEvent.clientY - centerScreenY;
+      const angleRad = Math.atan2(dy, dx);
+      let angleDeg = Math.round((angleRad * 180) / Math.PI);
+
+      if (angleDeg < 0) angleDeg += 360;
+
+      // Magnetic snap to common drafting angles within 3 degrees
+      const snapAngles = [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330, 360];
+      for (const snap of snapAngles) {
+        if (Math.abs(angleDeg - snap) <= 3) {
+          angleDeg = snap % 360;
+          break;
+        }
+      }
+
+      setRulerAngle(angleDeg);
+    };
+
+    const onPointerUp = (upEvent: PointerEvent) => {
+      upEvent.preventDefault();
+      try {
+        target.releasePointerCapture(e.pointerId);
+      } catch {}
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  };
+
+  const snapRulerAngle = (targetAngle: number) => {
+    setRulerAngle(((targetAngle % 360) + 360) % 360);
+  };
+
+  const stepRulerAngle = (delta: number) => {
+    setRulerAngle(prev => {
+      let next = (prev + delta) % 360;
+      if (next < 0) next += 360;
+      return next;
+    });
+  };
+
+  const handleRulerWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const delta = e.deltaY < 0 ? 5 : -5;
+    stepRulerAngle(delta);
+  };
+
   // Pointer position helper
   const getPointerPos = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -323,7 +447,54 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
     e.preventDefault();
     canvasRef.current?.setPointerCapture(e.pointerId);
 
-    const pos = getPointerPos(e);
+    let pos = getPointerPos(e);
+    let lockedEdge: 'top' | 'bottom' | null = null;
+
+    if (showRuler) {
+      const theta = (rulerAngle * Math.PI) / 180;
+      const ux = Math.cos(theta);
+      const uy = Math.sin(theta);
+      const vx = -Math.sin(theta);
+      const vy = Math.cos(theta);
+
+      const dx = pos.x - rulerPos.x;
+      const dy = pos.y - rulerPos.y;
+
+      const distU = dx * ux + dy * uy;
+      const distV = dx * vx + dy * vy;
+
+      const halfL = rulerLength / 2;
+      const halfW = rulerWidth / 2;
+
+      // Check if along ruler length (with 24px tolerance on both ends)
+      if (distU >= -halfL - 24 && distU <= halfL + 24) {
+        const topDist = Math.abs(distV - (-halfW));
+        const bottomDist = Math.abs(distV - halfW);
+
+        // Snap threshold: 28px around edge
+        if (topDist <= 28) {
+          lockedEdge = 'top';
+          const clampedU = Math.max(-halfL, Math.min(halfL, distU));
+          pos = {
+            x: rulerPos.x + ux * clampedU + vx * (-halfW),
+            y: rulerPos.y + uy * clampedU + vy * (-halfW),
+            pressure: pos.pressure
+          };
+        } else if (bottomDist <= 28) {
+          lockedEdge = 'bottom';
+          const clampedU = Math.max(-halfL, Math.min(halfL, distU));
+          pos = {
+            x: rulerPos.x + ux * clampedU + vx * halfW,
+            y: rulerPos.y + uy * clampedU + vy * halfW,
+            pressure: pos.pressure
+          };
+        }
+      }
+    }
+
+    rulerActiveEdgeRef.current = lockedEdge;
+    setActiveRulerEdge(lockedEdge);
+
     setIsDrawing(true);
     lastPointRef.current = pos;
     lastMidRef.current = { x: pos.x, y: pos.y };
@@ -374,44 +545,94 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
 
     for (const ptEv of coalescedEvents) {
       const rect = canvas.getBoundingClientRect();
-      const currentPos = {
+      let currentPos = {
         x: ptEv.clientX - rect.left,
         y: ptEv.clientY - rect.top,
         pressure: ptEv.pressure > 0 ? ptEv.pressure : 0.5
       };
 
-      const lastPos = lastPointRef.current!;
-      const lastMid = lastMidRef.current!;
+      if (rulerActiveEdgeRef.current) {
+        // Constrain movement strictly along ruler's straight edge!
+        const theta = (rulerAngle * Math.PI) / 180;
+        const ux = Math.cos(theta);
+        const uy = Math.sin(theta);
+        const vx = -Math.sin(theta);
+        const vy = Math.cos(theta);
 
-      const currentMid = {
-        x: (lastPos.x + currentPos.x) / 2,
-        y: (lastPos.y + currentPos.y) / 2
-      };
+        const halfL = rulerLength / 2;
+        const halfW = rulerWidth / 2;
+        const edgeOffset = rulerActiveEdgeRef.current === 'top' ? -halfW : halfW;
 
-      ctx.beginPath();
-      ctx.moveTo(lastMid.x, lastMid.y);
-      ctx.quadraticCurveTo(lastPos.x, lastPos.y, currentMid.x, currentMid.y);
+        const dx = currentPos.x - rulerPos.x;
+        const dy = currentPos.y - rulerPos.y;
+        const distU = dx * ux + dy * uy;
+        const clampedU = Math.max(-halfL, Math.min(halfL, distU));
 
-      const adjustedWidth = strokeWidth * (0.5 + currentPos.pressure * 0.8);
+        currentPos = {
+          x: rulerPos.x + ux * clampedU + vx * edgeOffset,
+          y: rulerPos.y + uy * clampedU + vy * edgeOffset,
+          pressure: currentPos.pressure
+        };
 
-      if (activeTool === 'eraser') {
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.lineWidth = strokeWidth * 3;
-        ctx.strokeStyle = 'rgba(0,0,0,1)';
-      } else if (activeTool === 'highlighter') {
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.lineWidth = strokeWidth * 3;
-        ctx.strokeStyle = activeColor + '44';
+        const lastPos = lastPointRef.current!;
+        ctx.beginPath();
+        ctx.moveTo(lastPos.x, lastPos.y);
+        ctx.lineTo(currentPos.x, currentPos.y);
+
+        const adjustedWidth = strokeWidth * (0.5 + currentPos.pressure * 0.8);
+
+        if (activeTool === 'eraser') {
+          ctx.globalCompositeOperation = 'destination-out';
+          ctx.lineWidth = strokeWidth * 3;
+          ctx.strokeStyle = 'rgba(0,0,0,1)';
+        } else if (activeTool === 'highlighter') {
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.lineWidth = strokeWidth * 3;
+          ctx.strokeStyle = activeColor + '44';
+        } else {
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.lineWidth = Math.max(1, adjustedWidth);
+          ctx.strokeStyle = activeColor;
+        }
+
+        ctx.stroke();
+
+        lastMidRef.current = currentPos;
+        lastPointRef.current = currentPos;
       } else {
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.lineWidth = Math.max(1, adjustedWidth);
-        ctx.strokeStyle = activeColor;
+        const lastPos = lastPointRef.current!;
+        const lastMid = lastMidRef.current!;
+
+        const currentMid = {
+          x: (lastPos.x + currentPos.x) / 2,
+          y: (lastPos.y + currentPos.y) / 2
+        };
+
+        ctx.beginPath();
+        ctx.moveTo(lastMid.x, lastMid.y);
+        ctx.quadraticCurveTo(lastPos.x, lastPos.y, currentMid.x, currentMid.y);
+
+        const adjustedWidth = strokeWidth * (0.5 + currentPos.pressure * 0.8);
+
+        if (activeTool === 'eraser') {
+          ctx.globalCompositeOperation = 'destination-out';
+          ctx.lineWidth = strokeWidth * 3;
+          ctx.strokeStyle = 'rgba(0,0,0,1)';
+        } else if (activeTool === 'highlighter') {
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.lineWidth = strokeWidth * 3;
+          ctx.strokeStyle = activeColor + '44';
+        } else {
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.lineWidth = Math.max(1, adjustedWidth);
+          ctx.strokeStyle = activeColor;
+        }
+
+        ctx.stroke();
+
+        lastMidRef.current = currentMid;
+        lastPointRef.current = currentPos;
       }
-
-      ctx.stroke();
-
-      lastMidRef.current = currentMid;
-      lastPointRef.current = currentPos;
     }
   };
 
@@ -452,6 +673,8 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
     setIsDrawing(false);
     lastPointRef.current = null;
     lastMidRef.current = null;
+    rulerActiveEdgeRef.current = null;
+    setActiveRulerEdge(null);
     saveState();
   };
 
@@ -542,6 +765,32 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
                 <span>Eraser</span>
               </button>
             </div>
+
+            {/* Ruler Straightedge Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                if (!showRuler && containerRef.current) {
+                  const rect = containerRef.current.getBoundingClientRect();
+                  if (rulerPos.x <= 40 || rulerPos.x >= rect.width - 40 || rulerPos.y <= 40 || rulerPos.y >= rect.height - 40) {
+                    setRulerPos({ x: Math.round(rect.width / 2), y: Math.round(rect.height / 2) });
+                  }
+                }
+                setShowRuler(prev => !prev);
+              }}
+              className={`p-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all ${
+                showRuler 
+                  ? 'bg-amber-500 text-white border-amber-400 shadow-md shadow-amber-500/20 ring-2 ring-amber-500/30' 
+                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
+              }`}
+              title="Toggle Ruler (Straightedge with degrees & measurement ticks)"
+            >
+              <Ruler className="w-3.5 h-3.5" />
+              <span>Ruler</span>
+              {showRuler && (
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+              )}
+            </button>
 
             {/* Color Palette */}
             {activeTool !== 'eraser' && (
@@ -738,11 +987,175 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
           onPointerCancel={handlePointerUp}
           className="absolute inset-0 touch-none"
         />
+
+        {/* Interactive Ruler Overlay Element */}
+        {showRuler && !readOnly && (
+          <div
+            style={{
+              left: `${rulerPos.x}px`,
+              top: `${rulerPos.y}px`,
+              width: `${rulerLength}px`,
+              height: `${rulerWidth}px`,
+              transform: `translate(-50%, -50%) rotate(${rulerAngle}deg)`,
+            }}
+            onWheel={handleRulerWheel}
+            className="absolute select-none rounded-xl border-2 border-amber-600/40 dark:border-amber-400/40 bg-amber-50/90 dark:bg-zinc-900/90 backdrop-blur-md shadow-2xl flex flex-col justify-between overflow-hidden touch-none"
+          >
+            {/* Active edge glow indicators */}
+            {activeRulerEdge === 'top' && (
+              <div className="absolute top-0 inset-x-0 h-1 bg-amber-500 shadow-md shadow-amber-400 animate-pulse z-10" />
+            )}
+            {activeRulerEdge === 'bottom' && (
+              <div className="absolute bottom-0 inset-x-0 h-1 bg-amber-500 shadow-md shadow-amber-400 animate-pulse z-10" />
+            )}
+
+            {/* Ruler SVG Graduations (Ticks and CM numbers) */}
+            <svg 
+              className="absolute inset-0 w-full h-full pointer-events-none select-none" 
+              viewBox={`0 0 ${rulerLength} ${rulerWidth}`}
+            >
+              {/* Top Edge Ticks (every 10px, every 30px = 1 cm) */}
+              {Array.from({ length: 33 }).map((_, i) => {
+                const x = 10 + i * 10;
+                const isMajor = i % 3 === 0;
+                const isHalf = i % 3 !== 0 && (i * 10) % 15 === 0;
+                const tickLen = isMajor ? 11 : isHalf ? 7 : 4;
+                return (
+                  <g key={`top-${i}`}>
+                    <line
+                      x1={x}
+                      y1={0}
+                      x2={x}
+                      y2={tickLen}
+                      stroke="currentColor"
+                      strokeWidth={isMajor ? 1.5 : 1}
+                      className="text-amber-800/70 dark:text-amber-200/70"
+                    />
+                    {isMajor && (
+                      <text
+                        x={x}
+                        y={19}
+                        fontSize="7.5"
+                        fontWeight="bold"
+                        textAnchor="middle"
+                        className="fill-amber-950/90 dark:fill-amber-200/90 font-mono select-none"
+                      >
+                        {i / 3}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+
+              {/* Bottom Edge Ticks */}
+              {Array.from({ length: 33 }).map((_, i) => {
+                const x = 10 + i * 10;
+                const isMajor = i % 3 === 0;
+                const tickLen = isMajor ? 8 : 4;
+                return (
+                  <line
+                    key={`bot-${i}`}
+                    x1={x}
+                    y1={rulerWidth}
+                    x2={x}
+                    y2={rulerWidth - tickLen}
+                    stroke="currentColor"
+                    strokeWidth={1}
+                    className="text-amber-800/50 dark:text-amber-300/50"
+                  />
+                );
+              })}
+            </svg>
+
+            {/* Middle Controls Strip */}
+            <div className="relative z-10 w-full h-full flex items-center justify-between px-2 pointer-events-none">
+              {/* Left: Drag Handle */}
+              <div
+                onPointerDown={handleRulerDragStart}
+                className="pointer-events-auto flex items-center gap-1 px-2 py-0.5 bg-amber-500/15 hover:bg-amber-500/30 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-amber-950 dark:text-amber-300 rounded-md cursor-grab active:cursor-grabbing text-[10px] font-black uppercase tracking-wider transition-colors shadow-xs"
+                title="Hold & drag to reposition ruler"
+              >
+                <Move className="w-3 h-3" />
+                <span>Move</span>
+              </div>
+
+              {/* Center: Angle readout & Step */}
+              <div className="pointer-events-auto flex items-center gap-1">
+                <div className="flex items-center bg-white/90 dark:bg-zinc-800 rounded-md border border-amber-500/30 px-1 py-0.5 shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => stepRulerAngle(-5)}
+                    className="w-4 h-4 flex items-center justify-center text-[10px] font-bold text-zinc-600 dark:text-zinc-300 hover:text-amber-600 rounded"
+                    title="Rotate -5°"
+                  >
+                    -
+                  </button>
+                  <span className="font-mono text-[10px] font-bold px-1 text-amber-900 dark:text-amber-200 min-w-[28px] text-center select-none">
+                    {rulerAngle}°
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => stepRulerAngle(5)}
+                    className="w-4 h-4 flex items-center justify-center text-[10px] font-bold text-zinc-600 dark:text-zinc-300 hover:text-amber-600 rounded"
+                    title="Rotate +5°"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {/* Quick Angle Presets */}
+                <div className="hidden sm:flex items-center gap-0.5">
+                  {[0, 45, 90].map(deg => (
+                    <button
+                      key={deg}
+                      type="button"
+                      onClick={() => snapRulerAngle(deg)}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono transition-all ${
+                        rulerAngle === deg
+                          ? 'bg-amber-500 text-white shadow-xs'
+                          : 'bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-zinc-700 dark:text-zinc-300'
+                      }`}
+                      title={`Snap ruler to ${deg}°`}
+                    >
+                      {deg}°
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right: Rotate Dial & Dismiss */}
+              <div className="pointer-events-auto flex items-center gap-1">
+                <div
+                  onPointerDown={handleRulerRotateStart}
+                  className="p-1 rounded-full bg-amber-500 hover:bg-amber-600 text-white cursor-pointer shadow-sm flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
+                  title="Drag circle to rotate ruler 360°"
+                >
+                  <Compass className="w-3 h-3" />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowRuler(false)}
+                  className="p-1 text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 rounded transition-colors"
+                  title="Close Ruler"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Footer Instructions */}
       <div className="px-4 py-2 bg-zinc-950 border-t border-zinc-800 flex items-center justify-between text-[11px] text-zinc-500">
-        <span>✏️ Stylus & Touch Enabled (Multi-page drawing active)</span>
+        <span className="flex items-center gap-1.5">
+          <span>✏️ Stylus & Touch Enabled</span>
+          {showRuler && (
+            <span className="text-amber-400 font-medium">
+              • 📐 Ruler Active (Drag along edge to draw straight lines)
+            </span>
+          )}
+        </span>
         <span className="font-mono text-[10px] uppercase text-amber-400/80 font-bold">Page {pageIndex + 1} of {pages.length}</span>
       </div>
     </div>
