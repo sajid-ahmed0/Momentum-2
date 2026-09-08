@@ -70,8 +70,12 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
   const [pages, setPages] = useState<string[]>(pagesRef.current);
   const [pageIndex, setPageIndex] = useState<number>(0);
 
-  // Undo / Redo history stack (for current page)
-  const historyRef = useRef<ImageData[]>([]);
+  // Canvas logical dimensions & resolution tracking (ensures drawing on the full page even when browser is zoomed out)
+  const canvasDimensionsRef = useRef<{ width: number; height: number; dpr: number }>({ width: 0, height: 0, dpr: 1 });
+  const isInitialLoadDoneRef = useRef<boolean>(false);
+
+  // Undo / Redo history stack (for current page) with resolution-independent canvas snapshots
+  const historyRef = useRef<{ canvas: HTMLCanvasElement; cssWidth: number; cssHeight: number }[]>([]);
   const historyIndexRef = useRef<number>(-1);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
@@ -90,19 +94,24 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
     smoothnessRef.current = smoothness;
   }, [smoothness]);
 
-  // Redraw background pattern (grid, lines, dots) on bgCanvas
+  // Redraw background pattern (grid, lines, dots) on bgCanvas across its full surface
   const drawPaperBackground = useCallback(() => {
     const bgCanvas = bgCanvasRef.current;
     if (!bgCanvas) return;
     const ctx = bgCanvas.getContext('2d');
     if (!ctx) return;
 
-    const width = bgCanvas.width;
-    const height = bgCanvas.height;
+    const dpr = canvasDimensionsRef.current.dpr || window.devicePixelRatio || 1;
+    const cssWidth = canvasDimensionsRef.current.width || (bgCanvas.width / dpr);
+    const cssHeight = canvasDimensionsRef.current.height || (bgCanvas.height / dpr);
 
-    // Base white page background
+    // Reset transform to 1,1 to clear and fill the full physical bitmap with pure white
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, width, height);
+    ctx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+
+    // Set DPR transform for resolution-independent pattern rendering
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     if (paperBg === 'blank') return;
 
@@ -112,33 +121,34 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
 
     if (paperBg === 'lines') {
       const lineGap = 28;
-      for (let y = 40; y < height; y += lineGap) {
+      for (let y = 40; y < cssHeight; y += lineGap) {
         ctx.beginPath();
         ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+        ctx.lineTo(cssWidth, y);
         ctx.stroke();
       }
+      // Left margin line
       ctx.strokeStyle = '#fca5a5';
       ctx.beginPath();
       ctx.moveTo(48, 0);
-      ctx.lineTo(48, height);
+      ctx.lineTo(48, cssHeight);
       ctx.stroke();
     } else if (paperBg === 'grid') {
       const gridSize = 24;
       ctx.beginPath();
-      for (let x = gridSize; x < width; x += gridSize) {
+      for (let x = gridSize; x < cssWidth; x += gridSize) {
         ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
+        ctx.lineTo(x, cssHeight);
       }
-      for (let y = gridSize; y < height; y += gridSize) {
+      for (let y = gridSize; y < cssHeight; y += gridSize) {
         ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+        ctx.lineTo(cssWidth, y);
       }
       ctx.stroke();
     } else if (paperBg === 'dots') {
       const dotGap = 24;
-      for (let x = dotGap; x < width; x += dotGap) {
-        for (let y = dotGap; y < height; y += dotGap) {
+      for (let x = dotGap; x < cssWidth; x += dotGap) {
+        for (let y = dotGap; y < cssHeight; y += dotGap) {
           ctx.beginPath();
           ctx.arc(x, y, 1.2, 0, Math.PI * 2);
           ctx.fill();
@@ -150,32 +160,40 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
   // Export current page canvas as DataURL
   const exportCurrentPage = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return '';
+    const bgCanvas = bgCanvasRef.current;
+    if (!canvas || !bgCanvas) return '';
     const exportCanvas = document.createElement('canvas');
     exportCanvas.width = canvas.width;
     exportCanvas.height = canvas.height;
     const exportCtx = exportCanvas.getContext('2d');
-    if (exportCtx && bgCanvasRef.current) {
-      exportCtx.drawImage(bgCanvasRef.current, 0, 0);
+    if (exportCtx) {
+      exportCtx.drawImage(bgCanvas, 0, 0);
       exportCtx.drawImage(canvas, 0, 0);
       return exportCanvas.toDataURL('image/png');
     }
     return '';
   }, []);
 
-  // Save state for active stroke / edit
-  const saveState = useCallback(() => {
+  // Save state snapshot for undo / redo history and parent synchronization
+  const recordHistorySnapshot = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
 
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const snap = document.createElement('canvas');
+    snap.width = canvas.width;
+    snap.height = canvas.height;
+    const snapCtx = snap.getContext('2d');
+    if (snapCtx) {
+      snapCtx.drawImage(canvas, 0, 0);
+    }
+
+    const cssWidth = canvasDimensionsRef.current.width || (canvas.width / (window.devicePixelRatio || 1));
+    const cssHeight = canvasDimensionsRef.current.height || (canvas.height / (window.devicePixelRatio || 1));
 
     const newHistory = historyRef.current.slice(0, historyIndexRef.current + 1);
-    newHistory.push(imageData);
+    newHistory.push({ canvas: snap, cssWidth, cssHeight });
 
-    if (newHistory.length > 25) {
+    if (newHistory.length > 30) {
       newHistory.shift();
     }
 
@@ -184,6 +202,10 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
 
     setCanUndo(historyIndexRef.current > 0);
     setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
+  }, []);
+
+  const saveState = useCallback(() => {
+    recordHistorySnapshot();
 
     // Save page content to pages array & notify parent
     const dataUrl = exportCurrentPage();
@@ -193,70 +215,154 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
     if (onChange) {
       onChange(formatSketchPages(pagesRef.current));
     }
-  }, [exportCurrentPage, onChange, pageIndex]);
+  }, [exportCurrentPage, onChange, pageIndex, recordHistorySnapshot]);
 
-  // Load a image DataURL into active canvas
+  // Load an image DataURL into active canvas
   const loadPageToCanvas = useCallback((dataUrl?: string) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const dpr = canvasDimensionsRef.current.dpr || window.devicePixelRatio || 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
     historyRef.current = [];
     historyIndexRef.current = -1;
 
     if (dataUrl && dataUrl.trim().length > 0) {
       const img = new Image();
       img.onload = () => {
-        ctx.drawImage(img, 0, 0, canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1));
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        historyRef.current = [imageData];
-        historyIndexRef.current = 0;
-        setCanUndo(false);
-        setCanRedo(false);
+        // Draw the saved image at 1:1 scale
+        const cssW = img.naturalWidth / dpr;
+        const cssH = img.naturalHeight / dpr;
+        ctx.drawImage(img, 0, 0, cssW, cssH);
+
+        recordHistorySnapshot();
       };
       img.src = dataUrl;
     } else {
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      historyRef.current = [imageData];
-      historyIndexRef.current = 0;
-      setCanUndo(false);
-      setCanRedo(false);
+      recordHistorySnapshot();
     }
-  }, []);
+  }, [recordHistorySnapshot]);
 
-  // Initialize or Resize Canvases
-  useEffect(() => {
+  // Dynamic Canvas Resizing Engine with Drawing Preservation & Zoom Adaptation
+  const resizeCanvases = useCallback(() => {
     const canvas = canvasRef.current;
     const bgCanvas = bgCanvasRef.current;
     const container = containerRef.current;
     if (!canvas || !bgCanvas || !container) return;
 
     const rect = container.getBoundingClientRect();
-    const width = Math.max(rect.width, 320);
-    const height = Math.max(rect.height || 450, 450);
-
+    const width = Math.max(Math.floor(rect.width), 320);
+    const height = Math.max(Math.floor(rect.height), 380);
     const dpr = window.devicePixelRatio || 1;
 
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    bgCanvas.width = width * dpr;
-    bgCanvas.height = height * dpr;
+    const prevWidth = canvasDimensionsRef.current.width;
+    const prevHeight = canvasDimensionsRef.current.height;
+    const prevDpr = canvasDimensionsRef.current.dpr;
 
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-    bgCanvas.style.width = `${width}px`;
-    bgCanvas.style.height = `${height}px`;
+    // Skip redundant resize cycles if dimensions haven't changed
+    if (width === prevWidth && height === prevHeight && dpr === prevDpr) {
+      return;
+    }
 
+    // Preserve existing drawing before bitmap buffer resize clears it
+    let snapshotCanvas: HTMLCanvasElement | null = null;
+    if (canvas.width > 0 && canvas.height > 0 && prevWidth > 0 && prevHeight > 0) {
+      snapshotCanvas = document.createElement('canvas');
+      snapshotCanvas.width = canvas.width;
+      snapshotCanvas.height = canvas.height;
+      const snapCtx = snapshotCanvas.getContext('2d');
+      if (snapCtx) {
+        snapCtx.drawImage(canvas, 0, 0);
+      }
+    }
+
+    // Update stored dimension metadata
+    canvasDimensionsRef.current = { width, height, dpr };
+
+    // Update canvas buffer resolutions to match true physical pixels
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    bgCanvas.width = Math.round(width * dpr);
+    bgCanvas.height = Math.round(height * dpr);
+
+    // Apply scale transform so all drawing coordinates operate seamlessly in CSS pixel units
     const ctx = canvas.getContext('2d');
-    if (ctx) ctx.scale(dpr, dpr);
+    if (ctx) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
     const bgCtx = bgCanvas.getContext('2d');
-    if (bgCtx) bgCtx.scale(dpr, dpr);
+    if (bgCtx) {
+      bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
 
+    // Redraw paper background across the entire newly resized surface
     drawPaperBackground();
-    loadPageToCanvas(pagesRef.current[pageIndex]);
+
+    // Restore drawing onto the resized canvas
+    if (ctx) {
+      if (snapshotCanvas) {
+        // Draw the saved content at its original CSS dimensions and position (0, 0)
+        ctx.drawImage(snapshotCanvas, 0, 0, prevWidth, prevHeight);
+      } else if (!isInitialLoadDoneRef.current) {
+        // Initial first-time load from pagesRef
+        isInitialLoadDoneRef.current = true;
+        loadPageToCanvas(pagesRef.current[pageIndex]);
+      }
+    }
   }, [drawPaperBackground, loadPageToCanvas, pageIndex]);
+
+  // Responsive Observer & Window/DPR Zoom listener
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Initial resize trigger
+    resizeCanvases();
+
+    let animationFrameId: number | null = null;
+    const scheduleResize = () => {
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      animationFrameId = requestAnimationFrame(() => {
+        resizeCanvases();
+      });
+    };
+
+    // 1. Observe container size changes (detects zoom in/out, modal resizing, flex layout changes)
+    const resizeObserver = new ResizeObserver(() => {
+      scheduleResize();
+    });
+    resizeObserver.observe(container);
+
+    // 2. Window resize event (triggered on browser zoom Ctrl +/- and window resize)
+    window.addEventListener('resize', scheduleResize);
+
+    // 3. Match media resolution change (detects devicePixelRatio changes during browser zoom)
+    let removeDprListener: (() => void) | null = null;
+    const listenForDprChange = () => {
+      const mediaQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dpr)`);
+      const onDprChange = () => {
+        scheduleResize();
+        listenForDprChange();
+      };
+      if (mediaQuery.addEventListener) {
+        mediaQuery.addEventListener('change', onDprChange, { once: true });
+        removeDprListener = () => mediaQuery.removeEventListener('change', onDprChange);
+      }
+    };
+    listenForDprChange();
+
+    return () => {
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', scheduleResize);
+      if (removeDprListener) removeDprListener();
+    };
+  }, [resizeCanvases]);
 
   // Sync with initialData changes from parent
   useEffect(() => {
@@ -575,7 +681,16 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      ctx.putImageData(historyRef.current[historyIndexRef.current], 0, 0);
+      const dpr = canvasDimensionsRef.current.dpr || window.devicePixelRatio || 1;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const target = historyRef.current[historyIndexRef.current];
+      if (target && target.canvas) {
+        ctx.drawImage(target.canvas, 0, 0, target.cssWidth, target.cssHeight);
+      }
+
       setCanUndo(historyIndexRef.current > 0);
       setCanRedo(true);
 
@@ -594,7 +709,16 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      ctx.putImageData(historyRef.current[historyIndexRef.current], 0, 0);
+      const dpr = canvasDimensionsRef.current.dpr || window.devicePixelRatio || 1;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const target = historyRef.current[historyIndexRef.current];
+      if (target && target.canvas) {
+        ctx.drawImage(target.canvas, 0, 0, target.cssWidth, target.cssHeight);
+      }
+
       setCanUndo(true);
       setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
 
@@ -612,12 +736,19 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const dpr = canvasDimensionsRef.current.dpr || window.devicePixelRatio || 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     saveState();
   };
 
   return (
-    <div className={`flex flex-col bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl ${isFullscreen ? 'fixed inset-4 z-50 m-auto max-w-5xl h-[90vh]' : className}`}>
+    <div className={`flex flex-col bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl ${
+      isFullscreen 
+        ? 'fixed inset-2 md:inset-4 z-50 m-auto w-[calc(100vw-16px)] md:w-[calc(100vw-32px)] h-[calc(100vh-16px)] md:h-[calc(100vh-32px)]' 
+        : className || 'w-full'
+    }`}>
       {/* Top Main Toolbar */}
       {!readOnly && (
         <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-zinc-950 border-b border-zinc-800 text-zinc-300">
@@ -951,12 +1082,13 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
       {/* Canvas Layer Container */}
       <div 
         ref={containerRef} 
-        className="relative flex-1 w-full min-h-[380px] bg-white cursor-crosshair overflow-hidden touch-none select-none"
+        className="relative flex-1 w-full min-h-[440px] md:min-h-[520px] bg-white cursor-crosshair overflow-hidden touch-none select-none"
       >
         {/* Paper Pattern Background Canvas */}
         <canvas
           ref={bgCanvasRef}
-          className="absolute inset-0 pointer-events-none"
+          className="absolute inset-0 w-full h-full pointer-events-none block"
+          style={{ width: '100%', height: '100%' }}
         />
         {/* Active Drawing Canvas */}
         <canvas
@@ -965,7 +1097,8 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          className="absolute inset-0 touch-none"
+          className="absolute inset-0 w-full h-full touch-none block"
+          style={{ width: '100%', height: '100%' }}
         />
       </div>
 

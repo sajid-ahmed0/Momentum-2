@@ -4129,7 +4129,7 @@ export default function App() {
               setCurrentSketch(undefined);
             }} 
             title={editingOverthinkingLog ? "Edit Overthinking Log" : "Log Overthinking"}
-            maxWidth={includeSketchPage ? "max-w-3xl" : "max-w-md"}
+            maxWidth={includeSketchPage ? "max-w-4xl xl:max-w-5xl" : "max-w-md"}
           >
             <form onSubmit={(e) => {
               e.preventDefault();
@@ -4392,7 +4392,7 @@ export default function App() {
               setCurrentJournalSketch(undefined);
             }} 
             title={editingJournalEntry ? "Edit Entry" : "New Journal Entry"}
-            maxWidth={includeJournalSketchPage ? "max-w-3xl" : "max-w-md"}
+            maxWidth={includeJournalSketchPage ? "max-w-4xl xl:max-w-5xl" : "max-w-md"}
           >
             <form onSubmit={(e) => {
               e.preventDefault();
