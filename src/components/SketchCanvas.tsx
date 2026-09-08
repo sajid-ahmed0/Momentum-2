@@ -65,12 +65,45 @@ const HIGHLIGHTER_PALETTE = [
   { name: 'Neon Violet', value: '#c084fc' },
 ];
 
-const STROKE_SIZES = [
-  { label: 'Fine', value: 2 },
-  { label: 'Medium', value: 5 },
-  { label: 'Thick', value: 10 },
-  { label: 'Broad', value: 18 },
-];
+export const DEFAULT_TOOL_SIZES: Record<Tool, number> = {
+  pen: 15,
+  highlighter: 35,
+  shape: 15,
+  text: 25,
+  eraser: 40,
+};
+
+export const TOOL_NAMES: Record<Tool, { title: string; desc: string; unit: string }> = {
+  pen: { title: 'Pen Stroke Size', desc: 'Drawing & handwriting stylus thickness', unit: '%' },
+  highlighter: { title: 'Highlighter Width', desc: 'Screen overlay highlight width', unit: '%' },
+  shape: { title: 'Shape Border Width', desc: 'Geometric outline thickness', unit: '%' },
+  text: { title: 'Text Annotation Size', desc: 'Canvas text font size', unit: '%' },
+  eraser: { title: 'Eraser Size', desc: 'Precision clearing & broad eraser diameter', unit: '%' },
+};
+
+// Maps 1-100% scale to actual pixel dimensions per tool
+export const getToolStrokeWidth = (tool: Tool, scalePercent: number): number => {
+  const p = Math.max(1, Math.min(100, scalePercent));
+  switch (tool) {
+    case 'pen':
+      // 1% -> 1px (hairline), 15% -> ~3.5px, 50% -> ~13px, 100% -> ~32px
+      return Math.max(1, 1 + (p - 1) * 0.31);
+    case 'highlighter':
+      // Base stroke: 2px..22px -> line width on canvas: ~7px..77px
+      return Math.max(2, 2 + (p - 1) * 0.20);
+    case 'eraser':
+      // Base stroke: 2px..34px -> eraser line width on canvas: ~6px..102px
+      return Math.max(2, 2 + (p - 1) * 0.32);
+    case 'shape':
+      // Border width: 1px..21px
+      return Math.max(1, 1 + (p - 1) * 0.20);
+    case 'text':
+      // Base stroke: 2px..16px -> font size: ~14px..72px
+      return Math.max(2, 2 + (p - 1) * 0.14);
+    default:
+      return Math.max(1, 1 + (p - 1) * 0.25);
+  }
+};
 
 // Helper: Convert HEX to RGBA
 const hexToRgba = (hex: string, alpha: number) => {
@@ -240,7 +273,51 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
 
   const [activeTool, setActiveTool] = useState<Tool>('pen');
   const [activeColor, setActiveColor] = useState<string>('#18181b');
-  const [strokeWidth, setStrokeWidth] = useState<number>(3);
+
+  // Per-tool independent scale (1% - 100%)
+  const [toolSizes, setToolSizes] = useState<Record<Tool, number>>(() => {
+    try {
+      const saved = localStorage.getItem('sketch_canvas_tool_sizes');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...DEFAULT_TOOL_SIZES, ...parsed };
+      }
+    } catch {
+      // Fallback to default presets
+    }
+    return DEFAULT_TOOL_SIZES;
+  });
+
+  const [showSizeMenu, setShowSizeMenu] = useState<boolean>(false);
+
+  // Sync tool size preferences to local storage
+  useEffect(() => {
+    try {
+      localStorage.setItem('sketch_canvas_tool_sizes', JSON.stringify(toolSizes));
+    } catch {
+      // Ignore
+    }
+  }, [toolSizes]);
+
+  // Current active tool scale percentage (1 - 100%)
+  const currentToolSize = toolSizes[activeTool] ?? DEFAULT_TOOL_SIZES[activeTool];
+
+  // Calculated pixel stroke width for active tool at current scale
+  const strokeWidth = getToolStrokeWidth(activeTool, currentToolSize);
+
+  // Update scale for current tool only (independent per-tool scale)
+  const updateCurrentToolSize = (newScale: number) => {
+    const clamped = Math.max(1, Math.min(100, Math.round(newScale)));
+    setToolSizes(prev => ({
+      ...prev,
+      [activeTool]: clamped
+    }));
+  };
+
+  // Increment or decrement current tool's scale
+  const adjustCurrentToolSize = (delta: number) => {
+    updateCurrentToolSize((toolSizes[activeTool] ?? DEFAULT_TOOL_SIZES[activeTool]) + delta);
+  };
   const [paperBg, setPaperBg] = useState<PaperBg>('lines');
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -1274,18 +1351,202 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
                 </div>
               )}
 
-              {/* Stroke Thickness */}
-              <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800">
-                {STROKE_SIZES.map(sz => (
-                  <button
-                    key={sz.value}
-                    type="button"
-                    onClick={() => setStrokeWidth(sz.value)}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${strokeWidth === sz.value ? 'bg-zinc-800 text-white border border-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}
-                  >
-                    {sz.label}
-                  </button>
-                ))}
+              {/* 1-100% Scale Option (Per-Tool Independent Size) */}
+              <div className="relative flex items-center bg-zinc-900 p-1 rounded-xl border border-zinc-800">
+                {/* Decrement by 5% */}
+                <button
+                  type="button"
+                  onClick={() => adjustCurrentToolSize(-5)}
+                  className="w-6 h-6 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 active:scale-95 text-zinc-400 hover:text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none"
+                  disabled={currentToolSize <= 1}
+                  title={`Decrease ${TOOL_NAMES[activeTool].title} (-5%)`}
+                >
+                  <Minus className="w-3 h-3" />
+                </button>
+
+                {/* Popover toggle showing tool-specific size scale */}
+                <button
+                  type="button"
+                  onClick={() => setShowSizeMenu(prev => !prev)}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    showSizeMenu 
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
+                      : 'text-zinc-300 hover:text-white hover:bg-zinc-800'
+                  }`}
+                  title={`Click to open 1-100% size slider for ${TOOL_NAMES[activeTool].title}`}
+                >
+                  {/* Dynamic stroke thickness preview dot */}
+                  <span
+                    className="rounded-full shrink-0 transition-all border border-zinc-700/50"
+                    style={{
+                      backgroundColor: activeTool === 'eraser' ? '#a1a1aa' : activeColor,
+                      width: Math.max(4, Math.min(12, 3 + (currentToolSize / 100) * 9)),
+                      height: Math.max(4, Math.min(12, 3 + (currentToolSize / 100) * 9)),
+                    }}
+                  />
+                  <span className="font-mono text-xs font-bold text-amber-400">
+                    {currentToolSize}%
+                  </span>
+                </button>
+
+                {/* Increment by 5% */}
+                <button
+                  type="button"
+                  onClick={() => adjustCurrentToolSize(5)}
+                  className="w-6 h-6 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 active:scale-95 text-zinc-400 hover:text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none"
+                  disabled={currentToolSize >= 100}
+                  title={`Increase ${TOOL_NAMES[activeTool].title} (+5%)`}
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+
+                {/* 1-100% Scale Popover Menu */}
+                {showSizeMenu && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-30" 
+                      onClick={() => setShowSizeMenu(false)} 
+                    />
+                    <div className="absolute left-0 top-full mt-2 w-72 p-3.5 bg-zinc-900/98 backdrop-blur-md rounded-2xl border border-zinc-700 shadow-2xl z-40 text-zinc-200 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-100">
+                      {/* Header */}
+                      <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span className="capitalize">{TOOL_NAMES[activeTool].title}</span>
+                          </span>
+                          <span className="text-[10px] text-zinc-400">
+                            {TOOL_NAMES[activeTool].desc}
+                          </span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-xs font-black border border-amber-500/30">
+                          {currentToolSize}%
+                        </span>
+                      </div>
+
+                      {/* Live Stroke Diameter & Visual Preview */}
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-950/70 border border-zinc-800/80">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Live Preview</span>
+                          <span className="text-xs font-mono text-zinc-300 font-medium">
+                            {activeTool === 'eraser' 
+                              ? `~${Math.round(strokeWidth * 3)}px eraser diameter`
+                              : activeTool === 'highlighter'
+                              ? `~${Math.round(strokeWidth * 3.5)}px highlighter band`
+                              : activeTool === 'text'
+                              ? `~${Math.round(strokeWidth * 4.5)}px font size`
+                              : `~${strokeWidth.toFixed(1)}px line thickness`}
+                          </span>
+                        </div>
+                        <div className="w-16 h-10 bg-white rounded-lg border border-zinc-300 flex items-center justify-center overflow-hidden">
+                          {activeTool === 'text' ? (
+                            <span 
+                              className="font-bold text-zinc-900 leading-none select-none"
+                              style={{ fontSize: `${Math.max(10, Math.min(26, strokeWidth * 2.2))}px` }}
+                            >
+                              Aa
+                            </span>
+                          ) : activeTool === 'highlighter' ? (
+                            <div 
+                              className="rounded-sm"
+                              style={{ 
+                                backgroundColor: activeColor,
+                                opacity: 0.7,
+                                width: '75%', 
+                                height: `${Math.max(3, Math.min(18, strokeWidth * 1.5))}px` 
+                              }}
+                            />
+                          ) : activeTool === 'eraser' ? (
+                            <div 
+                              className="rounded-full border-2 border-dashed border-zinc-600 bg-zinc-200/50"
+                              style={{ 
+                                width: `${Math.max(6, Math.min(28, strokeWidth * 1.6))}px`,
+                                height: `${Math.max(6, Math.min(28, strokeWidth * 1.6))}px` 
+                              }}
+                            />
+                          ) : (
+                            <div 
+                              className="rounded-full"
+                              style={{ 
+                                backgroundColor: activeColor,
+                                width: `${Math.max(2, Math.min(26, strokeWidth * 1.2))}px`,
+                                height: `${Math.max(2, Math.min(26, strokeWidth * 1.2))}px` 
+                              }}
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Continuous 1% - 100% Slider with Fine Stepper Buttons */}
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => adjustCurrentToolSize(-1)}
+                            className="w-7 h-7 rounded-lg bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-xs font-bold text-zinc-300 flex items-center justify-center transition-all"
+                            title="Fine step -1%"
+                          >
+                            -1
+                          </button>
+                          <input
+                            type="range"
+                            min="1"
+                            max="100"
+                            step="1"
+                            value={currentToolSize}
+                            onChange={(e) => updateCurrentToolSize(Number(e.target.value))}
+                            className="flex-1 accent-amber-500 cursor-pointer h-2 bg-zinc-800 rounded-lg appearance-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => adjustCurrentToolSize(1)}
+                            className="w-7 h-7 rounded-lg bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-xs font-bold text-zinc-300 flex items-center justify-center transition-all"
+                            title="Fine step +1%"
+                          >
+                            +1
+                          </button>
+                        </div>
+                        <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
+                          <span>1% (Fine)</span>
+                          <span>50%</span>
+                          <span>100% (Max)</span>
+                        </div>
+                      </div>
+
+                      {/* Quick Presets */}
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">Quick Presets</span>
+                        <div className="grid grid-cols-6 gap-1">
+                          {[
+                            { label: '5%', val: 5 },
+                            { label: '15%', val: 15 },
+                            { label: '30%', val: 30 },
+                            { label: '50%', val: 50 },
+                            { label: '75%', val: 75 },
+                            { label: '100%', val: 100 },
+                          ].map((preset) => (
+                            <button
+                              key={preset.val}
+                              type="button"
+                              onClick={() => updateCurrentToolSize(preset.val)}
+                              className={`py-1 rounded-lg text-[10px] font-mono font-bold transition-all text-center ${
+                                currentToolSize === preset.val
+                                  ? 'bg-amber-500 text-zinc-950 font-black shadow'
+                                  : 'bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-white'
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Independent Memory Tip */}
+                      <p className="text-[10px] text-zinc-400 bg-zinc-950/60 p-2 rounded-xl border border-zinc-800/80 leading-relaxed">
+                        🔒 <strong className="text-zinc-200 capitalize">{activeTool}</strong> maintains this size independently. Switching to eraser or other tools will not affect it.
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -1658,6 +1919,9 @@ export const SketchCanvas: React.FC<SketchCanvasProps> = ({
       <div className="px-4 py-2 bg-zinc-950 border-t border-zinc-800 flex items-center justify-between text-[11px] text-zinc-500">
         <span className="flex items-center gap-1.5 flex-wrap">
           <span>✏️ Stylus & Touch Enabled</span>
+          <span className="text-zinc-400 font-medium">
+            • Size: <strong className="text-amber-300 font-mono">{currentToolSize}%</strong>
+          </span>
           {activeTool === 'pen' && (
             <span className={`font-medium ${smoothness === 100 ? 'text-emerald-400 font-bold' : 'text-zinc-400'}`}>
               • Smoothness: {smoothness}% {smoothness === 100 ? '(📐 Straight Line Mode Active)' : ''}
