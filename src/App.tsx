@@ -2305,7 +2305,7 @@ export default function App() {
                                       {/* Table Header */}
                                       <div 
                                         className="grid bg-zinc-50/80 dark:bg-zinc-900/80 border-b border-high-line dark:border-zinc-800 sticky top-0 z-10 backdrop-blur-md"
-                                        style={{ gridTemplateColumns: `${140 * zoom}px ${160 * zoom}px repeat(${sortedHabits.length}, ${160 * zoom}px) ${140 * zoom}px` }}
+                                        style={{ gridTemplateColumns: `${140 * zoom}px ${160 * zoom}px repeat(${sortedHabits.length}, ${Math.round(200 * zoom)}px) ${140 * zoom}px` }}
                                       >
                                         <div className="p-3 font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 flex items-center gap-2 border-r border-high-line dark:border-zinc-800" style={{ fontSize: `${10 * zoom}px` }}>
                                           <Layout className="w-3 h-3" /> Day
@@ -2317,27 +2317,30 @@ export default function App() {
                                           <div 
                                             key={habit.id} 
                                             onClick={() => setEditingHabit({ ...habit, priority: index + 1 })}
-                                            className="p-3 group flex items-center justify-between border-r border-high-line dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/30 hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 cursor-pointer transition-colors"
-                                            title="Click to edit habit settings & priority"
+                                            className="relative p-2.5 group flex flex-col justify-center min-h-[50px] border-r border-high-line dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/30 hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 cursor-pointer transition-colors"
+                                            title={`Click to edit "${habit.name}"`}
                                           >
-                                            <div className="flex flex-col min-w-0 flex-1">
-                                              <div className="flex items-center gap-1.5 truncate">
-                                                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: habit.color }} />
-                                                {habit.type === 'time' && <AlarmClock className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
-                                                {habit.type === 'number' && <Hash className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
-                                                {habit.type === 'duration' && <Clock className="w-3.5 h-3.5 text-purple-500 shrink-0" />}
-                                                <span className="font-black uppercase tracking-widest truncate dark:text-zinc-200 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors" style={{ fontSize: `${10 * zoom}px` }}>
-                                                  {habit.name}
-                                                </span>
-                                              </div>
-                                              {habit.targetTime && (
-                                                <span className="text-[9px] font-mono text-zinc-400 mt-0.5 truncate pl-3.5">
-                                                  Target: {habit.targetTime}
-                                                </span>
-                                              )}
+                                            <div className="flex items-center gap-1.5 pr-7">
+                                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: habit.color }} />
+                                              {habit.type === 'time' && <AlarmClock className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                                              {habit.type === 'number' && <Hash className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
+                                              {habit.type === 'duration' && <Clock className="w-3.5 h-3.5 text-purple-500 shrink-0" />}
+                                              <span 
+                                                className="font-black uppercase tracking-wide text-zinc-900 dark:text-zinc-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors leading-tight break-words" 
+                                                style={{ fontSize: `${Math.max(9, Math.round(11 * zoom))}px` }}
+                                              >
+                                                {habit.name}
+                                              </span>
                                             </div>
 
-                                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1.5 shrink-0">
+                                            {habit.targetTime && (
+                                              <span className="text-[9px] font-mono text-zinc-400 dark:text-zinc-500 mt-0.5 truncate pl-3.5">
+                                                Target: {habit.targetTime}
+                                              </span>
+                                            )}
+
+                                            {/* Hover action buttons in corner */}
+                                            <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-white/95 dark:bg-zinc-800/95 shadow-xs border border-zinc-200/50 dark:border-zinc-700/50 rounded p-0.5 z-10">
                                               <button 
                                                 type="button"
                                                 onClick={(e) => { 
@@ -2378,7 +2381,7 @@ export default function App() {
                                             <div 
                                               key={dateStr} 
                                               className="grid divide-x-0 divide-high-line dark:divide-zinc-800 border-b border-high-line dark:border-zinc-800 hover:bg-zinc-50/10 dark:hover:bg-zinc-900/10 transition-colors group"
-                                              style={{ gridTemplateColumns: `${140 * zoom}px ${160 * zoom}px repeat(${sortedHabits.length}, ${160 * zoom}px) ${140 * zoom}px` }}
+                                              style={{ gridTemplateColumns: `${140 * zoom}px ${160 * zoom}px repeat(${sortedHabits.length}, ${Math.round(200 * zoom)}px) ${140 * zoom}px` }}
                                             >
                                               <div className={cn(
                                                 "p-3 font-bold tracking-tight border-r border-high-line dark:border-zinc-800",
