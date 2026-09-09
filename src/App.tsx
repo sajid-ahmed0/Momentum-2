@@ -121,20 +121,19 @@ export const getHabitColumnWidth = (habit: Habit, zoomScale: number = 1): number
   const targetTimeWidth = habit.targetTime ? (habit.targetTime.trim().length + 8) * 7 + 16 : 0;
 
   // Base chrome:
-  // - left & right cell padding: 20px (px-2.5)
+  // - left & right cell padding: 24px (px-3)
   // - color dot: 8px (w-2)
-  // - type icon: 14px (w-3.5)
-  // - gaps between dot, icon, and text: 12px
+  // - gap between dot and text: 6px
   // - safety breathing margin: 20px
-  const baseOverhead = 74;
+  const baseOverhead = 58;
 
   const contentWidth = Math.max(rawTextWidth, targetTimeWidth) + baseOverhead;
 
   // Adaptive sizing:
-  // Short habits (e.g. "PR", "GYM") start around 100px-115px
-  // Medium habits ("WAKE UP", "SCREEN TIME") around 140px-190px
+  // Short habits (e.g. "PR", "GYM") start around 90px-105px
+  // Medium habits ("WAKE UP", "SCREEN TIME") around 125px-170px
   // Long habits scale up to 300px
-  const finalWidth = Math.max(100, Math.min(300, Math.ceil(contentWidth)));
+  const finalWidth = Math.max(90, Math.min(300, Math.ceil(contentWidth)));
 
   return finalWidth;
 };
@@ -251,13 +250,6 @@ const HabitCell = ({
     >
       <div className={cn("w-full flex items-center justify-between gap-1", zoom < 0.7 ? "px-1" : "px-2")}>
         <div className="flex items-center gap-1 flex-1 min-w-0">
-          {habit.type === 'time' && (
-            <AlarmClock className={cn(
-              "shrink-0 transition-colors",
-              zoom < 0.7 ? "w-2.5 h-2.5" : "w-3 h-3",
-              isCompleted ? "text-amber-500" : "text-zinc-300 dark:text-zinc-600"
-            )} />
-          )}
           <input 
             type="text"
             placeholder={
@@ -2363,9 +2355,6 @@ export default function App() {
                                           >
                                             <div className="flex items-center gap-1.5 whitespace-nowrap flex-nowrap">
                                               <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: habit.color }} />
-                                              {habit.type === 'time' && <AlarmClock className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
-                                              {habit.type === 'number' && <Hash className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
-                                              {habit.type === 'duration' && <Clock className="w-3.5 h-3.5 text-purple-500 shrink-0" />}
                                               <span 
                                                 className="font-black uppercase tracking-tight text-zinc-900 dark:text-zinc-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors whitespace-nowrap leading-tight shrink-0 select-none" 
                                                 style={{ fontSize: `${Math.max(9, Math.round(10.5 * zoom))}px` }}
