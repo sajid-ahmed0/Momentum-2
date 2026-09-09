@@ -77,7 +77,11 @@ import {
   RefreshCw,
   Copy,
   Quote,
-  Layers
+  Layers,
+  AlarmClock,
+  Sunrise,
+  ListOrdered,
+  SlidersHorizontal
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail, loginAnonymously } from './firebase';
@@ -87,6 +91,7 @@ import { BreathingGuide } from './components/BreathingGuide';
 import { TimeBlockingGrid, COLOR_OPTIONS } from './components/TimeBlockingGrid';
 import { SketchCanvas } from './components/SketchCanvas';
 import { parseSketchPages } from './utils/sketchUtils';
+import { parseTimeInput, formatMinutesToTime, getCurrentTime } from './utils/timeHabitUtils';
 
 import { requestNotificationPermission, sendNotification, subscribeToPushNotifications } from './lib/notifications';
 
@@ -97,7 +102,7 @@ interface HabitCellProps {
   habit: Habit;
   log: HabitLog | undefined;
   onToggle: (id: string, d: Date) => void;
-  onUpdateValue: (id: string, d: Date, v: number, c: boolean) => void;
+  onUpdateValue: (id: string, d: Date, v: number, c: boolean, timeValue?: string) => void;
   formatDuration: (m: number) => string;
   parseDuration: (s: string) => number;
   date: Date;
@@ -125,9 +130,17 @@ const HabitCell = ({
         setLocalValue(log?.value?.toString() ?? '');
       } else if (habit.type === 'duration') {
         setLocalValue(log?.value ? formatDuration(log.value) : '');
+      } else if (habit.type === 'time') {
+        if (log?.timeValue) {
+          setLocalValue(log.timeValue);
+        } else if (log?.value !== undefined && log.value > 0) {
+          setLocalValue(formatMinutesToTime(log.value));
+        } else {
+          setLocalValue('');
+        }
       }
     }
-  }, [log?.value, habit.type, formatDuration, isFocused]);
+  }, [log?.value, log?.timeValue, habit.type, formatDuration, isFocused]);
 
   if (habit.type === 'checkbox') {
     return (
@@ -165,43 +178,108 @@ const HabitCell = ({
         if (val > 10) val = 10;
         onUpdateValue(habit.id, date, val, true);
       }
-    } else {
+    } else if (habit.type === 'duration') {
       const val = parseDuration(localValue);
       onUpdateValue(habit.id, date, val, val > 0);
+    } else if (habit.type === 'time') {
+      const trimmed = localValue.trim();
+      if (!trimmed) {
+        onUpdateValue(habit.id, date, 0, false, '');
+      } else {
+        const parsed = parseTimeInput(trimmed);
+        if (parsed) {
+          setLocalValue(parsed.formatted);
+          onUpdateValue(habit.id, date, parsed.minutes, true, parsed.formatted);
+        } else {
+          onUpdateValue(habit.id, date, 0, true, trimmed);
+        }
+      }
     }
   };
 
   const handleFocus = () => {
     setIsFocused(true);
-    // When focusing duration, maybe show the minutes raw? 
-    // Or just keep it as is. Let's keep it but select all.
   };
 
   return (
     <div 
       className={cn(
-        "p-0 flex items-center justify-start h-full border-r border-high-line dark:border-zinc-800 transition-all group",
+        "p-0 flex items-center justify-start h-full border-r border-high-line dark:border-zinc-800 transition-all group relative",
         isFocused ? "ring-2 ring-inset ring-high-accent bg-white dark:bg-zinc-900 z-10" : "hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50"
       )}
       style={{ minWidth: `${140 * zoom}px` }}
     >
-      <div className={cn("w-full flex items-baseline gap-1", zoom < 0.7 ? "px-1" : "px-3")}>
-        <input 
-          type="text"
-          placeholder={zoom < 0.8 ? '' : (habit.type === 'number' ? 'Add count...' : 'Add time...')}
-          className={cn(
-            "w-full bg-transparent font-mono font-bold focus:outline-none placeholder:text-zinc-200 dark:placeholder:text-zinc-800",
-            zoom < 0.7 ? "text-[8px] py-1" : "text-xs py-3",
-            isCompleted ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-600"
+      <div className={cn("w-full flex items-center justify-between gap-1", zoom < 0.7 ? "px-1" : "px-2.5")}>
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          {habit.type === 'time' && (
+            <AlarmClock className={cn(
+              "shrink-0 transition-colors",
+              zoom < 0.7 ? "w-2.5 h-2.5" : "w-3.5 h-3.5",
+              isCompleted ? "text-amber-500" : "text-zinc-300 dark:text-zinc-600"
+            )} />
           )}
-          value={localValue}
-          onFocus={handleFocus}
-          onChange={(e) => setLocalValue(e.target.value)}
-          onBlur={handleBlur}
-          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-        />
+          <input 
+            type="text"
+            placeholder={
+              zoom < 0.8 
+                ? '' 
+                : habit.type === 'number' 
+                ? 'Add count...' 
+                : habit.type === 'time' 
+                ? (habit.targetTime ? `e.g. ${habit.targetTime}` : '8:00 AM') 
+                : 'Add time...'
+            }
+            className={cn(
+              "w-full bg-transparent font-mono font-bold focus:outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-700",
+              zoom < 0.7 ? "text-[8px] py-1" : "text-xs py-2.5",
+              isCompleted ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-600"
+            )}
+            value={localValue}
+            onFocus={handleFocus}
+            onChange={(e) => setLocalValue(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          />
+        </div>
+
         {!isFocused && localValue && habit.type === 'number' && zoom > 0.6 && (
-          <span className="text-[10px] text-zinc-300 font-bold uppercase tracking-tighter">units</span>
+          <span className="text-[10px] text-zinc-300 font-bold uppercase tracking-tighter shrink-0">units</span>
+        )}
+
+        {/* Quick helpers for time habit */}
+        {habit.type === 'time' && (
+          <div className="flex items-center gap-1 shrink-0">
+            {isFocused ? (
+              <button
+                type="button"
+                tabIndex={-1}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const nowTime = getCurrentTime();
+                  setLocalValue(nowTime.formatted);
+                  onUpdateValue(habit.id, date, nowTime.minutes, true, nowTime.formatted);
+                  setIsFocused(false);
+                }}
+                className="px-1.5 py-0.5 text-[9px] font-mono font-bold rounded bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 hover:opacity-80"
+                title="Set to Current Time"
+              >
+                Now
+              </button>
+            ) : isCompleted && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLocalValue('');
+                  onUpdateValue(habit.id, date, 0, false, '');
+                }}
+                className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-red-500 rounded transition-opacity"
+                title="Clear time"
+              >
+                <X className="w-2.5 h-2.5" />
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -543,12 +621,22 @@ export default function App() {
     showBreather?: boolean;
   } | null>(null);
 
-  const [newHabit, setNewHabit] = useState({ 
+  const [newHabit, setNewHabit] = useState<{
+    name: string;
+    color: string;
+    frequency: 'daily' | 'weekdays' | 'weekends';
+    type: 'checkbox' | 'number' | 'duration' | 'time';
+    priority: number;
+    targetTime?: string;
+  }>({ 
     name: '', 
     color: '#18181b', 
-    frequency: 'daily' as const,
-    type: 'checkbox' as const
+    frequency: 'daily',
+    type: 'checkbox',
+    priority: 1,
+    targetTime: ''
   });
+  const [habitViewMode, setHabitViewMode] = useState<'grid' | 'priority_board'>('grid');
   const [expandedMonths, setExpandedMonths] = useState<string[]>([format(new Date(), 'MMMM yyyy')]);
   const [zoom, setZoom] = useState(1);
   const [quickPresets, setQuickPresets] = useState<QuickPreset[]>(() => { try { const saved = localStorage.getItem("schedule_quick_presets"); if (saved) return JSON.parse(saved); } catch (e) { console.error(e); } return DEFAULT_PRESETS; });
@@ -1315,6 +1403,15 @@ export default function App() {
     { id: 'journal', icon: BookOpen, label: 'Journal' },
   ];
 
+  const sortedHabits = useMemo(() => {
+    return [...habits].sort((a, b) => {
+      const prioA = typeof a.priority === 'number' ? a.priority : 999;
+      const prioB = typeof b.priority === 'number' ? b.priority : 999;
+      if (prioA !== prioB) return prioA - prioB;
+      return a.createdAt - b.createdAt;
+    });
+  }, [habits]);
+
   const handleAddHabit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newHabit.name) return;
@@ -1323,38 +1420,72 @@ export default function App() {
     setShowAddModal(false);
     const habitData = { ...newHabit };
     // Clear draft state
-    setNewHabit({ name: '', color: '#18181b', frequency: 'daily', type: 'checkbox' });
+    setNewHabit({ 
+      name: '', 
+      color: '#18181b', 
+      frequency: 'daily', 
+      type: 'checkbox',
+      priority: (habits.length + 1) || 1,
+      targetTime: ''
+    });
 
     try {
-      await addDoc(collection(db, 'habits'), {
-        ...habitData,
-        uid: user.uid,
+      const payload: Record<string, any> = {
+        name: habitData.name.trim(),
+        color: habitData.color,
+        frequency: habitData.frequency,
+        type: habitData.type,
+        priority: Number(habitData.priority) || 1,
         createdAt: Date.now(),
-      });
+        uid: user.uid,
+      };
+      if (habitData.targetTime && habitData.targetTime.trim()) {
+        payload.targetTime = habitData.targetTime.trim();
+      }
+      await addDoc(collection(db, 'habits'), payload);
     } catch (err) {
       console.error(err);
     }
   };
 
-  const updateHabitValue = async (habitId: string, date: Date, value: number, isCompleted: boolean) => {
+  const handleUpdateHabitPriority = async (habitId: string, priority: number) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'habits', habitId), { priority: Math.max(1, priority) });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const updateHabitValue = async (
+    habitId: string, 
+    date: Date, 
+    value: number, 
+    isCompleted: boolean, 
+    timeValue?: string
+  ) => {
     if (!user) return;
     const dateStr = format(date, 'yyyy-MM-dd');
     const logId = `${user.uid}_${habitId}_${dateStr}`;
 
     try {
-      if (!isCompleted && value === 0) {
-        // If it's a number/duration and we cleared it, delete log
+      if (!isCompleted && value === 0 && !timeValue) {
+        // If it's a number/duration/time and we cleared it, delete log
         const existing = logs.find(l => l.habitId === habitId && l.date === dateStr);
         if (existing) await deleteDoc(doc(db, 'habitLogs', existing.id));
       } else {
-        await setDoc(doc(db, 'habitLogs', logId), {
+        const payload: Record<string, any> = {
           habitId,
           date: dateStr,
           status: 'completed',
           value,
           uid: user.uid,
           timestamp: Date.now(),
-        });
+        };
+        if (timeValue !== undefined && timeValue !== null && timeValue !== '') {
+          payload.timeValue = timeValue;
+        }
+        await setDoc(doc(db, 'habitLogs', logId), payload);
       }
     } catch (err) {
       console.error(err);
@@ -1754,7 +1885,34 @@ export default function App() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
+                  className="flex items-center gap-2"
                 >
+                  <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 p-1 rounded-sm border border-zinc-200 dark:border-zinc-700">
+                    <button
+                      onClick={() => setHabitViewMode('grid')}
+                      className={cn(
+                        "px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm transition-all flex items-center gap-1.5",
+                        habitViewMode === 'grid'
+                          ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs"
+                          : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                      )}
+                      title="Grid Matrix View (Columns ordered by Priority)"
+                    >
+                      <Layout className="w-3 h-3" /> Grid View
+                    </button>
+                    <button
+                      onClick={() => setHabitViewMode('priority_board')}
+                      className={cn(
+                        "px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm transition-all flex items-center gap-1.5",
+                        habitViewMode === 'priority_board'
+                          ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs"
+                          : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                      )}
+                      title="Priority Columns Board (1st Col = Priority 1, 2nd Col = Priority 2)"
+                    >
+                      <ListOrdered className="w-3 h-3" /> Priority Columns
+                    </button>
+                  </div>
                   <Button onClick={() => setShowAddModal(true)} className="h-9 py-0 rounded px-4 text-xs tracking-tight font-bold">
                     <Plus className="w-4 h-4" /> Add Property
                   </Button>
@@ -2011,124 +2169,419 @@ export default function App() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="min-w-max p-10"
+                className="p-6 lg:p-10"
               >
-                {monthsOfYear.map((monthDate) => {
-                  const monthKey = format(monthDate, 'MMMM yyyy');
-                  const isExpanded = expandedMonths.includes(monthKey);
-                  const days = getDaysForMonth(monthDate);
-                  
-                  return (
-                    <div key={monthKey} className="mb-4">
-                      <button 
-                        onClick={() => toggleMonth(monthKey)}
-                        className="w-full flex items-center gap-3 py-4 px-2 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors group text-left border-b border-zinc-50 dark:border-zinc-800"
-                      >
-                        <ChevronDown className={cn("w-4 h-4 text-zinc-300 transition-transform duration-200", !isExpanded && "-rotate-90")} />
-                        <h3 className="text-lg font-black tracking-tighter uppercase dark:text-zinc-200">{monthKey}</h3>
-                        <span className="text-[10px] font-mono font-bold text-zinc-300 ml-2 uppercase tracking-widest dark:text-zinc-600">
-                          {days.length} ENTRIES
+                {habitViewMode === 'priority_board' ? (
+                  /* Priority Board View */
+                  <div className="space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-200 dark:border-zinc-800">
+                      <div>
+                        <h2 className="text-xl font-black uppercase tracking-tight dark:text-zinc-100 flex items-center gap-2.5">
+                          <ListOrdered className="w-5 h-5 text-amber-500" />
+                          Priority Columns Board
+                        </h2>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                          Habits organized into prioritized columns (1st Column = Priority 1, 2nd Column = Priority 2, etc.)
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-mono font-bold text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 rounded">
+                          Today: {format(startOfToday(), 'EEEE, MMM d')}
                         </span>
-                      </button>
+                      </div>
+                    </div>
 
-                      <AnimatePresence>
-                        {isExpanded && (
-                          <motion.div 
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="overflow-hidden"
+                    {/* Columns Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 items-start">
+                      {[
+                        { priority: 1, title: '1st Column', badge: 'High Priority / Core', color: 'border-amber-500/30 bg-amber-500/5' },
+                        { priority: 2, title: '2nd Column', badge: 'Medium Priority', color: 'border-blue-500/30 bg-blue-500/5' },
+                        { priority: 3, title: '3rd Column', badge: 'Secondary Focus', color: 'border-emerald-500/30 bg-emerald-500/5' },
+                        { priority: 4, title: '4th+ Column', badge: 'Standard Habits', color: 'border-purple-500/30 bg-purple-500/5' },
+                      ].map(col => {
+                        const colHabits = sortedHabits.filter(h => {
+                          const p = typeof h.priority === 'number' ? h.priority : 1;
+                          if (col.priority === 4) return p >= 4;
+                          return p === col.priority;
+                        });
+                        const todayStr = format(startOfToday(), 'yyyy-MM-dd');
+
+                        return (
+                          <div 
+                            key={col.priority}
+                            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 shadow-xs flex flex-col min-h-[420px]"
                           >
-                            <div className="mt-6 mb-8 border border-high-line dark:border-zinc-800 rounded-sm shadow-sm overflow-hidden">
-                              <div className="overflow-x-auto custom-scrollbar scroll-smooth">
-                                <div className="min-w-fit">
-                                  {/* Table Header */}
-                                  <div 
-                                    className="grid bg-zinc-50/80 dark:bg-zinc-900/80 border-b border-high-line dark:border-zinc-800 sticky top-0 z-10 backdrop-blur-md"
-                                    style={{ gridTemplateColumns: `${140 * zoom}px ${160 * zoom}px repeat(${habits.length}, ${140 * zoom}px) ${140 * zoom}px` }}
-                                  >
-                                    <div className="p-3 font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 flex items-center gap-2 border-r border-high-line dark:border-zinc-800" style={{ fontSize: `${10 * zoom}px` }}>
-                                      <Layout className="w-3 h-3" /> Day
-                                    </div>
-                                    <div className="p-3 font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 flex items-center gap-2 border-r border-high-line dark:border-zinc-800" style={{ fontSize: `${10 * zoom}px` }}>
-                                      <CalendarIcon className="w-3 h-3" /> Date
-                                    </div>
-                                    {habits.map(habit => (
-                                      <div key={habit.id} className="p-3 group flex items-center justify-between border-r border-high-line dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/30">
-                                        <div className="flex items-center gap-2 truncate">
-                                          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: habit.color }} />
-                                          <span className="font-black uppercase tracking-widest truncate dark:text-zinc-200" style={{ fontSize: `${10 * zoom}px` }}>{habit.name}</span>
-                                        </div>
-                                        {zoom > 0.7 && (
-                                          <button 
-                                            onClick={(e) => { e.stopPropagation(); handleDeleteHabit(habit.id, habit.name); }}
-                                            className="lg:opacity-0 lg:group-hover:opacity-100 opacity-100 transition-opacity p-1.5 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-sm"
-                                            title="Delete Property"
-                                          >
-                                            <X className="w-3.5 h-3.5 text-zinc-400 hover:text-red-500 transition-colors" />
-                                          </button>
-                                        )}
-                                      </div>
-                                    ))}
-                                    <div className="p-3 flex items-center justify-center font-bold text-zinc-300 dark:text-zinc-700 uppercase italic tracking-widest" style={{ fontSize: `${10 * zoom}px` }}>
-                                      End
-                                    </div>
-                                  </div>
-
-                                  {/* Table Rows */}
-                                  <div className="bg-white dark:bg-zinc-950">
-                                    {days.map((day) => {
-                                      const dateStr = format(day, 'yyyy-MM-dd');
-                                      const isToday = isSameDay(day, startOfToday());
-                                      
-                                      return (
-                                        <div 
-                                          key={dateStr} 
-                                          className="grid divide-x-0 divide-high-line dark:divide-zinc-800 border-b border-high-line dark:border-zinc-800 hover:bg-zinc-50/10 dark:hover:bg-zinc-900/10 transition-colors group"
-                                          style={{ gridTemplateColumns: `${140 * zoom}px ${160 * zoom}px repeat(${habits.length}, ${140 * zoom}px) ${140 * zoom}px` }}
-                                        >
-                                          <div className={cn(
-                                            "p-3 font-bold tracking-tight border-r border-high-line dark:border-zinc-800",
-                                            isToday ? "text-high-accent bg-high-accent/5 dark:bg-high-accent/10" : "text-zinc-600 dark:text-zinc-400"
-                                          )}
-                                          style={{ fontSize: `${12 * zoom}px` }}
-                                          >
-                                            {format(day, 'EEEE')}
-                                          </div>
-                                          <div className="p-3 font-medium text-zinc-400 dark:text-zinc-600 font-mono border-r border-high-line dark:border-zinc-800" style={{ fontSize: `${12 * zoom}px` }}>
-                                            {format(day, 'MMMM d, yyyy')}
-                                          </div>
-                                          {habits.map(habit => {
-                                            const log = logs.find(l => l.habitId === habit.id && l.date === dateStr);
-                                            
-                                            return (
-                                              <HabitCell 
-                                                key={`${habit.id}-${dateStr}`}
-                                                habit={habit}
-                                                log={log}
-                                                date={day}
-                                                zoom={zoom}
-                                                onToggle={toggleHabit}
-                                                onUpdateValue={updateHabitValue}
-                                                formatDuration={formatDurationValue}
-                                                parseDuration={parseDurationString}
-                                              />
-                                            );
-                                          })}
-                                          <div className="p-3"></div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
+                            <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-100 dark:border-zinc-800">
+                              <div className="flex items-center gap-2">
+                                <span className={cn(
+                                  "w-6 h-6 rounded-md font-mono text-xs font-black flex items-center justify-center text-white",
+                                  col.priority === 1 ? "bg-amber-500" : col.priority === 2 ? "bg-blue-500" : col.priority === 3 ? "bg-emerald-500" : "bg-purple-500"
+                                )}>
+                                  P{col.priority}
+                                </span>
+                                <div>
+                                  <h3 className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-zinc-100">{col.title}</h3>
+                                  <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">{col.badge}</span>
                                 </div>
                               </div>
+                              <span className="text-[10px] font-mono font-bold text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full">
+                                {colHabits.length}
+                              </span>
                             </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+
+                            {/* Habit Cards inside this column */}
+                            <div className="space-y-3 flex-1">
+                              {colHabits.length === 0 ? (
+                                <div className="h-32 flex flex-col items-center justify-center text-center p-4 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg">
+                                  <p className="text-[11px] font-medium text-zinc-400">No habits in {col.title}</p>
+                                  <button
+                                    onClick={() => {
+                                      setNewHabit(prev => ({ ...prev, priority: col.priority }));
+                                      setShowAddModal(true);
+                                    }}
+                                    className="mt-2 text-[10px] font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-300 hover:underline"
+                                  >
+                                    + Add to {col.title}
+                                  </button>
+                                </div>
+                              ) : (
+                                colHabits.map(habit => {
+                                  const todayLog = logs.find(l => l.habitId === habit.id && l.date === todayStr);
+                                  const streak = calculateStreak(habit.id);
+
+                                  return (
+                                    <div 
+                                      key={habit.id}
+                                      className="p-3.5 rounded-lg border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/60 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all group"
+                                    >
+                                      {/* Header */}
+                                      <div className="flex items-start justify-between gap-2 mb-2">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: habit.color }} />
+                                          <h4 className="text-xs font-black uppercase tracking-tight dark:text-zinc-100 truncate">{habit.name}</h4>
+                                        </div>
+                                        <button
+                                          onClick={() => handleDeleteHabit(habit.id, habit.name)}
+                                          className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-red-500 rounded transition-opacity"
+                                          title="Delete"
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </button>
+                                      </div>
+
+                                      {/* Type & Details */}
+                                      <div className="flex items-center gap-2 mb-3">
+                                        <span className="text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded bg-zinc-200/60 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 flex items-center gap-1">
+                                          {habit.type === 'time' && <AlarmClock className="w-2.5 h-2.5 text-amber-500" />}
+                                          {habit.type === 'checkbox' && <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500" />}
+                                          {habit.type === 'number' && <Hash className="w-2.5 h-2.5 text-blue-500" />}
+                                          {habit.type === 'duration' && <Clock className="w-2.5 h-2.5 text-purple-500" />}
+                                          {habit.type}
+                                        </span>
+                                        {habit.targetTime && (
+                                          <span className="text-[9px] font-mono font-bold text-amber-600 dark:text-amber-400">
+                                            Target: {habit.targetTime}
+                                          </span>
+                                        )}
+                                        {streak > 0 && (
+                                          <span className="text-[9px] font-mono font-bold text-orange-500 ml-auto flex items-center gap-0.5">
+                                            🔥 {streak}d
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Today Interaction */}
+                                      <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/80">
+                                        {habit.type === 'time' ? (
+                                          <div className="space-y-1.5">
+                                            <div className="flex items-center gap-1.5">
+                                              <input
+                                                type="text"
+                                                placeholder={habit.targetTime ? `e.g. ${habit.targetTime}` : '8:00 AM'}
+                                                defaultValue={todayLog?.timeValue || (todayLog?.value ? formatMinutesToTime(todayLog.value) : '')}
+                                                key={`${habit.id}-${todayLog?.timeValue || todayLog?.value || 'empty'}`}
+                                                onBlur={(e) => {
+                                                  const val = e.target.value.trim();
+                                                  if (!val) {
+                                                    updateHabitValue(habit.id, startOfToday(), 0, false, '');
+                                                  } else {
+                                                    const parsed = parseTimeInput(val);
+                                                    if (parsed) {
+                                                      e.target.value = parsed.formatted;
+                                                      updateHabitValue(habit.id, startOfToday(), parsed.minutes, true, parsed.formatted);
+                                                    } else {
+                                                      updateHabitValue(habit.id, startOfToday(), 0, true, val);
+                                                    }
+                                                  }
+                                                }}
+                                                onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                                                className="flex-1 px-2.5 py-1.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-xs font-bold dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                              />
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const now = getCurrentTime();
+                                                  updateHabitValue(habit.id, startOfToday(), now.minutes, true, now.formatted);
+                                                }}
+                                                className="px-2 py-1.5 text-[10px] font-mono font-bold rounded bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 hover:opacity-80"
+                                                title="Set current time"
+                                              >
+                                                Now
+                                              </button>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                              {['6:30 AM', '7:00 AM', '8:00 AM', '9:30 AM'].map(p => (
+                                                <button
+                                                  key={p}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const parsed = parseTimeInput(p);
+                                                    if (parsed) {
+                                                      updateHabitValue(habit.id, startOfToday(), parsed.minutes, true, parsed.formatted);
+                                                    }
+                                                  }}
+                                                  className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:bg-white dark:hover:bg-zinc-800"
+                                                >
+                                                  {p}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        ) : habit.type === 'checkbox' ? (
+                                          <button
+                                            onClick={() => toggleHabit(habit.id, startOfToday())}
+                                            className={cn(
+                                              "w-full py-1.5 rounded border font-bold text-xs flex items-center justify-center gap-1.5 transition-all",
+                                              todayLog?.status === 'completed'
+                                                ? "bg-emerald-500 border-emerald-500 text-white"
+                                                : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:border-zinc-400"
+                                            )}
+                                          >
+                                            <Check className="w-3.5 h-3.5" />
+                                            {todayLog?.status === 'completed' ? 'Completed Today' : 'Mark as Done Today'}
+                                          </button>
+                                        ) : (
+                                          <div className="flex items-center gap-2">
+                                            <input
+                                              type="text"
+                                              placeholder={habit.type === 'number' ? 'Add count...' : 'Add duration...'}
+                                              defaultValue={todayLog?.value?.toString() || ''}
+                                              key={`${habit.id}-${todayLog?.value || 'val'}`}
+                                              onBlur={(e) => {
+                                                const raw = e.target.value.trim();
+                                                if (habit.type === 'number') {
+                                                  const n = parseInt(raw);
+                                                  updateHabitValue(habit.id, startOfToday(), isNaN(n) ? 0 : n, !isNaN(n) && n > 0);
+                                                } else {
+                                                  const d = parseDurationString(raw);
+                                                  updateHabitValue(habit.id, startOfToday(), d, d > 0);
+                                                }
+                                              }}
+                                              className="w-full px-2.5 py-1.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-xs font-bold dark:text-zinc-100 focus:outline-none"
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Column Switcher */}
+                                      <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800/60 flex items-center justify-between text-[9px]">
+                                        <span className="text-zinc-400 font-medium">Move column:</span>
+                                        <div className="flex items-center gap-1">
+                                          {[1, 2, 3, 4].map(p => (
+                                            <button
+                                              key={p}
+                                              onClick={() => handleUpdateHabitPriority(habit.id, p)}
+                                              className={cn(
+                                                "w-5 h-5 rounded font-mono font-bold flex items-center justify-center transition-colors",
+                                                (habit.priority || 1) === p
+                                                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                                                  : "text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800"
+                                              )}
+                                              title={`Move to Column ${p}`}
+                                            >
+                                              {p}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+
+                            <button
+                              onClick={() => {
+                                setNewHabit(prev => ({ ...prev, priority: col.priority }));
+                                setShowAddModal(true);
+                              }}
+                              className="mt-3 py-2 w-full rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 text-[10px] font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors flex items-center justify-center gap-1.5"
+                            >
+                              <Plus className="w-3 h-3" /> Add Habit to Col {col.priority}
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  </div>
+                ) : (
+                  /* Matrix Grid View */
+                  <div className="min-w-max">
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Columns are ordered by Priority:</span>
+                        <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
+                          Priority 1 = 1st Column • Priority 2 = 2nd Column
+                        </span>
+                      </div>
+                    </div>
+                    {monthsOfYear.map((monthDate) => {
+                      const monthKey = format(monthDate, 'MMMM yyyy');
+                      const isExpanded = expandedMonths.includes(monthKey);
+                      const days = getDaysForMonth(monthDate);
+                      
+                      return (
+                        <div key={monthKey} className="mb-4">
+                          <button 
+                            onClick={() => toggleMonth(monthKey)}
+                            className="w-full flex items-center gap-3 py-4 px-2 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors group text-left border-b border-zinc-50 dark:border-zinc-800"
+                          >
+                            <ChevronDown className={cn("w-4 h-4 text-zinc-300 transition-transform duration-200", !isExpanded && "-rotate-90")} />
+                            <h3 className="text-lg font-black tracking-tighter uppercase dark:text-zinc-200">{monthKey}</h3>
+                            <span className="text-[10px] font-mono font-bold text-zinc-300 ml-2 uppercase tracking-widest dark:text-zinc-600">
+                              {days.length} ENTRIES
+                            </span>
+                          </button>
+
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div 
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="mt-6 mb-8 border border-high-line dark:border-zinc-800 rounded-sm shadow-sm overflow-hidden">
+                                  <div className="overflow-x-auto custom-scrollbar scroll-smooth">
+                                    <div className="min-w-fit">
+                                      {/* Table Header */}
+                                      <div 
+                                        className="grid bg-zinc-50/80 dark:bg-zinc-900/80 border-b border-high-line dark:border-zinc-800 sticky top-0 z-10 backdrop-blur-md"
+                                        style={{ gridTemplateColumns: `${140 * zoom}px ${160 * zoom}px repeat(${sortedHabits.length}, ${160 * zoom}px) ${140 * zoom}px` }}
+                                      >
+                                        <div className="p-3 font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 flex items-center gap-2 border-r border-high-line dark:border-zinc-800" style={{ fontSize: `${10 * zoom}px` }}>
+                                          <Layout className="w-3 h-3" /> Day
+                                        </div>
+                                        <div className="p-3 font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 flex items-center gap-2 border-r border-high-line dark:border-zinc-800" style={{ fontSize: `${10 * zoom}px` }}>
+                                          <CalendarIcon className="w-3 h-3" /> Date
+                                        </div>
+                                        {sortedHabits.map((habit, index) => (
+                                          <div key={habit.id} className="p-2.5 group flex flex-col justify-between border-r border-high-line dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/30">
+                                            <div className="flex items-center justify-between gap-1 mb-1">
+                                              {/* Column & Priority Tag */}
+                                              <div className="flex items-center gap-1">
+                                                <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-black uppercase bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                                                  Col {index + 1}
+                                                </span>
+                                                <select
+                                                  value={habit.priority || (index + 1)}
+                                                  onChange={(e) => handleUpdateHabitPriority(habit.id, Number(e.target.value))}
+                                                  className="text-[8px] font-mono font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 px-1 py-0.5 rounded border-0 focus:outline-none cursor-pointer"
+                                                  title="Change Priority to reorder columns"
+                                                >
+                                                  {[1, 2, 3, 4, 5].map(p => (
+                                                    <option key={p} value={p}>P{p}</option>
+                                                  ))}
+                                                </select>
+                                              </div>
+
+                                              {zoom > 0.7 && (
+                                                <button 
+                                                  onClick={(e) => { e.stopPropagation(); handleDeleteHabit(habit.id, habit.name); }}
+                                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-sm"
+                                                  title="Delete Property"
+                                                >
+                                                  <X className="w-3 h-3 text-zinc-400 hover:text-red-500 transition-colors" />
+                                                </button>
+                                              )}
+                                            </div>
+
+                                            <div className="flex items-center gap-1.5 truncate">
+                                              <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: habit.color }} />
+                                              {habit.type === 'time' && <AlarmClock className="w-3 h-3 text-amber-500 shrink-0" />}
+                                              {habit.type === 'number' && <Hash className="w-3 h-3 text-blue-500 shrink-0" />}
+                                              {habit.type === 'duration' && <Clock className="w-3 h-3 text-purple-500 shrink-0" />}
+                                              <span className="font-black uppercase tracking-widest truncate dark:text-zinc-200" style={{ fontSize: `${10 * zoom}px` }}>{habit.name}</span>
+                                            </div>
+
+                                            {habit.targetTime && (
+                                              <span className="text-[8px] font-mono text-zinc-400 mt-0.5 truncate">
+                                                Target: {habit.targetTime}
+                                              </span>
+                                            )}
+                                          </div>
+                                        ))}
+                                        <div className="p-3 flex items-center justify-center font-bold text-zinc-300 dark:text-zinc-700 uppercase italic tracking-widest" style={{ fontSize: `${10 * zoom}px` }}>
+                                          End
+                                        </div>
+                                      </div>
+
+                                      {/* Table Rows */}
+                                      <div className="bg-white dark:bg-zinc-950">
+                                        {days.map((day) => {
+                                          const dateStr = format(day, 'yyyy-MM-dd');
+                                          const isToday = isSameDay(day, startOfToday());
+                                          
+                                          return (
+                                            <div 
+                                              key={dateStr} 
+                                              className="grid divide-x-0 divide-high-line dark:divide-zinc-800 border-b border-high-line dark:border-zinc-800 hover:bg-zinc-50/10 dark:hover:bg-zinc-900/10 transition-colors group"
+                                              style={{ gridTemplateColumns: `${140 * zoom}px ${160 * zoom}px repeat(${sortedHabits.length}, ${160 * zoom}px) ${140 * zoom}px` }}
+                                            >
+                                              <div className={cn(
+                                                "p-3 font-bold tracking-tight border-r border-high-line dark:border-zinc-800",
+                                                isToday ? "text-high-accent bg-high-accent/5 dark:bg-high-accent/10" : "text-zinc-600 dark:text-zinc-400"
+                                              )}
+                                              style={{ fontSize: `${12 * zoom}px` }}
+                                              >
+                                                {format(day, 'EEEE')}
+                                              </div>
+                                              <div className="p-3 font-medium text-zinc-400 dark:text-zinc-600 font-mono border-r border-high-line dark:border-zinc-800" style={{ fontSize: `${12 * zoom}px` }}>
+                                                {format(day, 'MMMM d, yyyy')}
+                                              </div>
+                                              {sortedHabits.map(habit => {
+                                                const log = logs.find(l => l.habitId === habit.id && l.date === dateStr);
+                                                
+                                                return (
+                                                  <HabitCell 
+                                                    key={`${habit.id}-${dateStr}`}
+                                                    habit={habit}
+                                                    log={log}
+                                                    date={day}
+                                                    zoom={zoom}
+                                                    onToggle={toggleHabit}
+                                                    onUpdateValue={updateHabitValue}
+                                                    formatDuration={formatDurationValue}
+                                                    parseDuration={parseDurationString}
+                                                  />
+                                                );
+                                              })}
+                                              <div className="p-3"></div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </motion.div>
             ) : activeTab === 'tasks' ? (() => {
               const todayStr = format(startOfToday(), 'yyyy-MM-dd');
@@ -3684,28 +4137,101 @@ export default function App() {
             <div className="grid grid-cols-1 gap-8">
                <div>
                 <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Property Type</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
-                    { id: 'checkbox', label: 'Checkbox', icon: CheckCircle2 },
-                    { id: 'number', label: 'Count', icon: Hash },
-                    { id: 'duration', label: 'Timer', icon: Clock },
+                    { id: 'checkbox', label: 'Checkbox', icon: CheckCircle2, desc: 'Done / Not Done' },
+                    { id: 'time', label: 'Time', icon: AlarmClock, desc: 'Wake up, Bedtime, etc.' },
+                    { id: 'number', label: 'Count', icon: Hash, desc: 'Reps, Units, Pages' },
+                    { id: 'duration', label: 'Timer', icon: Clock, desc: 'Minutes / Hours' },
                   ].map((t) => (
                     <button
                       key={t.id}
                       type="button"
                       onClick={() => setNewHabit({ ...newHabit, type: t.id as any })}
                       className={cn(
-                        "flex flex-col items-center justify-center p-3 rounded-sm border transition-all gap-2",
+                        "flex flex-col items-center justify-center p-3 rounded-sm border transition-all gap-1.5 text-center",
                         newHabit.type === t.id 
                           ? "bg-zinc-900 border-zinc-900 text-white shadow-md dark:bg-zinc-100 dark:border-zinc-100 dark:text-zinc-900" 
-                          : "bg-white border-zinc-200 text-zinc-400 hover:border-zinc-400 dark:bg-zinc-900/50 dark:border-zinc-800 dark:text-zinc-600 dark:hover:border-zinc-700"
+                          : "bg-white border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:bg-zinc-900/50 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700"
                       )}
                     >
-                      <t.icon className="w-4 h-4" />
+                      <t.icon className={cn("w-4 h-4", newHabit.type === t.id && t.id === 'time' ? "text-amber-400" : "")} />
                       <span className="text-[10px] font-bold uppercase tracking-widest">{t.label}</span>
+                      <span className={cn("text-[8px] leading-tight opacity-70 line-clamp-1", newHabit.type === t.id ? "text-white/80 dark:text-zinc-800" : "text-zinc-400")}>{t.desc}</span>
                     </button>
                   ))}
                 </div>
+
+                {newHabit.type === 'time' && (
+                  <div className="mt-4 p-3.5 bg-amber-500/5 border border-amber-500/20 rounded-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-[10px] font-bold uppercase text-amber-700 dark:text-amber-400 tracking-wider flex items-center gap-1.5">
+                        <AlarmClock className="w-3.5 h-3.5" />
+                        Target Time (Optional)
+                      </label>
+                      <span className="text-[10px] font-mono text-zinc-400">e.g. Daily wake-up</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="e.g. 8:00 AM or 9:30 AM"
+                        value={newHabit.targetTime || ''}
+                        onChange={e => setNewHabit({ ...newHabit, targetTime: e.target.value })}
+                        className="flex-1 px-3 py-2 rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-mono text-xs font-bold dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                      <div className="flex items-center gap-1">
+                        {['6:30 AM', '7:00 AM', '8:00 AM', '9:30 AM'].map(preset => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => setNewHabit({ ...newHabit, targetTime: preset })}
+                            className="px-2 py-1.5 text-[10px] font-mono font-bold rounded border border-zinc-200 dark:border-zinc-800 hover:bg-white dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1.5">
+                      Input times like "8.00 am" or "9:30 am" directly in the habit tracker cells each day.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Priority / Column Position */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em]">
+                    Priority / Column Position
+                  </label>
+                  <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400">
+                    {newHabit.priority === 1 ? '1st Column (Highest Priority)' : newHabit.priority === 2 ? '2nd Column' : newHabit.priority === 3 ? '3rd Column' : `Column ${newHabit.priority}`}
+                  </span>
+                </div>
+                <div className="grid grid-cols-5 gap-2">
+                  {[1, 2, 3, 4, 5].map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setNewHabit({ ...newHabit, priority: p })}
+                      className={cn(
+                        "flex flex-col items-center justify-center py-2.5 px-2 rounded-sm border transition-all",
+                        newHabit.priority === p 
+                          ? "bg-zinc-900 border-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:border-zinc-100 dark:text-zinc-900 scale-102" 
+                          : "bg-white border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:bg-zinc-900/50 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700"
+                      )}
+                    >
+                      <span className="text-xs font-mono font-black">P{p}</span>
+                      <span className="text-[9px] uppercase tracking-tight opacity-75">
+                        {p === 1 ? '1st Col' : p === 2 ? '2nd Col' : p === 3 ? '3rd Col' : `${p}th Col`}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-2">
+                  Habits are ordered by priority: setting Priority 1 shows this habit in the 1st column, Priority 2 in the 2nd column, etc.
+                </p>
               </div>
             </div>
             

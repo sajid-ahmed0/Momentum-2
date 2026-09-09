@@ -18,8 +18,10 @@ export interface Habit {
   name: string;
   description?: string;
   color: string;
-  type: 'checkbox' | 'number' | 'duration';
+  type: 'checkbox' | 'number' | 'duration' | 'time';
   frequency: 'daily' | 'weekdays' | 'weekends';
+  priority?: number; // 1 = 1st column, 2 = 2nd column, etc.
+  targetTime?: string; // e.g. "8:00 AM"
   createdAt: number;
   uid: string;
 }
@@ -29,7 +31,8 @@ export interface HabitLog {
   habitId: string;
   date: string; // YYYY-MM-DD
   status: 'completed' | 'skipped' | 'partial';
-  value?: number; // Stores count or total minutes
+  value?: number; // Stores count, total minutes, or minutes from midnight for time
+  timeValue?: string; // Formatted logged time e.g. "8:00 AM" or "09:30 AM"
   uid: string;
   timestamp: number;
 }

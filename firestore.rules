@@ -44,8 +44,10 @@ service cloud.firestore {
       return data.keys().hasAll(['name', 'color', 'type', 'frequency', 'createdAt', 'uid']) &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.color is string && data.color.size() <= 20 &&
-             data.type in ['checkbox', 'number', 'duration'] &&
+             data.type in ['checkbox', 'number', 'duration', 'time'] &&
              data.frequency in ['daily', 'weekdays', 'weekends'] &&
+             (!('priority' in data) || (data.priority is number && data.priority >= 1 && data.priority <= 100)) &&
+             (!('targetTime' in data) || (data.targetTime is string && data.targetTime.size() <= 50)) &&
              data.uid == request.auth.uid;
     }
 
@@ -54,6 +56,8 @@ service cloud.firestore {
              data.habitId is string &&
              data.date is string && data.date.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
              data.status in ['completed', 'skipped', 'partial'] &&
+             (!('timeValue' in data) || (data.timeValue is string && data.timeValue.size() <= 50)) &&
+             (!('value' in data) || data.value is number) &&
              data.uid == request.auth.uid;
     }
 

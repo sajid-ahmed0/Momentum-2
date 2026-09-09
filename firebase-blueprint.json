@@ -22,8 +22,10 @@
         "name": { "type": "string" },
         "description": { "type": "string" },
         "color": { "type": "string" },
-        "type": { "type": "string", "enum": ["checkbox", "number", "duration"] },
+        "type": { "type": "string", "enum": ["checkbox", "number", "duration", "time"] },
         "frequency": { "type": "string", "enum": ["daily", "weekdays", "weekends"] },
+        "priority": { "type": "number", "description": "Display column priority order (1 = 1st column, 2 = 2nd column, etc.)" },
+        "targetTime": { "type": "string", "description": "Target time if applicable, e.g. 8:00 AM" },
         "createdAt": { "type": "number" },
         "uid": { "type": "string" }
       },
@@ -38,7 +40,8 @@
         "habitId": { "type": "string" },
         "date": { "type": "string", "format": "date" },
         "status": { "type": "string", "enum": ["completed", "skipped", "partial"] },
-        "value": { "type": "number", "description": "Numeric value for counts or durations (in minutes)" },
+        "value": { "type": "number", "description": "Numeric value for counts or durations (in minutes), or minutes from midnight for time" },
+        "timeValue": { "type": "string", "description": "Formatted logged time, e.g. 8:00 AM or 9:30 AM" },
         "uid": { "type": "string" },
         "timestamp": { "type": "number" }
       },
