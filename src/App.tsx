@@ -636,6 +636,7 @@ export default function App() {
     priority: 1,
     targetTime: ''
   });
+  const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [expandedMonths, setExpandedMonths] = useState<string[]>([format(new Date(), 'MMMM yyyy')]);
   const [zoom, setZoom] = useState(1);
   const [quickPresets, setQuickPresets] = useState<QuickPreset[]>(() => { try { const saved = localStorage.getItem("schedule_quick_presets"); if (saved) return JSON.parse(saved); } catch (e) { console.error(e); } return DEFAULT_PRESETS; });
@@ -1460,6 +1461,42 @@ export default function App() {
 
   const handleUpdateHabitPriority = handleReorderHabit;
 
+  const handleUpdateHabit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !editingHabit || !editingHabit.name.trim()) return;
+
+    const habitId = editingHabit.id;
+    const currentDoc = habits.find(h => h.id === habitId);
+    const oldPriority = currentDoc?.priority || (sortedHabits.findIndex(h => h.id === habitId) + 1);
+    const targetPriority = Math.max(1, Math.min(sortedHabits.length, Number(editingHabit.priority) || oldPriority));
+    const habitData = { ...editingHabit };
+
+    setEditingHabit(null);
+
+    try {
+      const payload: Record<string, any> = {
+        name: habitData.name.trim(),
+        color: habitData.color,
+        type: habitData.type,
+        frequency: habitData.frequency || 'daily',
+      };
+
+      if (habitData.type === 'time' && habitData.targetTime && habitData.targetTime.trim()) {
+        payload.targetTime = habitData.targetTime.trim();
+      } else {
+        payload.targetTime = '';
+      }
+
+      await updateDoc(doc(db, 'habits', habitId), payload);
+
+      if (targetPriority !== oldPriority) {
+        await handleReorderHabit(habitId, targetPriority);
+      }
+    } catch (err) {
+      console.error("Failed to update habit:", err);
+    }
+  };
+
   const handleAddHabit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newHabit.name.trim()) return;
@@ -2200,14 +2237,7 @@ export default function App() {
               >
                 {/* Matrix Grid View */}
                 <div className="min-w-max">
-                  <div className="mb-4 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Column Priority Order:</span>
-                      <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
-                        1st Column = P1 • 2nd Column = P2 (Strict 1-to-1 unique order, {sortedHabits.length} {sortedHabits.length === 1 ? 'priority' : 'priorities'})
-                      </span>
-                    </div>
-                  </div>
+                  
                     {monthsOfYear.map((monthDate) => {
                       const monthKey = format(monthDate, 'MMMM yyyy');
                       const isExpanded = expandedMonths.includes(monthKey);
@@ -2251,11 +2281,8 @@ export default function App() {
                                         {sortedHabits.map((habit, index) => (
                                           <div key={habit.id} className="p-2.5 group flex flex-col justify-between border-r border-high-line dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/30">
                                             <div className="flex items-center justify-between gap-1 mb-1">
-                                              {/* Column & Priority Tag */}
+                                              {/* Priority Selector */}
                                               <div className="flex items-center gap-1">
-                                                <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-black uppercase bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
-                                                  Col {index + 1}
-                                                </span>
                                                 <select
                                                   value={index + 1}
                                                   onChange={(e) => handleReorderHabit(habit.id, Number(e.target.value))}
@@ -2299,23 +2326,42 @@ export default function App() {
                                                 </div>
                                               </div>
 
-                                              {zoom > 0.7 && (
+                                              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button 
-                                                  onClick={(e) => { e.stopPropagation(); handleDeleteHabit(habit.id, habit.name); }}
-                                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-sm"
-                                                  title="Delete Property"
+                                                  type="button"
+                                                  onClick={(e) => { 
+                                                    e.stopPropagation(); 
+                                                    setEditingHabit({ ...habit, priority: index + 1 }); 
+                                                  }}
+                                                  className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-sm text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
+                                                  title="Edit Habit"
                                                 >
-                                                  <X className="w-3 h-3 text-zinc-400 hover:text-red-500 transition-colors" />
+                                                  <Pencil className="w-3 h-3" />
                                                 </button>
-                                              )}
+                                                <button 
+                                                  type="button"
+                                                  onClick={(e) => { 
+                                                    e.stopPropagation(); 
+                                                    handleDeleteHabit(habit.id, habit.name); 
+                                                  }}
+                                                  className="p-1 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-sm text-zinc-400 hover:text-red-500 transition-colors"
+                                                  title="Delete Habit"
+                                                >
+                                                  <X className="w-3 h-3" />
+                                                </button>
+                                              </div>
                                             </div>
 
-                                            <div className="flex items-center gap-1.5 truncate">
+                                            <div 
+                                              onClick={() => setEditingHabit({ ...habit, priority: index + 1 })}
+                                              className="flex items-center gap-1.5 truncate cursor-pointer hover:opacity-75 transition-opacity group/title"
+                                              title="Click to edit habit"
+                                            >
                                               <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: habit.color }} />
                                               {habit.type === 'time' && <AlarmClock className="w-3 h-3 text-amber-500 shrink-0" />}
                                               {habit.type === 'number' && <Hash className="w-3 h-3 text-blue-500 shrink-0" />}
                                               {habit.type === 'duration' && <Clock className="w-3 h-3 text-purple-500 shrink-0" />}
-                                              <span className="font-black uppercase tracking-widest truncate dark:text-zinc-200" style={{ fontSize: `${10 * zoom}px` }}>{habit.name}</span>
+                                              <span className="font-black uppercase tracking-widest truncate dark:text-zinc-200 group-hover/title:underline decoration-zinc-400" style={{ fontSize: `${10 * zoom}px` }}>{habit.name}</span>
                                             </div>
 
                                             {habit.targetTime && (
@@ -4123,6 +4169,202 @@ export default function App() {
             <div className="pt-6 flex gap-3 sticky bottom-0 bg-white dark:bg-zinc-950 pb-2">
               <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)} className="flex-1 text-xs dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 h-10">Cancel</Button>
               <Button type="submit" className="flex-[2] text-xs font-bold dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white h-10" disabled={!newHabit.name}>Create Property</Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {editingHabit && (
+        <Modal 
+          key="edit-habit-modal" 
+          isOpen={!!editingHabit} 
+          onClose={() => setEditingHabit(null)} 
+          title="Edit Habit"
+        >
+          <form onSubmit={handleUpdateHabit} className="space-y-8">
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Habit Name</label>
+              <input 
+                autoFocus
+                type="text"
+                placeholder="Morning Routine, etc."
+                className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 focus:border-zinc-900 dark:focus:border-zinc-100 transition-all font-bold tracking-tight text-sm dark:text-zinc-100"
+                value={editingHabit.name}
+                onChange={e => setEditingHabit({ ...editingHabit, name: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-8">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Property Type</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { id: 'checkbox', label: 'Checkbox', icon: CheckCircle2, desc: 'Done / Not Done' },
+                    { id: 'time', label: 'Time', icon: AlarmClock, desc: 'Wake up, Bedtime, etc.' },
+                    { id: 'number', label: 'Count', icon: Hash, desc: 'Reps, Units, Pages' },
+                    { id: 'duration', label: 'Timer', icon: Clock, desc: 'Minutes / Hours' },
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setEditingHabit({ ...editingHabit, type: t.id as any })}
+                      className={cn(
+                        "flex flex-col items-center justify-center p-3 rounded-sm border transition-all gap-1.5 text-center",
+                        editingHabit.type === t.id 
+                          ? "bg-zinc-900 border-zinc-900 text-white shadow-md dark:bg-zinc-100 dark:border-zinc-100 dark:text-zinc-900" 
+                          : "bg-white border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:bg-zinc-900/50 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700"
+                      )}
+                    >
+                      <t.icon className={cn("w-4 h-4", editingHabit.type === t.id && t.id === 'time' ? "text-amber-400" : "")} />
+                      <span className="text-[10px] font-bold uppercase tracking-widest">{t.label}</span>
+                      <span className={cn("text-[8px] leading-tight opacity-70 line-clamp-1", editingHabit.type === t.id ? "text-white/80 dark:text-zinc-800" : "text-zinc-400")}>{t.desc}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {editingHabit.type === 'time' && (
+                  <div className="mt-4 p-3.5 bg-amber-500/5 border border-amber-500/20 rounded-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-[10px] font-bold uppercase text-amber-700 dark:text-amber-400 tracking-wider flex items-center gap-1.5">
+                        <AlarmClock className="w-3.5 h-3.5" />
+                        Target Time (Optional)
+                      </label>
+                      <span className="text-[10px] font-mono text-zinc-400">e.g. Daily wake-up</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="e.g. 8:00 AM or 9:30 AM"
+                        value={editingHabit.targetTime || ''}
+                        onChange={e => setEditingHabit({ ...editingHabit, targetTime: e.target.value })}
+                        className="flex-1 px-3 py-2 rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-mono text-xs font-bold dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                      <div className="flex items-center gap-1">
+                        {['6:30 AM', '7:00 AM', '8:00 AM', '9:30 AM'].map(preset => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => setEditingHabit({ ...editingHabit, targetTime: preset })}
+                            className="px-2 py-1.5 text-[10px] font-mono font-bold rounded border border-zinc-200 dark:border-zinc-800 hover:bg-white dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1.5">
+                      Input times like "8.00 am" or "9:30 am" directly in the habit tracker cells each day.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Priority / Column Position */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em]">
+                    Priority / Column Position
+                  </label>
+                  <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400">
+                    Priority {editingHabit.priority || 1} • Column {editingHabit.priority || 1}
+                  </span>
+                </div>
+
+                <div className="space-y-2.5">
+                  <div className="flex flex-wrap gap-1.5">
+                    {Array.from({ length: Math.max(1, sortedHabits.length) }, (_, i) => i + 1).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setEditingHabit({ ...editingHabit, priority: p })}
+                        className={cn(
+                          "min-w-[56px] flex-1 py-2 px-2 rounded-sm border transition-all flex flex-col items-center justify-center",
+                          (editingHabit.priority || 1) === p 
+                            ? "bg-zinc-900 border-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:border-zinc-100 dark:text-zinc-900 font-bold" 
+                            : "bg-white border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:bg-zinc-900/50 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700"
+                        )}
+                      >
+                        <span className="text-xs font-mono font-black">P{p}</span>
+                        <span className="text-[8px] uppercase tracking-tight opacity-75 whitespace-nowrap">
+                          {p === 1 ? '1st Col' : p === 2 ? '2nd Col' : p === 3 ? '3rd Col' : `${p}th Col`}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-3 p-2.5 bg-zinc-50 dark:bg-zinc-900/40 rounded border border-zinc-200/80 dark:border-zinc-800 text-xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Custom Priority:</span>
+                    <div className="flex items-center gap-1.5 flex-1">
+                      <input 
+                        type="number"
+                        min={1}
+                        max={sortedHabits.length}
+                        value={editingHabit.priority || 1}
+                        onChange={(e) => {
+                          const val = Math.max(1, Math.min(sortedHabits.length, parseInt(e.target.value) || 1));
+                          setEditingHabit({ ...editingHabit, priority: val });
+                        }}
+                        className="w-20 px-2.5 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono font-bold text-xs dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                      <span className="text-[10px] text-zinc-400 font-mono">
+                        (Valid: 1 to {sortedHabits.length})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-8">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Frequency</label>
+                <select 
+                  className="w-full px-4 py-3 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs uppercase tracking-tight dark:text-zinc-200"
+                  value={editingHabit.frequency}
+                  onChange={e => setEditingHabit({ ...editingHabit, frequency: e.target.value as any })}
+                >
+                  <option value="daily" className="dark:bg-zinc-900">Daily</option>
+                  <option value="weekdays" className="dark:bg-zinc-900">Weekdays</option>
+                  <option value="weekends" className="dark:bg-zinc-900">Weekends</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Accent Color</label>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {['#18181b', '#2563eb', '#16a34a', '#dc2626', '#d97706', '#7c3aed', '#db2777'].map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      className={cn(
+                        'w-6 h-6 rounded-sm border transition-all active:scale-90',
+                        editingHabit.color === c ? 'border-zinc-900 ring-2 ring-zinc-100 ring-offset-1 dark:border-zinc-100 dark:ring-zinc-800' : 'border-transparent'
+                      )}
+                      style={{ backgroundColor: c }}
+                      onClick={() => setEditingHabit({ ...editingHabit, color: c })}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-6 flex items-center justify-between gap-3 sticky bottom-0 bg-white dark:bg-zinc-950 pb-2 border-t border-zinc-100 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={() => {
+                  const id = editingHabit.id;
+                  const name = editingHabit.name;
+                  setEditingHabit(null);
+                  handleDeleteHabit(id, name);
+                }}
+                className="px-3 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded transition-colors"
+              >
+                Delete Habit
+              </button>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="secondary" onClick={() => setEditingHabit(null)} className="text-xs dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 h-10">Cancel</Button>
+                <Button type="submit" className="text-xs font-bold dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white h-10 px-5" disabled={!editingHabit.name.trim()}>Save Changes</Button>
+              </div>
             </div>
           </form>
         </Modal>
