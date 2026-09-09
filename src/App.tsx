@@ -98,6 +98,27 @@ import { requestNotificationPermission, sendNotification, subscribeToPushNotific
 
 // --- Components ---
 
+// Calculate proportional, text-adapted column width for a habit
+export const getHabitColumnWidth = (habit: Habit, zoomScale: number = 1): number => {
+  const nameLen = habit.name?.trim().length || 0;
+  const targetLen = habit.targetTime ? habit.targetTime.trim().length + 8 : 0;
+  const maxChars = Math.max(nameLen, targetLen);
+
+  // Chrome includes dot (8px) + icon (14px) + inner spacing (10px) + cell padding (20px) + hover buttons (20px)
+  const baseChrome = 60;
+  // Font width for bold uppercase (approx 8.2px per character)
+  const charWidth = 8.2;
+  const estimatedTextWidth = Math.ceil(maxChars * charWidth);
+
+  // Dynamic adaptive sizing:
+  // Short habit (e.g. 3-6 chars like "Gym", "Water") -> ~100-115px
+  // Medium habit (e.g. 10-14 chars like "Screen Time", "Wake Up") -> ~120-165px
+  // Long habit (e.g. 18+ chars) -> up to 260px
+  const baseWidth = Math.max(100, Math.min(260, baseChrome + estimatedTextWidth));
+
+  return Math.round(baseWidth * zoomScale);
+};
+
 interface HabitCellProps {
   key?: React.Key;
   habit: Habit;
@@ -146,8 +167,7 @@ const HabitCell = ({
   if (habit.type === 'checkbox') {
     return (
       <div 
-        className="p-0 flex items-center justify-center h-full border-r border-high-line dark:border-zinc-800 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50 transition-colors"
-        style={{ minWidth: `${140 * zoom}px` }}
+        className="p-0 flex items-center justify-center h-full w-full border-r border-high-line dark:border-zinc-800 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50 transition-colors"
       >
         <button
           onClick={() => onToggle(habit.id, date)}
@@ -205,17 +225,16 @@ const HabitCell = ({
   return (
     <div 
       className={cn(
-        "p-0 flex items-center justify-start h-full border-r border-high-line dark:border-zinc-800 transition-all group relative",
+        "p-0 flex items-center justify-start h-full w-full min-w-0 border-r border-high-line dark:border-zinc-800 transition-all group relative",
         isFocused ? "ring-2 ring-inset ring-high-accent bg-white dark:bg-zinc-900 z-10" : "hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50"
       )}
-      style={{ minWidth: `${140 * zoom}px` }}
     >
-      <div className={cn("w-full flex items-center justify-between gap-1", zoom < 0.7 ? "px-1" : "px-2.5")}>
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+      <div className={cn("w-full flex items-center justify-between gap-1", zoom < 0.7 ? "px-1" : "px-2")}>
+        <div className="flex items-center gap-1 flex-1 min-w-0">
           {habit.type === 'time' && (
             <AlarmClock className={cn(
               "shrink-0 transition-colors",
-              zoom < 0.7 ? "w-2.5 h-2.5" : "w-3.5 h-3.5",
+              zoom < 0.7 ? "w-2.5 h-2.5" : "w-3 h-3",
               isCompleted ? "text-amber-500" : "text-zinc-300 dark:text-zinc-600"
             )} />
           )}
@@ -225,13 +244,13 @@ const HabitCell = ({
               zoom < 0.8 
                 ? '' 
                 : habit.type === 'number' 
-                ? 'Add count...' 
+                ? 'Count...' 
                 : habit.type === 'time' 
-                ? (habit.targetTime ? `e.g. ${habit.targetTime}` : '8:00 AM') 
-                : 'Add time...'
+                ? (habit.targetTime ? `${habit.targetTime}` : '8:00 AM') 
+                : 'Time...'
             }
             className={cn(
-              "w-full bg-transparent font-mono font-bold focus:outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-700",
+              "w-full bg-transparent font-mono font-bold focus:outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-700 min-w-0",
               zoom < 0.7 ? "text-[8px] py-1" : "text-xs py-2.5",
               isCompleted ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-600"
             )}
@@ -2277,6 +2296,8 @@ export default function App() {
                       const monthKey = format(monthDate, 'MMMM yyyy');
                       const isExpanded = expandedMonths.includes(monthKey);
                       const days = getDaysForMonth(monthDate);
+                      const habitCols = sortedHabits.map(h => `${getHabitColumnWidth(h, zoom)}px`).join(' ');
+                      const gridColsStyle = `${Math.round(140 * zoom)}px ${Math.round(160 * zoom)}px ${habitCols} ${Math.round(140 * zoom)}px`;
                       
                       return (
                         <div key={monthKey} className="mb-4">
@@ -2305,7 +2326,7 @@ export default function App() {
                                       {/* Table Header */}
                                       <div 
                                         className="grid bg-zinc-50/80 dark:bg-zinc-900/80 border-b border-high-line dark:border-zinc-800 sticky top-0 z-10 backdrop-blur-md"
-                                        style={{ gridTemplateColumns: `${140 * zoom}px ${160 * zoom}px repeat(${sortedHabits.length}, ${Math.round(200 * zoom)}px) ${140 * zoom}px` }}
+                                        style={{ gridTemplateColumns: gridColsStyle }}
                                       >
                                         <div className="p-3 font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 flex items-center gap-2 border-r border-high-line dark:border-zinc-800" style={{ fontSize: `${10 * zoom}px` }}>
                                           <Layout className="w-3 h-3" /> Day
@@ -2317,17 +2338,17 @@ export default function App() {
                                           <div 
                                             key={habit.id} 
                                             onClick={() => setEditingHabit({ ...habit, priority: index + 1 })}
-                                            className="relative p-2.5 group flex flex-col justify-center min-h-[50px] border-r border-high-line dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/30 hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 cursor-pointer transition-colors"
+                                            className="relative p-2.5 group flex flex-col justify-center min-h-[50px] border-r border-high-line dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/30 hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 cursor-pointer transition-colors overflow-hidden"
                                             title={`Click to edit "${habit.name}"`}
                                           >
-                                            <div className="flex items-center gap-1.5 pr-7">
+                                            <div className="flex items-center gap-1.5 pr-6 min-w-0">
                                               <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: habit.color }} />
                                               {habit.type === 'time' && <AlarmClock className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
                                               {habit.type === 'number' && <Hash className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
                                               {habit.type === 'duration' && <Clock className="w-3.5 h-3.5 text-purple-500 shrink-0" />}
                                               <span 
-                                                className="font-black uppercase tracking-wide text-zinc-900 dark:text-zinc-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors leading-tight break-words" 
-                                                style={{ fontSize: `${Math.max(9, Math.round(11 * zoom))}px` }}
+                                                className="font-black uppercase tracking-tight text-zinc-900 dark:text-zinc-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors whitespace-nowrap overflow-hidden text-ellipsis leading-tight" 
+                                                style={{ fontSize: `${Math.max(9, Math.round(10.5 * zoom))}px` }}
                                               >
                                                 {habit.name}
                                               </span>
@@ -2340,7 +2361,7 @@ export default function App() {
                                             )}
 
                                             {/* Hover action buttons in corner */}
-                                            <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-white/95 dark:bg-zinc-800/95 shadow-xs border border-zinc-200/50 dark:border-zinc-700/50 rounded p-0.5 z-10">
+                                            <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-white/95 dark:bg-zinc-800/95 shadow-xs border border-zinc-200/50 dark:border-zinc-700/50 rounded p-0.5 z-10">
                                               <button 
                                                 type="button"
                                                 onClick={(e) => { 
@@ -2381,7 +2402,7 @@ export default function App() {
                                             <div 
                                               key={dateStr} 
                                               className="grid divide-x-0 divide-high-line dark:divide-zinc-800 border-b border-high-line dark:border-zinc-800 hover:bg-zinc-50/10 dark:hover:bg-zinc-900/10 transition-colors group"
-                                              style={{ gridTemplateColumns: `${140 * zoom}px ${160 * zoom}px repeat(${sortedHabits.length}, ${Math.round(200 * zoom)}px) ${140 * zoom}px` }}
+                                              style={{ gridTemplateColumns: gridColsStyle }}
                                             >
                                               <div className={cn(
                                                 "p-3 font-bold tracking-tight border-r border-high-line dark:border-zinc-800",
