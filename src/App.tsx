@@ -98,25 +98,45 @@ import { requestNotificationPermission, sendNotification, subscribeToPushNotific
 
 // --- Components ---
 
-// Calculate proportional, text-adapted column width for a habit
+// Calculate proportional, text-adapted column width for a habit so full name ALWAYS shows without truncation
 export const getHabitColumnWidth = (habit: Habit, zoomScale: number = 1): number => {
-  const nameLen = habit.name?.trim().length || 0;
-  const targetLen = habit.targetTime ? habit.targetTime.trim().length + 8 : 0;
-  const maxChars = Math.max(nameLen, targetLen);
+  const name = habit.name ? habit.name.trim() : '';
+  const currentFontSize = Math.max(9, Math.round(10.5 * zoomScale));
+  
+  // Calculate text width accurately based on uppercase character metrics
+  let rawTextWidth = 0;
+  for (const char of name.toUpperCase()) {
+    if ('MW@#%'.includes(char)) {
+      rawTextWidth += currentFontSize * 1.05;
+    } else if ('I!|:;,. \''.includes(char)) {
+      rawTextWidth += currentFontSize * 0.45;
+    } else if ('JLFT1'.includes(char)) {
+      rawTextWidth += currentFontSize * 0.75;
+    } else {
+      rawTextWidth += currentFontSize * 0.9;
+    }
+  }
 
-  // Chrome includes dot (8px) + icon (14px) + inner spacing (10px) + cell padding (20px) + hover buttons (20px)
-  const baseChrome = 60;
-  // Font width for bold uppercase (approx 8.2px per character)
-  const charWidth = 8.2;
-  const estimatedTextWidth = Math.ceil(maxChars * charWidth);
+  // Target time width if present (e.g., "Target: 8:00 AM")
+  const targetTimeWidth = habit.targetTime ? (habit.targetTime.trim().length + 8) * 7 + 16 : 0;
 
-  // Dynamic adaptive sizing:
-  // Short habit (e.g. 3-6 chars like "Gym", "Water") -> ~100-115px
-  // Medium habit (e.g. 10-14 chars like "Screen Time", "Wake Up") -> ~120-165px
-  // Long habit (e.g. 18+ chars) -> up to 260px
-  const baseWidth = Math.max(100, Math.min(260, baseChrome + estimatedTextWidth));
+  // Base chrome:
+  // - left & right cell padding: 20px (px-2.5)
+  // - color dot: 8px (w-2)
+  // - type icon: 14px (w-3.5)
+  // - gaps between dot, icon, and text: 12px
+  // - safety breathing margin: 20px
+  const baseOverhead = 74;
 
-  return Math.round(baseWidth * zoomScale);
+  const contentWidth = Math.max(rawTextWidth, targetTimeWidth) + baseOverhead;
+
+  // Adaptive sizing:
+  // Short habits (e.g. "PR", "GYM") start around 100px-115px
+  // Medium habits ("WAKE UP", "SCREEN TIME") around 140px-190px
+  // Long habits scale up to 300px
+  const finalWidth = Math.max(100, Math.min(300, Math.ceil(contentWidth)));
+
+  return finalWidth;
 };
 
 interface HabitCellProps {
@@ -2338,16 +2358,16 @@ export default function App() {
                                           <div 
                                             key={habit.id} 
                                             onClick={() => setEditingHabit({ ...habit, priority: index + 1 })}
-                                            className="relative p-2.5 group flex flex-col justify-center min-h-[50px] border-r border-high-line dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/30 hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 cursor-pointer transition-colors overflow-hidden"
+                                            className="relative px-3 py-2 group flex flex-col justify-center min-h-[50px] border-r border-high-line dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/30 hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 cursor-pointer transition-colors"
                                             title={`Click to edit "${habit.name}"`}
                                           >
-                                            <div className="flex items-center gap-1.5 pr-6 min-w-0">
+                                            <div className="flex items-center gap-1.5 whitespace-nowrap flex-nowrap">
                                               <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: habit.color }} />
                                               {habit.type === 'time' && <AlarmClock className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
                                               {habit.type === 'number' && <Hash className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
                                               {habit.type === 'duration' && <Clock className="w-3.5 h-3.5 text-purple-500 shrink-0" />}
                                               <span 
-                                                className="font-black uppercase tracking-tight text-zinc-900 dark:text-zinc-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors whitespace-nowrap overflow-hidden text-ellipsis leading-tight" 
+                                                className="font-black uppercase tracking-tight text-zinc-900 dark:text-zinc-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors whitespace-nowrap leading-tight shrink-0 select-none" 
                                                 style={{ fontSize: `${Math.max(9, Math.round(10.5 * zoom))}px` }}
                                               >
                                                 {habit.name}
@@ -2355,7 +2375,7 @@ export default function App() {
                                             </div>
 
                                             {habit.targetTime && (
-                                              <span className="text-[9px] font-mono text-zinc-400 dark:text-zinc-500 mt-0.5 truncate pl-3.5">
+                                              <span className="text-[9px] font-mono text-zinc-400 dark:text-zinc-500 mt-0.5 whitespace-nowrap pl-3.5 shrink-0">
                                                 Target: {habit.targetTime}
                                               </span>
                                             )}
