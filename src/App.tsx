@@ -224,6 +224,7 @@ const HabitCell = ({
     } else if (habit.type === 'time') {
       const trimmed = localValue.trim();
       if (!trimmed) {
+        setLocalValue('');
         onUpdateValue(habit.id, date, 0, false, '');
       } else {
         const parsed = parseTimeInput(trimmed);
@@ -239,6 +240,39 @@ const HabitCell = ({
 
   const handleFocus = () => {
     setIsFocused(true);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      (e.target as HTMLInputElement).blur();
+      return;
+    }
+
+    // Allow navigation and modification control keys
+    if (
+      e.key === 'Backspace' ||
+      e.key === 'Tab' ||
+      e.key === 'Delete' ||
+      e.key === 'ArrowLeft' ||
+      e.key === 'ArrowRight' ||
+      e.key === 'Home' ||
+      e.key === 'End' ||
+      e.ctrlKey ||
+      e.metaKey
+    ) {
+      return;
+    }
+
+    if (habit.type === 'time') {
+      // Only allow numbers, space, colon, dot, and a, p, m
+      if (!/^[0-9\s:apmAPM.]$/.test(e.key)) {
+        e.preventDefault();
+      }
+    } else if (habit.type === 'number') {
+      if (!/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+      }
+    }
   };
 
   return (
@@ -258,7 +292,7 @@ const HabitCell = ({
                 : habit.type === 'number' 
                 ? 'Count...' 
                 : habit.type === 'time' 
-                ? (habit.targetTime ? `${habit.targetTime}` : '8:00 AM') 
+                ? (habit.targetTime ? `${habit.targetTime}` : '10 24 am') 
                 : 'Time...'
             }
             className={cn(
@@ -268,9 +302,17 @@ const HabitCell = ({
             )}
             value={localValue}
             onFocus={handleFocus}
-            onChange={(e) => setLocalValue(e.target.value)}
+            onChange={(e) => {
+              if (habit.type === 'time') {
+                setLocalValue(e.target.value.replace(/[^0-9\s:apmAPM.]/g, ''));
+              } else if (habit.type === 'number') {
+                setLocalValue(e.target.value.replace(/[^0-9]/g, ''));
+              } else {
+                setLocalValue(e.target.value);
+              }
+            }}
             onBlur={handleBlur}
-            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            onKeyDown={handleKeyDown}
           />
         </div>
 
@@ -4048,9 +4090,30 @@ export default function App() {
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
-                        placeholder="e.g. 8:00 AM or 9:30 AM"
+                        placeholder="e.g. 10 24 am or 8:00 AM"
                         value={newHabit.targetTime || ''}
-                        onChange={e => setNewHabit({ ...newHabit, targetTime: e.target.value })}
+                        onChange={e => setNewHabit({ ...newHabit, targetTime: e.target.value.replace(/[^0-9\s:apmAPM.]/g, '') })}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            if (newHabit.targetTime) {
+                              const parsed = parseTimeInput(newHabit.targetTime);
+                              if (parsed) setNewHabit(prev => ({ ...prev, targetTime: parsed.formatted }));
+                            }
+                          } else if (
+                            !/^[0-9\s:apmAPM.]$/.test(e.key) &&
+                            !['Backspace', 'Tab', 'Delete', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key) &&
+                            !e.ctrlKey &&
+                            !e.metaKey
+                          ) {
+                            e.preventDefault();
+                          }
+                        }}
+                        onBlur={() => {
+                          if (newHabit.targetTime) {
+                            const parsed = parseTimeInput(newHabit.targetTime);
+                            if (parsed) setNewHabit(prev => ({ ...prev, targetTime: parsed.formatted }));
+                          }
+                        }}
                         className="flex-1 px-3 py-2 rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-mono text-xs font-bold dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
                       />
                       <div className="flex items-center gap-1">
@@ -4259,9 +4322,30 @@ export default function App() {
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
-                        placeholder="e.g. 8:00 AM or 9:30 AM"
+                        placeholder="e.g. 10 24 am or 8:00 AM"
                         value={editingHabit.targetTime || ''}
-                        onChange={e => setEditingHabit({ ...editingHabit, targetTime: e.target.value })}
+                        onChange={e => setEditingHabit({ ...editingHabit, targetTime: e.target.value.replace(/[^0-9\s:apmAPM.]/g, '') })}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            if (editingHabit.targetTime) {
+                              const parsed = parseTimeInput(editingHabit.targetTime);
+                              if (parsed) setEditingHabit(prev => ({ ...prev, targetTime: parsed.formatted }));
+                            }
+                          } else if (
+                            !/^[0-9\s:apmAPM.]$/.test(e.key) &&
+                            !['Backspace', 'Tab', 'Delete', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key) &&
+                            !e.ctrlKey &&
+                            !e.metaKey
+                          ) {
+                            e.preventDefault();
+                          }
+                        }}
+                        onBlur={() => {
+                          if (editingHabit.targetTime) {
+                            const parsed = parseTimeInput(editingHabit.targetTime);
+                            if (parsed) setEditingHabit(prev => ({ ...prev, targetTime: parsed.formatted }));
+                          }
+                        }}
                         className="flex-1 px-3 py-2 rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 font-mono text-xs font-bold dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
                       />
                       <div className="flex items-center gap-1">
