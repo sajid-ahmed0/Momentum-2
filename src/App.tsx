@@ -13,7 +13,8 @@ import {
   serverTimestamp,
   orderBy,
   limit,
-  deleteField
+  deleteField,
+  writeBatch
 } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { 
@@ -1412,23 +1413,20 @@ export default function App() {
     });
   }, [habits]);
 
-  // Auto-normalize priorities so no two habits ever share the same priority (ensures strict 1, 2, ..., N)
+  // Initialize priorities only for legacy habits that do not have a numeric priority
   useEffect(() => {
-    if (!user || sortedHabits.length === 0) return;
-    const updates: { id: string; priority: number }[] = [];
-    sortedHabits.forEach((habit, idx) => {
-      const expectedPrio = idx + 1;
-      if (habit.priority !== expectedPrio) {
-        updates.push({ id: habit.id, priority: expectedPrio });
-      }
-    });
-
-    if (updates.length > 0) {
-      Promise.all(
-        updates.map(u => updateDoc(doc(db, 'habits', u.id), { priority: u.priority }))
-      ).catch(err => console.error("Auto-normalizing habit priorities:", err));
+    if (!user || habits.length === 0) return;
+    const unassigned = habits.filter(h => typeof h.priority !== 'number');
+    if (unassigned.length > 0) {
+      const batch = writeBatch(db);
+      sortedHabits.forEach((h, idx) => {
+        if (typeof h.priority !== 'number') {
+          batch.update(doc(db, 'habits', h.id), { priority: idx + 1 });
+        }
+      });
+      batch.commit().catch(err => console.error("Initializing unassigned habit priorities:", err));
     }
-  }, [user, sortedHabits]);
+  }, [user, habits]);
 
   const handleReorderHabit = async (habitId: string, newPriority: number) => {
     if (!user || sortedHabits.length === 0) return;
@@ -1443,17 +1441,23 @@ export default function App() {
     const [moved] = reordered.splice(currentIndex, 1);
     reordered.splice(targetIndex, 0, moved);
 
-    // Save strictly sequential priorities 1..N to Firestore
+    // Optimistically update React state immediately
+    setHabits(prev => prev.map(h => {
+      const newIdx = reordered.findIndex(r => r.id === h.id);
+      const newP = newIdx !== -1 ? newIdx + 1 : (h.priority || 1);
+      return { ...h, priority: newP };
+    }));
+
+    // Atomically commit all priority changes together
     try {
-      await Promise.all(
-        reordered.map((h, idx) => {
-          const expectedPriority = idx + 1;
-          if (h.priority !== expectedPriority) {
-            return updateDoc(doc(db, 'habits', h.id), { priority: expectedPriority });
-          }
-          return Promise.resolve();
-        })
-      );
+      const batch = writeBatch(db);
+      reordered.forEach((h, idx) => {
+        const expectedPriority = idx + 1;
+        if (h.priority !== expectedPriority) {
+          batch.update(doc(db, 'habits', h.id), { priority: expectedPriority });
+        }
+      });
+      await batch.commit();
     } catch (err) {
       console.error("Failed to reorder habit priority:", err);
     }
@@ -1466,9 +1470,9 @@ export default function App() {
     if (!user || !editingHabit || !editingHabit.name.trim()) return;
 
     const habitId = editingHabit.id;
-    const currentDoc = habits.find(h => h.id === habitId);
-    const oldPriority = currentDoc?.priority || (sortedHabits.findIndex(h => h.id === habitId) + 1);
-    const targetPriority = Math.max(1, Math.min(sortedHabits.length, Number(editingHabit.priority) || oldPriority));
+    const currentIndex = sortedHabits.findIndex(h => h.id === habitId);
+    const currentPriority = currentIndex >= 0 ? currentIndex + 1 : 1;
+    const targetPriority = Math.max(1, Math.min(sortedHabits.length, Number(editingHabit.priority) || currentPriority));
     const habitData = { ...editingHabit };
 
     setEditingHabit(null);
@@ -1487,11 +1491,42 @@ export default function App() {
         payload.targetTime = '';
       }
 
-      await updateDoc(doc(db, 'habits', habitId), payload);
-
-      if (targetPriority !== oldPriority) {
-        await handleReorderHabit(habitId, targetPriority);
+      // Compute reordered habits array if priority changed
+      const reordered = [...sortedHabits];
+      if (currentIndex !== -1 && targetPriority !== currentPriority) {
+        const [moved] = reordered.splice(currentIndex, 1);
+        const targetIndex = targetPriority - 1;
+        reordered.splice(targetIndex, 0, moved);
       }
+
+      // Optimistic local state update
+      setHabits(prev => prev.map(h => {
+        const newIdx = reordered.findIndex(r => r.id === h.id);
+        const newP = newIdx !== -1 ? newIdx + 1 : (h.priority || 1);
+        if (h.id === habitId) {
+          return { ...h, ...payload, priority: newP };
+        }
+        return { ...h, priority: newP };
+      }));
+
+      // Atomic batch update in Firestore so all habits shift in one single transaction
+      const batch = writeBatch(db);
+
+      const newHabitPriority = reordered.findIndex(r => r.id === habitId) + 1;
+      batch.update(doc(db, 'habits', habitId), {
+        ...payload,
+        priority: newHabitPriority > 0 ? newHabitPriority : targetPriority
+      });
+
+      // Update shifted habits
+      reordered.forEach((h, idx) => {
+        const expectedPrio = idx + 1;
+        if (h.id !== habitId && h.priority !== expectedPrio) {
+          batch.update(doc(db, 'habits', h.id), { priority: expectedPrio });
+        }
+      });
+
+      await batch.commit();
     } catch (err) {
       console.error("Failed to update habit:", err);
     }
@@ -2279,96 +2314,53 @@ export default function App() {
                                           <CalendarIcon className="w-3 h-3" /> Date
                                         </div>
                                         {sortedHabits.map((habit, index) => (
-                                          <div key={habit.id} className="p-2.5 group flex flex-col justify-between border-r border-high-line dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/30">
-                                            <div className="flex items-center justify-between gap-1 mb-1">
-                                              {/* Priority Selector */}
-                                              <div className="flex items-center gap-1">
-                                                <select
-                                                  value={index + 1}
-                                                  onChange={(e) => handleReorderHabit(habit.id, Number(e.target.value))}
-                                                  className="text-[8px] font-mono font-black bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-400 px-1 py-0.5 rounded border border-amber-500/30 focus:outline-none cursor-pointer"
-                                                  title={`Move priority (1 to ${sortedHabits.length})`}
-                                                >
-                                                  {sortedHabits.map((_, pIdx) => {
-                                                    const p = pIdx + 1;
-                                                    return (
-                                                      <option key={p} value={p} className="dark:bg-zinc-900 dark:text-zinc-100">
-                                                        P{p}
-                                                      </option>
-                                                    );
-                                                  })}
-                                                </select>
-                                                <div className="flex items-center gap-0.5">
-                                                  <button
-                                                    type="button"
-                                                    disabled={index === 0}
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      handleReorderHabit(habit.id, index);
-                                                    }}
-                                                    className="p-0.5 text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 disabled:opacity-20 disabled:pointer-events-none rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
-                                                    title="Move left (higher priority)"
-                                                  >
-                                                    <ChevronLeft className="w-2.5 h-2.5" />
-                                                  </button>
-                                                  <button
-                                                    type="button"
-                                                    disabled={index === sortedHabits.length - 1}
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      handleReorderHabit(habit.id, index + 2);
-                                                    }}
-                                                    className="p-0.5 text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 disabled:opacity-20 disabled:pointer-events-none rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
-                                                    title="Move right (lower priority)"
-                                                  >
-                                                    <ChevronRight className="w-2.5 h-2.5" />
-                                                  </button>
-                                                </div>
+                                          <div 
+                                            key={habit.id} 
+                                            onClick={() => setEditingHabit({ ...habit, priority: index + 1 })}
+                                            className="p-3 group flex items-center justify-between border-r border-high-line dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/30 hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 cursor-pointer transition-colors"
+                                            title="Click to edit habit settings & priority"
+                                          >
+                                            <div className="flex flex-col min-w-0 flex-1">
+                                              <div className="flex items-center gap-1.5 truncate">
+                                                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: habit.color }} />
+                                                {habit.type === 'time' && <AlarmClock className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                                                {habit.type === 'number' && <Hash className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
+                                                {habit.type === 'duration' && <Clock className="w-3.5 h-3.5 text-purple-500 shrink-0" />}
+                                                <span className="font-black uppercase tracking-widest truncate dark:text-zinc-200 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors" style={{ fontSize: `${10 * zoom}px` }}>
+                                                  {habit.name}
+                                                </span>
                                               </div>
-
-                                              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button 
-                                                  type="button"
-                                                  onClick={(e) => { 
-                                                    e.stopPropagation(); 
-                                                    setEditingHabit({ ...habit, priority: index + 1 }); 
-                                                  }}
-                                                  className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-sm text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
-                                                  title="Edit Habit"
-                                                >
-                                                  <Pencil className="w-3 h-3" />
-                                                </button>
-                                                <button 
-                                                  type="button"
-                                                  onClick={(e) => { 
-                                                    e.stopPropagation(); 
-                                                    handleDeleteHabit(habit.id, habit.name); 
-                                                  }}
-                                                  className="p-1 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-sm text-zinc-400 hover:text-red-500 transition-colors"
-                                                  title="Delete Habit"
-                                                >
-                                                  <X className="w-3 h-3" />
-                                                </button>
-                                              </div>
+                                              {habit.targetTime && (
+                                                <span className="text-[9px] font-mono text-zinc-400 mt-0.5 truncate pl-3.5">
+                                                  Target: {habit.targetTime}
+                                                </span>
+                                              )}
                                             </div>
 
-                                            <div 
-                                              onClick={() => setEditingHabit({ ...habit, priority: index + 1 })}
-                                              className="flex items-center gap-1.5 truncate cursor-pointer hover:opacity-75 transition-opacity group/title"
-                                              title="Click to edit habit"
-                                            >
-                                              <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: habit.color }} />
-                                              {habit.type === 'time' && <AlarmClock className="w-3 h-3 text-amber-500 shrink-0" />}
-                                              {habit.type === 'number' && <Hash className="w-3 h-3 text-blue-500 shrink-0" />}
-                                              {habit.type === 'duration' && <Clock className="w-3 h-3 text-purple-500 shrink-0" />}
-                                              <span className="font-black uppercase tracking-widest truncate dark:text-zinc-200 group-hover/title:underline decoration-zinc-400" style={{ fontSize: `${10 * zoom}px` }}>{habit.name}</span>
+                                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1.5 shrink-0">
+                                              <button 
+                                                type="button"
+                                                onClick={(e) => { 
+                                                  e.stopPropagation(); 
+                                                  setEditingHabit({ ...habit, priority: index + 1 }); 
+                                                }}
+                                                className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-sm text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
+                                                title="Habit Settings & Priority"
+                                              >
+                                                <Settings className="w-3.5 h-3.5" />
+                                              </button>
+                                              <button 
+                                                type="button"
+                                                onClick={(e) => { 
+                                                  e.stopPropagation(); 
+                                                  handleDeleteHabit(habit.id, habit.name); 
+                                                }}
+                                                className="p-1 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-sm text-zinc-400 hover:text-red-500 transition-colors"
+                                                title="Delete Habit"
+                                              >
+                                                <X className="w-3.5 h-3.5" />
+                                              </button>
                                             </div>
-
-                                            {habit.targetTime && (
-                                              <span className="text-[8px] font-mono text-zinc-400 mt-0.5 truncate">
-                                                Target: {habit.targetTime}
-                                              </span>
-                                            )}
                                           </div>
                                         ))}
                                         <div className="p-3 flex items-center justify-center font-bold text-zinc-300 dark:text-zinc-700 uppercase italic tracking-widest" style={{ fontSize: `${10 * zoom}px` }}>
@@ -4179,7 +4171,7 @@ export default function App() {
           key="edit-habit-modal" 
           isOpen={!!editingHabit} 
           onClose={() => setEditingHabit(null)} 
-          title="Edit Habit"
+          title="Habit Settings & Priority"
         >
           <form onSubmit={handleUpdateHabit} className="space-y-8">
             <div>
@@ -4311,6 +4303,12 @@ export default function App() {
                       </span>
                     </div>
                   </div>
+
+                  {editingHabit.priority && editingHabit.priority !== (sortedHabits.findIndex(h => h.id === editingHabit.id) + 1) && (
+                    <div className="p-2.5 bg-amber-500/10 border border-amber-500/25 rounded text-[11px] text-amber-700 dark:text-amber-400 font-medium">
+                      Changing priority to P{editingHabit.priority} will automatically swap column positions with the current P{editingHabit.priority} habit upon saving.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
