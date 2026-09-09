@@ -46,7 +46,7 @@ service cloud.firestore {
              data.color is string && data.color.size() <= 20 &&
              data.type in ['checkbox', 'number', 'duration', 'time'] &&
              data.frequency in ['daily', 'weekdays', 'weekends'] &&
-             (!('priority' in data) || (data.priority is number && data.priority >= 1 && data.priority <= 100)) &&
+             (!('priority' in data) || (data.priority is number && data.priority >= 1 && data.priority <= 10000)) &&
              (!('targetTime' in data) || (data.targetTime is string && data.targetTime.size() <= 50)) &&
              data.uid == request.auth.uid;
     }

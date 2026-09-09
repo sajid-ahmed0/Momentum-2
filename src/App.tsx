@@ -636,7 +636,6 @@ export default function App() {
     priority: 1,
     targetTime: ''
   });
-  const [habitViewMode, setHabitViewMode] = useState<'grid' | 'priority_board'>('grid');
   const [expandedMonths, setExpandedMonths] = useState<string[]>([format(new Date(), 'MMMM yyyy')]);
   const [zoom, setZoom] = useState(1);
   const [quickPresets, setQuickPresets] = useState<QuickPreset[]>(() => { try { const saved = localStorage.getItem("schedule_quick_presets"); if (saved) return JSON.parse(saved); } catch (e) { console.error(e); } return DEFAULT_PRESETS; });
@@ -1405,37 +1404,100 @@ export default function App() {
 
   const sortedHabits = useMemo(() => {
     return [...habits].sort((a, b) => {
-      const prioA = typeof a.priority === 'number' ? a.priority : 999;
-      const prioB = typeof b.priority === 'number' ? b.priority : 999;
+      const prioA = typeof a.priority === 'number' ? a.priority : 9999;
+      const prioB = typeof b.priority === 'number' ? b.priority : 9999;
       if (prioA !== prioB) return prioA - prioB;
-      return a.createdAt - b.createdAt;
+      return (a.createdAt || 0) - (b.createdAt || 0);
     });
   }, [habits]);
 
+  // Auto-normalize priorities so no two habits ever share the same priority (ensures strict 1, 2, ..., N)
+  useEffect(() => {
+    if (!user || sortedHabits.length === 0) return;
+    const updates: { id: string; priority: number }[] = [];
+    sortedHabits.forEach((habit, idx) => {
+      const expectedPrio = idx + 1;
+      if (habit.priority !== expectedPrio) {
+        updates.push({ id: habit.id, priority: expectedPrio });
+      }
+    });
+
+    if (updates.length > 0) {
+      Promise.all(
+        updates.map(u => updateDoc(doc(db, 'habits', u.id), { priority: u.priority }))
+      ).catch(err => console.error("Auto-normalizing habit priorities:", err));
+    }
+  }, [user, sortedHabits]);
+
+  const handleReorderHabit = async (habitId: string, newPriority: number) => {
+    if (!user || sortedHabits.length === 0) return;
+    const currentIndex = sortedHabits.findIndex(h => h.id === habitId);
+    if (currentIndex === -1) return;
+
+    const targetIndex = Math.max(0, Math.min(sortedHabits.length - 1, newPriority - 1));
+    if (currentIndex === targetIndex) return;
+
+    // Create reordered array
+    const reordered = [...sortedHabits];
+    const [moved] = reordered.splice(currentIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+
+    // Save strictly sequential priorities 1..N to Firestore
+    try {
+      await Promise.all(
+        reordered.map((h, idx) => {
+          const expectedPriority = idx + 1;
+          if (h.priority !== expectedPriority) {
+            return updateDoc(doc(db, 'habits', h.id), { priority: expectedPriority });
+          }
+          return Promise.resolve();
+        })
+      );
+    } catch (err) {
+      console.error("Failed to reorder habit priority:", err);
+    }
+  };
+
+  const handleUpdateHabitPriority = handleReorderHabit;
+
   const handleAddHabit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !newHabit.name) return;
+    if (!user || !newHabit.name.trim()) return;
 
     // Close modal immediately
     setShowAddModal(false);
     const habitData = { ...newHabit };
-    // Clear draft state
+    const maxPrio = sortedHabits.length + 1;
+    const chosenPriority = Math.max(1, Math.min(maxPrio, Number(habitData.priority) || maxPrio));
+
+    // Clear draft state with default priority pointing to end of list
     setNewHabit({ 
       name: '', 
       color: '#18181b', 
       frequency: 'daily', 
       type: 'checkbox',
-      priority: (habits.length + 1) || 1,
+      priority: maxPrio + 1,
       targetTime: ''
     });
 
     try {
+      // 1. Shift existing habits at or after chosenPriority by +1 so no duplicate priorities exist
+      const habitsToShift = sortedHabits.filter((_, idx) => (idx + 1) >= chosenPriority);
+      if (habitsToShift.length > 0) {
+        await Promise.all(
+          habitsToShift.map((h, i) => {
+            return updateDoc(doc(db, 'habits', h.id), { priority: chosenPriority + 1 + i });
+          })
+        );
+      }
+
+      // 2. Add new habit with exact chosen priority
       const payload: Record<string, any> = {
         name: habitData.name.trim(),
         color: habitData.color,
         frequency: habitData.frequency,
         type: habitData.type,
-        priority: Number(habitData.priority) || 1,
+        priority: chosenPriority,
         createdAt: Date.now(),
         uid: user.uid,
       };
@@ -1443,15 +1505,6 @@ export default function App() {
         payload.targetTime = habitData.targetTime.trim();
       }
       await addDoc(collection(db, 'habits'), payload);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleUpdateHabitPriority = async (habitId: string, priority: number) => {
-    if (!user) return;
-    try {
-      await updateDoc(doc(db, 'habits', habitId), { priority: Math.max(1, priority) });
     } catch (err) {
       console.error(err);
     }
@@ -1878,7 +1931,7 @@ export default function App() {
               </div>
 
             <AnimatePresence mode="wait">
-              {activeTab === 'home' ? null : 
+               {activeTab === 'home' ? null : 
                activeTab === 'habits' ? (
                 <motion.div
                   key="add-habit-btn"
@@ -1887,32 +1940,6 @@ export default function App() {
                   exit={{ opacity: 0, scale: 0.95 }}
                   className="flex items-center gap-2"
                 >
-                  <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 p-1 rounded-sm border border-zinc-200 dark:border-zinc-700">
-                    <button
-                      onClick={() => setHabitViewMode('grid')}
-                      className={cn(
-                        "px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm transition-all flex items-center gap-1.5",
-                        habitViewMode === 'grid'
-                          ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs"
-                          : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-                      )}
-                      title="Grid Matrix View (Columns ordered by Priority)"
-                    >
-                      <Layout className="w-3 h-3" /> Grid View
-                    </button>
-                    <button
-                      onClick={() => setHabitViewMode('priority_board')}
-                      className={cn(
-                        "px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm transition-all flex items-center gap-1.5",
-                        habitViewMode === 'priority_board'
-                          ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs"
-                          : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-                      )}
-                      title="Priority Columns Board (1st Col = Priority 1, 2nd Col = Priority 2)"
-                    >
-                      <ListOrdered className="w-3 h-3" /> Priority Columns
-                    </button>
-                  </div>
                   <Button onClick={() => setShowAddModal(true)} className="h-9 py-0 rounded px-4 text-xs tracking-tight font-bold">
                     <Plus className="w-4 h-4" /> Add Property
                   </Button>
@@ -2171,270 +2198,16 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
                 className="p-6 lg:p-10"
               >
-                {habitViewMode === 'priority_board' ? (
-                  /* Priority Board View */
-                  <div className="space-y-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-200 dark:border-zinc-800">
-                      <div>
-                        <h2 className="text-xl font-black uppercase tracking-tight dark:text-zinc-100 flex items-center gap-2.5">
-                          <ListOrdered className="w-5 h-5 text-amber-500" />
-                          Priority Columns Board
-                        </h2>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                          Habits organized into prioritized columns (1st Column = Priority 1, 2nd Column = Priority 2, etc.)
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-mono font-bold text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 rounded">
-                          Today: {format(startOfToday(), 'EEEE, MMM d')}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Columns Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 items-start">
-                      {[
-                        { priority: 1, title: '1st Column', badge: 'High Priority / Core', color: 'border-amber-500/30 bg-amber-500/5' },
-                        { priority: 2, title: '2nd Column', badge: 'Medium Priority', color: 'border-blue-500/30 bg-blue-500/5' },
-                        { priority: 3, title: '3rd Column', badge: 'Secondary Focus', color: 'border-emerald-500/30 bg-emerald-500/5' },
-                        { priority: 4, title: '4th+ Column', badge: 'Standard Habits', color: 'border-purple-500/30 bg-purple-500/5' },
-                      ].map(col => {
-                        const colHabits = sortedHabits.filter(h => {
-                          const p = typeof h.priority === 'number' ? h.priority : 1;
-                          if (col.priority === 4) return p >= 4;
-                          return p === col.priority;
-                        });
-                        const todayStr = format(startOfToday(), 'yyyy-MM-dd');
-
-                        return (
-                          <div 
-                            key={col.priority}
-                            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 shadow-xs flex flex-col min-h-[420px]"
-                          >
-                            <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-100 dark:border-zinc-800">
-                              <div className="flex items-center gap-2">
-                                <span className={cn(
-                                  "w-6 h-6 rounded-md font-mono text-xs font-black flex items-center justify-center text-white",
-                                  col.priority === 1 ? "bg-amber-500" : col.priority === 2 ? "bg-blue-500" : col.priority === 3 ? "bg-emerald-500" : "bg-purple-500"
-                                )}>
-                                  P{col.priority}
-                                </span>
-                                <div>
-                                  <h3 className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-zinc-100">{col.title}</h3>
-                                  <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">{col.badge}</span>
-                                </div>
-                              </div>
-                              <span className="text-[10px] font-mono font-bold text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full">
-                                {colHabits.length}
-                              </span>
-                            </div>
-
-                            {/* Habit Cards inside this column */}
-                            <div className="space-y-3 flex-1">
-                              {colHabits.length === 0 ? (
-                                <div className="h-32 flex flex-col items-center justify-center text-center p-4 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg">
-                                  <p className="text-[11px] font-medium text-zinc-400">No habits in {col.title}</p>
-                                  <button
-                                    onClick={() => {
-                                      setNewHabit(prev => ({ ...prev, priority: col.priority }));
-                                      setShowAddModal(true);
-                                    }}
-                                    className="mt-2 text-[10px] font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-300 hover:underline"
-                                  >
-                                    + Add to {col.title}
-                                  </button>
-                                </div>
-                              ) : (
-                                colHabits.map(habit => {
-                                  const todayLog = logs.find(l => l.habitId === habit.id && l.date === todayStr);
-                                  const streak = calculateStreak(habit.id);
-
-                                  return (
-                                    <div 
-                                      key={habit.id}
-                                      className="p-3.5 rounded-lg border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/60 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all group"
-                                    >
-                                      {/* Header */}
-                                      <div className="flex items-start justify-between gap-2 mb-2">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: habit.color }} />
-                                          <h4 className="text-xs font-black uppercase tracking-tight dark:text-zinc-100 truncate">{habit.name}</h4>
-                                        </div>
-                                        <button
-                                          onClick={() => handleDeleteHabit(habit.id, habit.name)}
-                                          className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-red-500 rounded transition-opacity"
-                                          title="Delete"
-                                        >
-                                          <X className="w-3 h-3" />
-                                        </button>
-                                      </div>
-
-                                      {/* Type & Details */}
-                                      <div className="flex items-center gap-2 mb-3">
-                                        <span className="text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded bg-zinc-200/60 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 flex items-center gap-1">
-                                          {habit.type === 'time' && <AlarmClock className="w-2.5 h-2.5 text-amber-500" />}
-                                          {habit.type === 'checkbox' && <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500" />}
-                                          {habit.type === 'number' && <Hash className="w-2.5 h-2.5 text-blue-500" />}
-                                          {habit.type === 'duration' && <Clock className="w-2.5 h-2.5 text-purple-500" />}
-                                          {habit.type}
-                                        </span>
-                                        {habit.targetTime && (
-                                          <span className="text-[9px] font-mono font-bold text-amber-600 dark:text-amber-400">
-                                            Target: {habit.targetTime}
-                                          </span>
-                                        )}
-                                        {streak > 0 && (
-                                          <span className="text-[9px] font-mono font-bold text-orange-500 ml-auto flex items-center gap-0.5">
-                                            🔥 {streak}d
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      {/* Today Interaction */}
-                                      <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/80">
-                                        {habit.type === 'time' ? (
-                                          <div className="space-y-1.5">
-                                            <div className="flex items-center gap-1.5">
-                                              <input
-                                                type="text"
-                                                placeholder={habit.targetTime ? `e.g. ${habit.targetTime}` : '8:00 AM'}
-                                                defaultValue={todayLog?.timeValue || (todayLog?.value ? formatMinutesToTime(todayLog.value) : '')}
-                                                key={`${habit.id}-${todayLog?.timeValue || todayLog?.value || 'empty'}`}
-                                                onBlur={(e) => {
-                                                  const val = e.target.value.trim();
-                                                  if (!val) {
-                                                    updateHabitValue(habit.id, startOfToday(), 0, false, '');
-                                                  } else {
-                                                    const parsed = parseTimeInput(val);
-                                                    if (parsed) {
-                                                      e.target.value = parsed.formatted;
-                                                      updateHabitValue(habit.id, startOfToday(), parsed.minutes, true, parsed.formatted);
-                                                    } else {
-                                                      updateHabitValue(habit.id, startOfToday(), 0, true, val);
-                                                    }
-                                                  }
-                                                }}
-                                                onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-                                                className="flex-1 px-2.5 py-1.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-xs font-bold dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                                              />
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  const now = getCurrentTime();
-                                                  updateHabitValue(habit.id, startOfToday(), now.minutes, true, now.formatted);
-                                                }}
-                                                className="px-2 py-1.5 text-[10px] font-mono font-bold rounded bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 hover:opacity-80"
-                                                title="Set current time"
-                                              >
-                                                Now
-                                              </button>
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                              {['6:30 AM', '7:00 AM', '8:00 AM', '9:30 AM'].map(p => (
-                                                <button
-                                                  key={p}
-                                                  type="button"
-                                                  onClick={() => {
-                                                    const parsed = parseTimeInput(p);
-                                                    if (parsed) {
-                                                      updateHabitValue(habit.id, startOfToday(), parsed.minutes, true, parsed.formatted);
-                                                    }
-                                                  }}
-                                                  className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:bg-white dark:hover:bg-zinc-800"
-                                                >
-                                                  {p}
-                                                </button>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        ) : habit.type === 'checkbox' ? (
-                                          <button
-                                            onClick={() => toggleHabit(habit.id, startOfToday())}
-                                            className={cn(
-                                              "w-full py-1.5 rounded border font-bold text-xs flex items-center justify-center gap-1.5 transition-all",
-                                              todayLog?.status === 'completed'
-                                                ? "bg-emerald-500 border-emerald-500 text-white"
-                                                : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:border-zinc-400"
-                                            )}
-                                          >
-                                            <Check className="w-3.5 h-3.5" />
-                                            {todayLog?.status === 'completed' ? 'Completed Today' : 'Mark as Done Today'}
-                                          </button>
-                                        ) : (
-                                          <div className="flex items-center gap-2">
-                                            <input
-                                              type="text"
-                                              placeholder={habit.type === 'number' ? 'Add count...' : 'Add duration...'}
-                                              defaultValue={todayLog?.value?.toString() || ''}
-                                              key={`${habit.id}-${todayLog?.value || 'val'}`}
-                                              onBlur={(e) => {
-                                                const raw = e.target.value.trim();
-                                                if (habit.type === 'number') {
-                                                  const n = parseInt(raw);
-                                                  updateHabitValue(habit.id, startOfToday(), isNaN(n) ? 0 : n, !isNaN(n) && n > 0);
-                                                } else {
-                                                  const d = parseDurationString(raw);
-                                                  updateHabitValue(habit.id, startOfToday(), d, d > 0);
-                                                }
-                                              }}
-                                              className="w-full px-2.5 py-1.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-xs font-bold dark:text-zinc-100 focus:outline-none"
-                                            />
-                                          </div>
-                                        )}
-                                      </div>
-
-                                      {/* Column Switcher */}
-                                      <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800/60 flex items-center justify-between text-[9px]">
-                                        <span className="text-zinc-400 font-medium">Move column:</span>
-                                        <div className="flex items-center gap-1">
-                                          {[1, 2, 3, 4].map(p => (
-                                            <button
-                                              key={p}
-                                              onClick={() => handleUpdateHabitPriority(habit.id, p)}
-                                              className={cn(
-                                                "w-5 h-5 rounded font-mono font-bold flex items-center justify-center transition-colors",
-                                                (habit.priority || 1) === p
-                                                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                                                  : "text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800"
-                                              )}
-                                              title={`Move to Column ${p}`}
-                                            >
-                                              {p}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })
-                              )}
-                            </div>
-
-                            <button
-                              onClick={() => {
-                                setNewHabit(prev => ({ ...prev, priority: col.priority }));
-                                setShowAddModal(true);
-                              }}
-                              className="mt-3 py-2 w-full rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 text-[10px] font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors flex items-center justify-center gap-1.5"
-                            >
-                              <Plus className="w-3 h-3" /> Add Habit to Col {col.priority}
-                            </button>
-                          </div>
-                        );
-                      })}
+                {/* Matrix Grid View */}
+                <div className="min-w-max">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Column Priority Order:</span>
+                      <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
+                        1st Column = P1 • 2nd Column = P2 (Strict 1-to-1 unique order, {sortedHabits.length} {sortedHabits.length === 1 ? 'priority' : 'priorities'})
+                      </span>
                     </div>
                   </div>
-                ) : (
-                  /* Matrix Grid View */
-                  <div className="min-w-max">
-                    <div className="mb-4 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Columns are ordered by Priority:</span>
-                        <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
-                          Priority 1 = 1st Column • Priority 2 = 2nd Column
-                        </span>
-                      </div>
-                    </div>
                     {monthsOfYear.map((monthDate) => {
                       const monthKey = format(monthDate, 'MMMM yyyy');
                       const isExpanded = expandedMonths.includes(monthKey);
@@ -2484,15 +2257,46 @@ export default function App() {
                                                   Col {index + 1}
                                                 </span>
                                                 <select
-                                                  value={habit.priority || (index + 1)}
-                                                  onChange={(e) => handleUpdateHabitPriority(habit.id, Number(e.target.value))}
-                                                  className="text-[8px] font-mono font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 px-1 py-0.5 rounded border-0 focus:outline-none cursor-pointer"
-                                                  title="Change Priority to reorder columns"
+                                                  value={index + 1}
+                                                  onChange={(e) => handleReorderHabit(habit.id, Number(e.target.value))}
+                                                  className="text-[8px] font-mono font-black bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-400 px-1 py-0.5 rounded border border-amber-500/30 focus:outline-none cursor-pointer"
+                                                  title={`Move priority (1 to ${sortedHabits.length})`}
                                                 >
-                                                  {[1, 2, 3, 4, 5].map(p => (
-                                                    <option key={p} value={p}>P{p}</option>
-                                                  ))}
+                                                  {sortedHabits.map((_, pIdx) => {
+                                                    const p = pIdx + 1;
+                                                    return (
+                                                      <option key={p} value={p} className="dark:bg-zinc-900 dark:text-zinc-100">
+                                                        P{p}
+                                                      </option>
+                                                    );
+                                                  })}
                                                 </select>
+                                                <div className="flex items-center gap-0.5">
+                                                  <button
+                                                    type="button"
+                                                    disabled={index === 0}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleReorderHabit(habit.id, index);
+                                                    }}
+                                                    className="p-0.5 text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 disabled:opacity-20 disabled:pointer-events-none rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+                                                    title="Move left (higher priority)"
+                                                  >
+                                                    <ChevronLeft className="w-2.5 h-2.5" />
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    disabled={index === sortedHabits.length - 1}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleReorderHabit(habit.id, index + 2);
+                                                    }}
+                                                    className="p-0.5 text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 disabled:opacity-20 disabled:pointer-events-none rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+                                                    title="Move right (lower priority)"
+                                                  >
+                                                    <ChevronRight className="w-2.5 h-2.5" />
+                                                  </button>
+                                                </div>
                                               </div>
 
                                               {zoom > 0.7 && (
@@ -2581,7 +2385,6 @@ export default function App() {
                       );
                     })}
                   </div>
-                )}
               </motion.div>
             ) : activeTab === 'tasks' ? (() => {
               const todayStr = format(startOfToday(), 'yyyy-MM-dd');
@@ -4206,31 +4009,80 @@ export default function App() {
                     Priority / Column Position
                   </label>
                   <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400">
-                    {newHabit.priority === 1 ? '1st Column (Highest Priority)' : newHabit.priority === 2 ? '2nd Column' : newHabit.priority === 3 ? '3rd Column' : `Column ${newHabit.priority}`}
+                    {newHabit.priority === 1 
+                      ? 'Priority 1 • 1st Column (Highest)' 
+                      : newHabit.priority === 2 
+                      ? 'Priority 2 • 2nd Column' 
+                      : newHabit.priority === 3 
+                      ? 'Priority 3 • 3rd Column' 
+                      : `Priority ${newHabit.priority} • Column ${newHabit.priority}`}
                   </span>
                 </div>
-                <div className="grid grid-cols-5 gap-2">
-                  {[1, 2, 3, 4, 5].map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setNewHabit({ ...newHabit, priority: p })}
-                      className={cn(
-                        "flex flex-col items-center justify-center py-2.5 px-2 rounded-sm border transition-all",
-                        newHabit.priority === p 
-                          ? "bg-zinc-900 border-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:border-zinc-100 dark:text-zinc-900 scale-102" 
-                          : "bg-white border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:bg-zinc-900/50 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700"
-                      )}
-                    >
-                      <span className="text-xs font-mono font-black">P{p}</span>
-                      <span className="text-[9px] uppercase tracking-tight opacity-75">
-                        {p === 1 ? '1st Col' : p === 2 ? '2nd Col' : p === 3 ? '3rd Col' : `${p}th Col`}
+
+                {/* Priority Selection Controls */}
+                <div className="space-y-2.5">
+                  {/* Grid of buttons for available positions */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {Array.from({ length: Math.max(1, sortedHabits.length + 1) }, (_, i) => i + 1).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setNewHabit({ ...newHabit, priority: p })}
+                        className={cn(
+                          "min-w-[56px] flex-1 py-2 px-2 rounded-sm border transition-all flex flex-col items-center justify-center",
+                          newHabit.priority === p 
+                            ? "bg-zinc-900 border-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:border-zinc-100 dark:text-zinc-900 font-bold" 
+                            : "bg-white border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:bg-zinc-900/50 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700"
+                        )}
+                      >
+                        <span className="text-xs font-mono font-black">P{p}</span>
+                        <span className="text-[8px] uppercase tracking-tight opacity-75 whitespace-nowrap">
+                          {p === 1 ? '1st Col' : p === 2 ? '2nd Col' : p === 3 ? '3rd Col' : `${p}th Col`}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Direct input / custom position stepper for large habit lists */}
+                  <div className="flex items-center gap-3 p-2.5 bg-zinc-50 dark:bg-zinc-900/40 rounded border border-zinc-200/80 dark:border-zinc-800 text-xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Custom Priority:</span>
+                    <div className="flex items-center gap-1.5 flex-1">
+                      <input 
+                        type="number"
+                        min={1}
+                        max={sortedHabits.length + 1}
+                        value={newHabit.priority || 1}
+                        onChange={(e) => {
+                          const val = Math.max(1, Math.min(sortedHabits.length + 1, parseInt(e.target.value) || 1));
+                          setNewHabit({ ...newHabit, priority: val });
+                        }}
+                        className="w-20 px-2.5 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono font-bold text-xs dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                      <span className="text-[10px] text-zinc-400 font-mono">
+                        (Valid: 1 to {sortedHabits.length + 1})
                       </span>
-                    </button>
-                  ))}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setNewHabit({ ...newHabit, priority: 1 })}
+                        className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider rounded border border-zinc-200 dark:border-zinc-800 hover:bg-white dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
+                      >
+                        First (P1)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewHabit({ ...newHabit, priority: sortedHabits.length + 1 })}
+                        className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider rounded border border-zinc-200 dark:border-zinc-800 hover:bg-white dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
+                      >
+                        Last (P{sortedHabits.length + 1})
+                      </button>
+                    </div>
+                  </div>
                 </div>
+
                 <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-2">
-                  Habits are ordered by priority: setting Priority 1 shows this habit in the 1st column, Priority 2 in the 2nd column, etc.
+                  Habits strictly occupy 1 column per priority. Choosing an existing priority number shifts other habits right, keeping all priorities unique.
                 </p>
               </div>
             </div>
