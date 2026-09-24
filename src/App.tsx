@@ -3074,8 +3074,8 @@ export default function App() {
                                   <span className={cn(
                                     "transition-colors",
                                     isGenericJournalTitle(entry.title)
-                                      ? "text-lg sm:text-xl font-black tracking-tight text-zinc-900 dark:text-zinc-100"
-                                      : "text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400"
+                                      ? "text-sm font-bold text-zinc-800 dark:text-zinc-200 tracking-tight"
+                                      : "text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500"
                                   )}>
                                     {format(new Date(entry.timestamp), 'EEEE, MMM do')}
                                   </span>
@@ -3294,8 +3294,8 @@ export default function App() {
                                   <span className={cn(
                                     "transition-colors",
                                     isGenericJournalTitle(entry.title)
-                                      ? "text-lg sm:text-xl font-black tracking-tight text-zinc-900 dark:text-zinc-100"
-                                      : "text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400"
+                                      ? "text-sm font-bold text-zinc-800 dark:text-zinc-200 tracking-tight"
+                                      : "text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500"
                                   )}>
                                     {format(new Date(entry.timestamp), 'EEEE, MMM do')}
                                   </span>
