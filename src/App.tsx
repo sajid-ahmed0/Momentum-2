@@ -98,6 +98,13 @@ import { parseTimeInput, formatMinutesToTime, getCurrentTime } from './utils/tim
 
 import { requestNotificationPermission, sendNotification, subscribeToPushNotifications } from './lib/notifications';
 
+// Checks whether a journal title is empty or a generic default title that should not be shown as a heading
+export const isGenericJournalTitle = (title?: string | null): boolean => {
+  if (!title) return true;
+  const t = title.trim().toLowerCase();
+  return !t || t === 'daily reflection' || t === 'personal thought' || t === 'self thought';
+};
+
 // --- Components ---
 
 // Calculate proportional, text-adapted column width for a habit so full name ALWAYS shows without truncation
@@ -1368,8 +1375,7 @@ export default function App() {
     if (!targetUid) return;
 
     const categoryToSave = data.category || editingJournalEntry?.category || journalModalCategory || 'daily_reflection';
-    const defaultTitle = categoryToSave === 'self_thought' ? 'Personal Thought' : 'Daily Reflection';
-    const titleToSave = data.title?.trim() || (data.sketchData ? 'Stylus Sketch Entry' : defaultTitle);
+    const titleToSave = data.title?.trim() || '';
     const contentToSave = data.content?.trim() || (data.sketchData ? '[Sketch Page]' : '');
 
     const currentEditing = editingJournalEntry;
@@ -3065,7 +3071,12 @@ export default function App() {
                             <div className="flex items-start justify-between mb-4">
                               <div>
                                 <div className="flex flex-wrap items-center gap-2 mb-2">
-                                  <span className="text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-600 uppercase tracking-widest">
+                                  <span className={cn(
+                                    "transition-colors",
+                                    isGenericJournalTitle(entry.title)
+                                      ? "text-lg sm:text-xl font-black tracking-tight text-zinc-900 dark:text-zinc-100"
+                                      : "text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400"
+                                  )}>
                                     {format(new Date(entry.timestamp), 'EEEE, MMM do')}
                                   </span>
                                   {entry.mood && (
@@ -3080,7 +3091,9 @@ export default function App() {
                                     </span>
                                   )}
                                 </div>
-                                <h3 className="text-xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">{entry.title}</h3>
+                                {!isGenericJournalTitle(entry.title) && (
+                                  <h3 className="text-xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">{entry.title}</h3>
+                                )}
                               </div>
                               <div className="flex gap-2 shrink-0">
                                 <button 
@@ -3278,11 +3291,18 @@ export default function App() {
                             <div className="flex items-start justify-between mb-4">
                               <div>
                                 <div className="flex flex-wrap items-center gap-2 mb-2">
-                                  <span className="text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-600 uppercase tracking-widest">
+                                  <span className={cn(
+                                    "transition-colors",
+                                    isGenericJournalTitle(entry.title)
+                                      ? "text-lg sm:text-xl font-black tracking-tight text-zinc-900 dark:text-zinc-100"
+                                      : "text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400"
+                                  )}>
                                     {format(new Date(entry.timestamp), 'EEEE, MMM do')}
                                   </span>
                                 </div>
-                                <h3 className="text-xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">{entry.title}</h3>
+                                {!isGenericJournalTitle(entry.title) && (
+                                  <h3 className="text-xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">{entry.title}</h3>
+                                )}
                               </div>
                               <div className="flex gap-2 shrink-0">
                                 <button 
@@ -5539,8 +5559,12 @@ export default function App() {
                             name="title"
                             type="text" 
                             autoFocus
-                            defaultValue={editingJournalEntry?.title || ''}
-                            placeholder="Today's Review & Reflections..."
+                            defaultValue={
+                              editingJournalEntry?.title && !isGenericJournalTitle(editingJournalEntry.title)
+                                ? editingJournalEntry.title
+                                : ''
+                            }
+                            placeholder="Today's Review & Reflections (optional)..."
                             className="w-full px-4 py-3 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-base dark:text-zinc-100"
                           />
                         </div>
@@ -5664,15 +5688,18 @@ export default function App() {
                       <>
                         <div>
                           <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">
-                            Title <span className="text-rose-500">*</span>
+                            Title <span className="text-[10px] text-zinc-400 font-normal lowercase">(optional)</span>
                           </label>
                           <input 
                             name="title"
                             type="text" 
                             autoFocus
-                            required
-                            defaultValue={editingJournalEntry?.title || ''}
-                            placeholder="What's on your mind?..."
+                            defaultValue={
+                              editingJournalEntry?.title && !isGenericJournalTitle(editingJournalEntry.title)
+                                ? editingJournalEntry.title
+                                : ''
+                            }
+                            placeholder="What's on your mind? (optional)..."
                             className="w-full px-4 py-3 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-bold text-base dark:text-zinc-100"
                           />
                         </div>
@@ -5782,11 +5809,11 @@ export default function App() {
               key="view-journal-sketch-modal"
               isOpen={Boolean(viewingJournalSketchEntry)}
               onClose={() => setViewingJournalSketchEntry(null)}
-              title={`Stylus Sketch Pages — ${viewingJournalSketchEntry.title || format(new Date(viewingJournalSketchEntry.timestamp), 'MMM d, yyyy')}`}
+              title={`Stylus Sketch Pages — ${!isGenericJournalTitle(viewingJournalSketchEntry.title) ? viewingJournalSketchEntry.title : format(new Date(viewingJournalSketchEntry.timestamp), 'MMM d, yyyy')}`}
               maxWidth="max-w-4xl"
             >
               <div className="space-y-4">
-                {viewingJournalSketchEntry.title && (
+                {!isGenericJournalTitle(viewingJournalSketchEntry.title) && (
                   <div className="bg-zinc-50 dark:bg-zinc-900 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-0.5">Journal Entry</span>
                     <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200">{viewingJournalSketchEntry.title}</span>
