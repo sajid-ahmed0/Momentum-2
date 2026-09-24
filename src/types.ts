@@ -49,6 +49,7 @@ export interface BlockTask {
   id: string;
   text: string;
   completed: boolean;
+  status?: 'pending' | 'completed' | 'cancelled';
 }
 
 export interface TimeBlock {
@@ -91,11 +92,15 @@ export interface JournalEntry {
   date: string; // YYYY-MM-DD
   title: string;
   content: string;
+  category?: 'daily_reflection' | 'self_thought';
   mood?: string;
+  studyQuality?: string;
   lostControl?: string;
   trigger?: string;
   improvementTomorrow?: string;
   learningFromMistake?: string;
+  thoughtTopic?: string;
+  nextStepOrDecision?: string;
   sketchData?: string; // Base64 data URL for stylus sketch page
   uid: string;
   timestamp: number;

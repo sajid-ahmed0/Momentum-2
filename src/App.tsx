@@ -82,7 +82,9 @@ import {
   AlarmClock,
   Sunrise,
   ListOrdered,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Lightbulb,
+  Brain
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail, loginAnonymously } from './firebase';
@@ -591,6 +593,16 @@ export default function App() {
   const [expandedHistoryDates, setExpandedHistoryDates] = useState<Set<string>>(new Set());
   const [taskSegment, setTaskSegment] = useState<'today' | 'future'>('today');
   const [taskModalCategory, setTaskModalCategory] = useState<'daily' | 'future'>('daily');
+  const [journalSegment, setJournalSegment] = useState<'daily_reflection' | 'self_thought'>('daily_reflection');
+  const [journalModalCategory, setJournalModalCategory] = useState<'daily_reflection' | 'self_thought'>('daily_reflection');
+
+  const dailyReflectionsList = useMemo(() => {
+    return journalEntries.filter(e => !e.category || e.category === 'daily_reflection');
+  }, [journalEntries]);
+
+  const selfThoughtsList = useMemo(() => {
+    return journalEntries.filter(e => e.category === 'self_thought');
+  }, [journalEntries]);
 
   // Dynamic Daily Motivational Quote State (Updates Automatically Every Day)
   const [currentQuote, setCurrentQuote] = useState<{ text: string; author: string }>(() => {
@@ -1067,9 +1079,22 @@ export default function App() {
     const targetBlock = timeBlocks.find(b => b.id === blockId);
     if (!targetBlock || !targetBlock.subtasks) return;
 
-    const updatedSubtasks = targetBlock.subtasks.map(st => 
-      st.id === subtaskId ? { ...st, completed: !st.completed } : st
-    );
+    const updatedSubtasks = targetBlock.subtasks.map(st => {
+      if (st.id !== subtaskId) return st;
+      const isCompleted = st.status === 'completed' || (st.completed && st.status !== 'cancelled');
+      const isCancelled = st.status === 'cancelled';
+
+      if (isCompleted) {
+        // Second click: change tick to cross
+        return { ...st, completed: false, status: 'cancelled' as const };
+      } else if (isCancelled) {
+        // Third click: back to unchecked / circle
+        return { ...st, completed: false, status: 'pending' as const };
+      } else {
+        // First click: mark as tick
+        return { ...st, completed: true, status: 'completed' as const };
+      }
+    });
 
     try {
       await updateDoc(doc(db, 'timeBlocks', blockId), {
@@ -1315,11 +1340,15 @@ export default function App() {
   const handleSaveJournalEntry = async (data: { 
     title?: string, 
     content?: string, 
+    category?: 'daily_reflection' | 'self_thought',
     mood?: string,
+    studyQuality?: string,
     lostControl?: string,
     trigger?: string,
     improvementTomorrow?: string,
     learningFromMistake?: string,
+    thoughtTopic?: string,
+    nextStepOrDecision?: string,
     sketchData?: string
   }) => {
     setShowJournalModal(false);
@@ -1338,8 +1367,10 @@ export default function App() {
     const targetUid = currentUser?.uid;
     if (!targetUid) return;
 
-    const titleToSave = data.title?.trim() || (data.sketchData ? 'Stylus Sketch Entry' : 'Daily Reflections');
-    const contentToSave = data.content?.trim() || (data.sketchData ? '[Sketch Only]' : 'Reflections');
+    const categoryToSave = data.category || editingJournalEntry?.category || journalModalCategory || 'daily_reflection';
+    const defaultTitle = categoryToSave === 'self_thought' ? 'Personal Thought' : 'Daily Reflection';
+    const titleToSave = data.title?.trim() || (data.sketchData ? 'Stylus Sketch Entry' : defaultTitle);
+    const contentToSave = data.content?.trim() || (data.sketchData ? '[Sketch Page]' : '');
 
     const currentEditing = editingJournalEntry;
     setEditingJournalEntry(null);
@@ -1348,6 +1379,7 @@ export default function App() {
       if (currentEditing) {
         await updateDoc(doc(db, 'journalEntries', currentEditing.id), cleanFirestoreData({
           ...data,
+          category: categoryToSave,
           sketchData: data.sketchData || deleteField(),
           title: titleToSave,
           content: contentToSave,
@@ -1356,6 +1388,7 @@ export default function App() {
       } else {
         await addDoc(collection(db, 'journalEntries'), cleanFirestoreData({
           ...data,
+          category: categoryToSave,
           title: titleToSave,
           content: contentToSave,
           date: format(startOfToday(), 'yyyy-MM-dd'),
@@ -2125,11 +2158,12 @@ export default function App() {
                 >
                   <Button onClick={() => {
                     setEditingJournalEntry(null);
+                    setJournalModalCategory(journalSegment);
                     setIncludeJournalSketchPage(false);
                     setCurrentJournalSketch(undefined);
                     setShowJournalModal(true);
                   }} className="h-9 py-0 rounded px-4 text-xs tracking-tight font-bold">
-                    <Pen className="w-3.5 h-3.5" /> Write Entry
+                    <Pen className="w-3.5 h-3.5" /> {journalSegment === 'self_thought' ? 'Note Thought' : 'Write Reflection'}
                   </Button>
                 </motion.div>
               ) : activeTab === 'tasks' ? (
@@ -2322,7 +2356,9 @@ export default function App() {
                     <div className="flex items-baseline gap-2">
                        <span className="text-3xl font-mono font-black">{journalEntries.length}</span>
                     </div>
-                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Total Entries</p>
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">
+                      {dailyReflectionsList.length} Reviews • {selfThoughtsList.length} Thoughts
+                    </p>
                   </div>
 
                   <div className="col-span-1 p-8 bg-amber-500/10 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-900/50 rounded-2xl hover:border-amber-300 dark:hover:border-amber-700 transition-all cursor-pointer" onClick={() => setActiveTab('urge')}>
@@ -2918,177 +2954,459 @@ export default function App() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="p-10 max-w-4xl mx-auto"
+                className="p-6 sm:p-10 max-w-4xl mx-auto space-y-6"
               >
-                <div className="flex items-center justify-between mb-8">
+                {/* Journal Tab Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h2 className="text-2xl font-black uppercase tracking-tighter dark:text-zinc-100">Daily Journal</h2>
-                    <p className="text-sm text-zinc-400 font-medium dark:text-zinc-500">Document your journey and internal state</p>
+                    <p className="text-sm text-zinc-400 font-medium dark:text-zinc-500">
+                      Reflect on your daily progress and record personal thoughts & ideas
+                    </p>
                   </div>
-                </div>
-
-                <div className="space-y-6">
-                  {journalEntries.length === 0 ? (
-                    <div className="p-20 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-600">
-                      <BookOpen className="w-16 h-16 mb-6 opacity-20" />
-                      <p className="font-bold uppercase tracking-[0.2em] text-[10px] mb-4">Your journal is empty</p>
-                      <Button onClick={() => {
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      onClick={() => {
                         setEditingJournalEntry(null);
+                        setJournalModalCategory(journalSegment);
                         setIncludeJournalSketchPage(false);
                         setCurrentJournalSketch(undefined);
                         setShowJournalModal(true);
-                      }} className="h-9 py-0 rounded px-4 text-xs tracking-tight font-bold">
-                        <Pen className="w-3.5 h-3.5" /> Write First Entry
-                      </Button>
+                      }} 
+                      className="h-9 px-5 font-black uppercase tracking-widest text-[10px] flex items-center gap-2"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> {journalSegment === 'self_thought' ? 'Note Self Thought' : 'Write Reflection'}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Segment Switcher Tabs */}
+                <div className="flex items-center bg-zinc-100 dark:bg-zinc-900 p-1.5 rounded-xl border border-zinc-200/80 dark:border-zinc-800">
+                  <button
+                    onClick={() => setJournalSegment('daily_reflection')}
+                    className={cn(
+                      "flex-1 py-2.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer",
+                      journalSegment === 'daily_reflection'
+                        ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs"
+                        : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+                    )}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                    <span>Daily Reflections</span>
+                    <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-mono font-bold", journalSegment === 'daily_reflection' ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-500")}>
+                      {dailyReflectionsList.length}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setJournalSegment('self_thought')}
+                    className={cn(
+                      "flex-1 py-2.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer",
+                      journalSegment === 'self_thought'
+                        ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs"
+                        : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+                    )}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                    <span>Self Thoughts & Ideas</span>
+                    <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-mono font-bold", journalSegment === 'self_thought' ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-500")}>
+                      {selfThoughtsList.length}
+                    </span>
+                  </button>
+                </div>
+
+                {/* SEGMENT 1: DAILY REFLECTIONS */}
+                {journalSegment === 'daily_reflection' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-900">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+                        <h3 className="text-xs font-black uppercase tracking-widest text-zinc-800 dark:text-zinc-200">
+                          Daily Reflections ({dailyReflectionsList.length})
+                        </h3>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400 uppercase">
+                        Mistakes • Improvements • Study Quality • Mood
+                      </span>
                     </div>
-                  ) : (
-                    journalEntries.map(entry => (
-                      <div 
-                        key={entry.id} 
-                        onClick={() => {
-                          setExpandedEntries(prev => {
-                            const next = new Set(prev);
-                            if (next.has(entry.id)) next.delete(entry.id);
-                            else next.add(entry.id);
-                            return next;
-                          });
-                        }}
-                        className="p-8 bg-zinc-50/50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:bg-white dark:hover:bg-zinc-900 hover:shadow-xl hover:border-zinc-200 dark:hover:border-zinc-700 transition-all group cursor-pointer"
-                      >
-                        <div className="flex items-start justify-between mb-6">
-                          <div>
-                            <div className="flex items-center gap-3 mb-2">
-                               <span className="text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-600 uppercase tracking-widest">
-                                {format(new Date(entry.timestamp), 'EEEE, MMM do')}
-                              </span>
-                              {entry.mood && (
-                                <span className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-[9px] font-bold uppercase tracking-widest rounded-full text-zinc-500 dark:text-zinc-400 ring-1 ring-zinc-200 dark:ring-zinc-700">
-                                  {entry.mood}
-                                </span>
-                              )}
-                            </div>
-                            <h3 className="text-xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">{entry.title}</h3>
-                          </div>
-                          <div className="flex gap-2">
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingJournalEntry(entry);
-                                setIncludeJournalSketchPage(Boolean(entry.sketchData));
-                                setCurrentJournalSketch(entry.sketchData);
-                                setShowJournalModal(true);
-                              }}
-                              className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                            >
-                              <Edit className="w-4 h-4 text-zinc-400" />
-                            </button>
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteJournalEntry(entry.id);
-                              }}
-                              className="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors group/del"
-                            >
-                              <Trash2 className="w-4 h-4 text-zinc-400 group-hover/del:text-red-500" />
-                            </button>
-                          </div>
+
+                    <div className="space-y-4">
+                      {dailyReflectionsList.length === 0 ? (
+                        <div className="p-16 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-600 text-center">
+                          <BookOpen className="w-12 h-12 mb-4 opacity-25 text-amber-500" />
+                          <p className="font-bold uppercase tracking-[0.2em] text-[11px] mb-1 text-zinc-700 dark:text-zinc-300">No daily reflections logged yet</p>
+                          <p className="text-xs text-zinc-400 dark:text-zinc-500 max-w-sm mb-5">
+                            Track your study quality, mistakes made, what triggered them, mood, and one improvement for tomorrow.
+                          </p>
+                          <Button 
+                            onClick={() => {
+                              setEditingJournalEntry(null);
+                              setJournalModalCategory('daily_reflection');
+                              setIncludeJournalSketchPage(false);
+                              setCurrentJournalSketch(undefined);
+                              setShowJournalModal(true);
+                            }} 
+                            className="h-9 px-5 text-xs font-bold"
+                          >
+                            <Pen className="w-3.5 h-3.5 mr-1.5" /> Write First Reflection
+                          </Button>
                         </div>
-                        {entry.content ? (
-                          <p className={cn(
-                            "text-zinc-600 dark:text-zinc-400 leading-relaxed whitespace-pre-wrap selection:bg-zinc-900 selection:text-white dark:selection:bg-zinc-100 dark:selection:text-zinc-900",
-                            !expandedEntries.has(entry.id) && "line-clamp-4"
-                          )}>{entry.content}</p>
-                        ) : null}
-                        
-                        {!expandedEntries.has(entry.id) && ((entry.content?.length || 0) > 200) && (
-                          <p className="text-[8px] font-bold uppercase tracking-widest text-emerald-500 mt-4">Click to expand</p>
-                        )}
-
-                        {expandedEntries.has(entry.id) && (entry.lostControl || entry.trigger || entry.improvementTomorrow || entry.learningFromMistake) && (
-                          <div className="mt-8 pt-8 border-t border-zinc-100 dark:border-zinc-800 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                            {entry.lostControl && (
+                      ) : (
+                        dailyReflectionsList.map(entry => (
+                          <div 
+                            key={entry.id} 
+                            onClick={() => {
+                              setExpandedEntries(prev => {
+                                const next = new Set(prev);
+                                if (next.has(entry.id)) next.delete(entry.id);
+                                else next.add(entry.id);
+                                return next;
+                              });
+                            }}
+                            className="p-8 bg-zinc-50/50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:bg-white dark:hover:bg-zinc-900 hover:shadow-xl hover:border-zinc-200 dark:hover:border-zinc-700 transition-all group cursor-pointer"
+                          >
+                            <div className="flex items-start justify-between mb-4">
                               <div>
-                                <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600 mb-1.5">Where did you lose control?</p>
-                                <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.lostControl}</p>
+                                <div className="flex flex-wrap items-center gap-2 mb-2">
+                                  <span className="text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-600 uppercase tracking-widest">
+                                    {format(new Date(entry.timestamp), 'EEEE, MMM do')}
+                                  </span>
+                                  {entry.mood && (
+                                    <span className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-[9px] font-bold uppercase tracking-widest rounded-full text-zinc-500 dark:text-zinc-400 ring-1 ring-zinc-200 dark:ring-zinc-700">
+                                      {entry.mood}
+                                    </span>
+                                  )}
+                                  {entry.studyQuality && (
+                                    <span className="px-2.5 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[9px] font-bold uppercase tracking-widest rounded-full ring-1 ring-amber-500/20 flex items-center gap-1">
+                                      <span>📚 Study Quality:</span>
+                                      <span className="font-semibold normal-case">{entry.studyQuality}</span>
+                                    </span>
+                                  )}
+                                </div>
+                                <h3 className="text-xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">{entry.title}</h3>
                               </div>
-                            )}
-                            {entry.trigger && (
-                              <div>
-                                <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600 mb-1.5">What triggered it?</p>
-                                <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.trigger}</p>
-                              </div>
-                            )}
-                            {entry.improvementTomorrow && (
-                              <div>
-                                <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600 mb-1.5">One improvement tomorrow</p>
-                                <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.improvementTomorrow}</p>
-                              </div>
-                            )}
-                            {entry.learningFromMistake && (
-                              <div className="md:col-span-2">
-                                <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600 mb-1.5">Learning from mistake</p>
-                                <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.learningFromMistake}</p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Optional Stylus Sketch Page Preview */}
-                        {entry.sketchData ? (() => {
-                          const pages = parseSketchPages(entry.sketchData);
-                          const firstPage = pages[0];
-                          const pageCount = pages.length;
-
-                          return (
-                            <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800/80">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-                                  <Pencil className="w-3 h-3" />
-                                  Stylus Sketch Page {pageCount > 1 ? `(1 of ${pageCount})` : ''}
-                                </span>
-                                <button
+                              <div className="flex gap-2 shrink-0">
+                                <button 
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setViewingJournalSketchEntry(entry);
-                                    setViewingJournalSketchPageIndex(0);
+                                    setEditingJournalEntry(entry);
+                                    setJournalModalCategory('daily_reflection');
+                                    setIncludeJournalSketchPage(Boolean(entry.sketchData));
+                                    setCurrentJournalSketch(entry.sketchData);
+                                    setShowJournalModal(true);
                                   }}
-                                  className="text-[10px] font-bold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded flex items-center gap-1 transition-all"
+                                  className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+                                  title="Edit entry"
                                 >
-                                  <Maximize2 className="w-2.5 h-2.5" /> 
-                                  <span>{pageCount > 1 ? `View All ${pageCount} Pages` : 'Expand Page'}</span>
+                                  <Edit className="w-4 h-4 text-zinc-400" />
+                                </button>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteJournalEntry(entry.id);
+                                  }}
+                                  className="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors group/del cursor-pointer"
+                                  title="Delete entry"
+                                >
+                                  <Trash2 className="w-4 h-4 text-zinc-400 group-hover/del:text-red-500" />
                                 </button>
                               </div>
-                              <div 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setViewingJournalSketchEntry(entry);
-                                  setViewingJournalSketchPageIndex(0);
-                                }}
-                                className="relative rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white p-1.5 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group"
-                              >
-                                <img 
-                                  src={firstPage} 
-                                  alt="Stylus sketch" 
-                                  className="w-full h-40 object-contain rounded bg-white" 
-                                />
-                                {pageCount > 1 && (
-                                  <div className="absolute top-2 right-2 bg-zinc-900/85 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur border border-amber-500/30 shadow-md flex items-center gap-1">
-                                    <Layers className="w-3 h-3" /> {pageCount} Pages
+                            </div>
+
+                            {entry.content ? (
+                              <p className={cn(
+                                "text-zinc-600 dark:text-zinc-400 leading-relaxed whitespace-pre-wrap selection:bg-zinc-900 selection:text-white dark:selection:bg-zinc-100 dark:selection:text-zinc-900",
+                                !expandedEntries.has(entry.id) && "line-clamp-4"
+                              )}>{entry.content}</p>
+                            ) : null}
+                            
+                            {!expandedEntries.has(entry.id) && ((entry.content?.length || 0) > 200 || entry.lostControl || entry.trigger || entry.improvementTomorrow || entry.learningFromMistake) && (
+                              <p className="text-[9px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 mt-4 flex items-center gap-1">
+                                <span>Click to view reflection details</span>
+                                <ChevronDown className="w-3 h-3" />
+                              </p>
+                            )}
+
+                            {expandedEntries.has(entry.id) && (entry.studyQuality || entry.lostControl || entry.trigger || entry.improvementTomorrow || entry.learningFromMistake) && (
+                              <div className="mt-6 pt-6 border-t border-zinc-100 dark:border-zinc-800 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5 bg-zinc-50/70 dark:bg-zinc-900/80 p-5 rounded-xl">
+                                {entry.studyQuality && (
+                                  <div className="md:col-span-2">
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-1 flex items-center gap-1.5">
+                                      <span>📚 Study Quality & Focus</span>
+                                    </p>
+                                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.studyQuality}</p>
                                   </div>
                                 )}
-                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                  <span className="bg-zinc-900/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full backdrop-blur flex items-center gap-1.5 shadow-xl">
-                                    <Maximize2 className="w-3 h-3" /> {pageCount > 1 ? `Click to View ${pageCount} Pages` : 'Click to Expand Sketch'}
-                                  </span>
+                                {entry.lostControl && (
+                                  <div>
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-rose-500 dark:text-rose-400 mb-1 flex items-center gap-1">
+                                      <span>⚠️ Where did you lose control / mistakes?</span>
+                                    </p>
+                                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.lostControl}</p>
+                                  </div>
+                                )}
+                                {entry.trigger && (
+                                  <div>
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600 mb-1">
+                                      What triggered it?
+                                    </p>
+                                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.trigger}</p>
+                                  </div>
+                                )}
+                                {entry.improvementTomorrow && (
+                                  <div>
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-1">
+                                      <span>🌱 One improvement tomorrow</span>
+                                    </p>
+                                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.improvementTomorrow}</p>
+                                  </div>
+                                )}
+                                {entry.learningFromMistake && (
+                                  <div className="md:col-span-2">
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-indigo-500 dark:text-indigo-400 mb-1 flex items-center gap-1">
+                                      <span>💡 Learning from mistake</span>
+                                    </p>
+                                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.learningFromMistake}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Optional Stylus Sketch Page Preview */}
+                            {entry.sketchData ? (() => {
+                              const pages = parseSketchPages(entry.sketchData);
+                              const firstPage = pages[0];
+                              const pageCount = pages.length;
+
+                              return (
+                                <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800/80">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                                      <Pencil className="w-3 h-3" />
+                                      Stylus Sketch Page {pageCount > 1 ? `(1 of ${pageCount})` : ''}
+                                    </span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setViewingJournalSketchEntry(entry);
+                                        setViewingJournalSketchPageIndex(0);
+                                      }}
+                                      className="text-[10px] font-bold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded flex items-center gap-1 transition-all cursor-pointer"
+                                    >
+                                      <Maximize2 className="w-2.5 h-2.5" /> 
+                                      <span>{pageCount > 1 ? `View All ${pageCount} Pages` : 'Expand Page'}</span>
+                                    </button>
+                                  </div>
+                                  <div 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setViewingJournalSketchEntry(entry);
+                                      setViewingJournalSketchPageIndex(0);
+                                    }}
+                                    className="relative rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white p-1.5 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group"
+                                  >
+                                    <img 
+                                      src={firstPage} 
+                                      alt="Stylus sketch" 
+                                      className="w-full h-40 object-contain rounded bg-white" 
+                                    />
+                                    {pageCount > 1 && (
+                                      <div className="absolute top-2 right-2 bg-zinc-900/85 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur border border-amber-500/30 shadow-md flex items-center gap-1">
+                                        <Layers className="w-3 h-3" /> {pageCount} Pages
+                                      </div>
+                                    )}
+                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                      <span className="bg-zinc-900/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full backdrop-blur flex items-center gap-1.5 shadow-xl">
+                                        <Maximize2 className="w-3 h-3" /> {pageCount > 1 ? `Click to View ${pageCount} Pages` : 'Click to Expand Sketch'}
+                                      </span>
+                                    </div>
+                                  </div>
                                 </div>
+                              );
+                            })() : null}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* SEGMENT 2: SELF THOUGHTS & IDEAS */}
+                {journalSegment === 'self_thought' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-900">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 inline-block"></span>
+                        <h3 className="text-xs font-black uppercase tracking-widest text-zinc-800 dark:text-zinc-200">
+                          Self Thoughts & Ideas ({selfThoughtsList.length})
+                        </h3>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-indigo-500 uppercase">
+                        Decisions • Dilemmas • Purchase Ideas • Musings
+                      </span>
+                    </div>
+
+                    <div className="space-y-4">
+                      {selfThoughtsList.length === 0 ? (
+                        <div className="p-16 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-600 text-center">
+                          <Lightbulb className="w-12 h-12 mb-4 opacity-30 text-indigo-500" />
+                          <p className="font-bold uppercase tracking-[0.2em] text-[11px] mb-1 text-zinc-700 dark:text-zinc-300">No self thoughts recorded yet</p>
+                          <p className="text-xs text-zinc-400 dark:text-zinc-500 max-w-sm mb-5">
+                            Contemplating buying a laptop? Choosing BBA over BSc? Record your dilemmas, internal thinking, pros & cons, and future decisions.
+                          </p>
+                          <Button 
+                            onClick={() => {
+                              setEditingJournalEntry(null);
+                              setJournalModalCategory('self_thought');
+                              setIncludeJournalSketchPage(false);
+                              setCurrentJournalSketch(undefined);
+                              setShowJournalModal(true);
+                            }} 
+                            className="h-9 px-5 text-xs font-bold"
+                          >
+                            <Lightbulb className="w-3.5 h-3.5 mr-1.5" /> Note First Self Thought
+                          </Button>
+                        </div>
+                      ) : (
+                        selfThoughtsList.map(entry => (
+                          <div 
+                            key={entry.id} 
+                            onClick={() => {
+                              setExpandedEntries(prev => {
+                                const next = new Set(prev);
+                                if (next.has(entry.id)) next.delete(entry.id);
+                                else next.add(entry.id);
+                                return next;
+                              });
+                            }}
+                            className="p-8 bg-zinc-50/50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:bg-white dark:hover:bg-zinc-900 hover:shadow-xl hover:border-zinc-200 dark:hover:border-zinc-700 transition-all group cursor-pointer"
+                          >
+                            <div className="flex items-start justify-between mb-4">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2 mb-2">
+                                  <span className="text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-600 uppercase tracking-widest">
+                                    {format(new Date(entry.timestamp), 'EEEE, MMM do')}
+                                  </span>
+                                  {entry.thoughtTopic && (
+                                    <span className="px-2.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/50 text-[9px] font-bold uppercase tracking-widest rounded-full text-indigo-600 dark:text-indigo-400 ring-1 ring-indigo-200 dark:ring-indigo-800 flex items-center gap-1">
+                                      <Lightbulb className="w-2.5 h-2.5" />
+                                      {entry.thoughtTopic}
+                                    </span>
+                                  )}
+                                </div>
+                                <h3 className="text-xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">{entry.title}</h3>
+                              </div>
+                              <div className="flex gap-2 shrink-0">
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingJournalEntry(entry);
+                                    setJournalModalCategory('self_thought');
+                                    setIncludeJournalSketchPage(Boolean(entry.sketchData));
+                                    setCurrentJournalSketch(entry.sketchData);
+                                    setShowJournalModal(true);
+                                  }}
+                                  className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+                                  title="Edit entry"
+                                >
+                                  <Edit className="w-4 h-4 text-zinc-400" />
+                                </button>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteJournalEntry(entry.id);
+                                  }}
+                                  className="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors group/del cursor-pointer"
+                                  title="Delete entry"
+                                >
+                                  <Trash2 className="w-4 h-4 text-zinc-400 group-hover/del:text-red-500" />
+                                </button>
                               </div>
                             </div>
-                          );
-                        })() : null}
-                      </div>
-                    ))
-                  )}
-                </div>
+
+                            {entry.content ? (
+                              <p className={cn(
+                                "text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap selection:bg-zinc-900 selection:text-white dark:selection:bg-zinc-100 dark:selection:text-zinc-900 text-sm",
+                                !expandedEntries.has(entry.id) && "line-clamp-4"
+                              )}>{entry.content}</p>
+                            ) : null}
+
+                            {!expandedEntries.has(entry.id) && (entry.content?.length || 0) > 200 && (
+                              <p className="text-[9px] font-bold uppercase tracking-widest text-indigo-500 mt-3 flex items-center gap-1">
+                                <span>Read full thought</span>
+                                <ChevronDown className="w-3 h-3" />
+                              </p>
+                            )}
+
+                            {/* Conclusion / Next Step Callout */}
+                            {entry.nextStepOrDecision && (
+                              <div className="mt-4 p-4 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/70 flex items-start gap-3">
+                                <Target className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+                                <div>
+                                  <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 block mb-0.5">Conclusion / Next Action</span>
+                                  <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.nextStepOrDecision}</p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Optional Stylus Sketch Page Preview */}
+                            {entry.sketchData ? (() => {
+                              const pages = parseSketchPages(entry.sketchData);
+                              const firstPage = pages[0];
+                              const pageCount = pages.length;
+
+                              return (
+                                <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800/80">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                                      <Pencil className="w-3 h-3" />
+                                      Thought Mindmap / Sketch {pageCount > 1 ? `(1 of ${pageCount})` : ''}
+                                    </span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setViewingJournalSketchEntry(entry);
+                                        setViewingJournalSketchPageIndex(0);
+                                      }}
+                                      className="text-[10px] font-bold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded flex items-center gap-1 transition-all cursor-pointer"
+                                    >
+                                      <Maximize2 className="w-2.5 h-2.5" /> 
+                                      <span>{pageCount > 1 ? `View All ${pageCount} Pages` : 'Expand Page'}</span>
+                                    </button>
+                                  </div>
+                                  <div 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setViewingJournalSketchEntry(entry);
+                                      setViewingJournalSketchPageIndex(0);
+                                    }}
+                                    className="relative rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white p-1.5 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group"
+                                  >
+                                    <img 
+                                      src={firstPage} 
+                                      alt="Stylus sketch" 
+                                      className="w-full h-40 object-contain rounded bg-white" 
+                                    />
+                                    {pageCount > 1 && (
+                                      <div className="absolute top-2 right-2 bg-zinc-900/85 text-indigo-400 text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur border border-indigo-500/30 shadow-md flex items-center gap-1">
+                                        <Layers className="w-3 h-3" /> {pageCount} Pages
+                                      </div>
+                                    )}
+                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                      <span className="bg-zinc-900/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full backdrop-blur flex items-center gap-1.5 shadow-xl">
+                                        <Maximize2 className="w-3 h-3" /> {pageCount > 1 ? `Click to View ${pageCount} Pages` : 'Click to Expand Sketch'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })() : null}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
               </motion.div>
             ) : (
               <motion.div 
@@ -4786,7 +5104,7 @@ export default function App() {
                       if (e.key === 'Enter') {
                         e.preventDefault();
                         if (newSubtaskInput.trim()) {
-                          setModalSubtasks([...modalSubtasks, { id: Date.now().toString(), text: newSubtaskInput.trim(), completed: false }]);
+                          setModalSubtasks([...modalSubtasks, { id: Date.now().toString(), text: newSubtaskInput.trim(), completed: false, status: 'pending' }]);
                           setNewSubtaskInput('');
                         }
                       }
@@ -4798,7 +5116,7 @@ export default function App() {
                     type="button"
                     onClick={() => {
                       if (newSubtaskInput.trim()) {
-                        setModalSubtasks([...modalSubtasks, { id: Date.now().toString(), text: newSubtaskInput.trim(), completed: false }]);
+                        setModalSubtasks([...modalSubtasks, { id: Date.now().toString(), text: newSubtaskInput.trim(), completed: false, status: 'pending' }]);
                         setNewSubtaskInput('');
                       }
                     }}
@@ -4811,33 +5129,51 @@ export default function App() {
 
                 {modalSubtasks.length > 0 && (
                   <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1 custom-scrollbar">
-                    {modalSubtasks.map((st, idx) => (
-                      <div key={st.id} className="flex items-center justify-between p-2 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 text-xs">
-                        <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
-                          <input 
-                            type="checkbox" 
-                            checked={st.completed}
-                            onChange={() => {
-                              const updated = [...modalSubtasks];
-                              updated[idx].completed = !updated[idx].completed;
-                              setModalSubtasks(updated);
-                            }}
-                            className="rounded text-amber-500 focus:ring-amber-500 shrink-0"
-                          />
-                          <span className={`truncate ${st.completed ? 'line-through text-zinc-400 dark:text-zinc-500' : 'font-medium dark:text-zinc-200'}`}>
-                            {st.text}
-                          </span>
+                    {modalSubtasks.map((st, idx) => {
+                      const isCompleted = st.status === 'completed' || (st.completed && st.status !== 'cancelled');
+                      const isCancelled = st.status === 'cancelled';
+                      return (
+                        <div key={st.id} className="flex items-center justify-between p-2 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 text-xs">
+                          <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = [...modalSubtasks];
+                                if (isCompleted) {
+                                  updated[idx] = { ...st, completed: false, status: 'cancelled' };
+                                } else if (isCancelled) {
+                                  updated[idx] = { ...st, completed: false, status: 'pending' };
+                                } else {
+                                  updated[idx] = { ...st, completed: true, status: 'completed' };
+                                }
+                                setModalSubtasks(updated);
+                              }}
+                              className="p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors shrink-0"
+                              title="Click for tick, click again for cross"
+                            >
+                              {isCompleted ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-500 stroke-[3]" />
+                              ) : isCancelled ? (
+                                <X className="w-3.5 h-3.5 text-rose-500 stroke-[3]" />
+                              ) : (
+                                <div className="w-3.5 h-3.5 rounded-full border-2 border-zinc-400 dark:border-zinc-600" />
+                              )}
+                            </button>
+                            <span className={`break-words ${isCompleted ? 'line-through text-zinc-400 dark:text-zinc-500' : isCancelled ? 'line-through text-rose-500 dark:text-rose-400 font-medium' : 'font-medium dark:text-zinc-200'}`}>
+                              {st.text}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setModalSubtasks(modalSubtasks.filter(t => t.id !== st.id))}
+                            className="text-zinc-400 hover:text-red-500 p-1 shrink-0"
+                            title="Remove task"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setModalSubtasks(modalSubtasks.filter(t => t.id !== st.id))}
-                          className="text-zinc-400 hover:text-red-500 p-1 shrink-0"
-                          title="Remove task"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -5116,177 +5452,378 @@ export default function App() {
           );
         })()}
 
-        {showJournalModal && (
-          <Modal 
-            key="journal-modal" 
-            isOpen={showJournalModal} 
-            onClose={() => {
-              setShowJournalModal(false);
-              setEditingJournalEntry(null);
-              setIncludeJournalSketchPage(false);
-              setCurrentJournalSketch(undefined);
-            }} 
-            title={editingJournalEntry ? "Edit Entry" : "New Journal Entry"}
-            maxWidth={includeJournalSketchPage ? "max-w-4xl xl:max-w-5xl" : "max-w-md"}
-          >
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const fd = new FormData(e.currentTarget);
-              handleSaveJournalEntry({
-                title: fd.get('title') as string,
-                mood: fd.get('mood') as string,
-                content: fd.get('content') as string,
-                lostControl: fd.get('lostControl') as string,
-                trigger: fd.get('trigger') as string,
-                improvementTomorrow: fd.get('improvementTomorrow') as string,
-                learningFromMistake: fd.get('learningFromMistake') as string,
-                sketchData: includeJournalSketchPage ? currentJournalSketch : undefined
-              });
-              setIncludeJournalSketchPage(false);
-              setCurrentJournalSketch(undefined);
-            }} className="space-y-6">
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">
-                  Title <span className="text-[10px] text-zinc-400 font-normal lowercase">(optional)</span>
-                </label>
-                <input 
-                  name="title"
-                  type="text" 
-                  autoFocus
-                  defaultValue={editingJournalEntry?.title || ''}
-                  placeholder="Today's Reflections..."
-                  className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-lg dark:text-zinc-100"
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Mood</label>
-                  <input 
-                    name="mood"
-                    type="text" 
-                    defaultValue={editingJournalEntry?.mood || ''}
-                    placeholder="e.g. Grateful, Calm"
-                    className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">One improvement tomorrow</label>
-                  <input 
-                    name="improvementTomorrow"
-                    type="text" 
-                    defaultValue={editingJournalEntry?.improvementTomorrow || ''}
-                    placeholder="Be more patient..."
-                    className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
-                  />
-                </div>
-              </div>
+        {showJournalModal && (() => {
+          return React.createElement(() => {
+            const [modalCategory, setModalCategory] = useState<'daily_reflection' | 'self_thought'>(
+              editingJournalEntry?.category || journalModalCategory || 'daily_reflection'
+            );
+            const [thoughtTopic, setThoughtTopic] = useState<string>(
+              editingJournalEntry?.thoughtTopic || 'Decision'
+            );
+            const [studyQualityVal, setStudyQualityVal] = useState<string>(
+              editingJournalEntry?.studyQuality || ''
+            );
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Where did you lose control?</label>
-                  <input 
-                    name="lostControl"
-                    type="text" 
-                    defaultValue={editingJournalEntry?.lostControl || ''}
-                    placeholder="Specific moment..."
-                    className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">What triggered it?</label>
-                  <input 
-                    name="trigger"
-                    type="text" 
-                    defaultValue={editingJournalEntry?.trigger || ''}
-                    placeholder="Internal/External trigger..."
-                    className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
-                  />
-                </div>
-              </div>
+            const quickStudyChips = [
+              '⚡ Deep Focus (9/10)',
+              '📚 Good Progress (7/10)',
+              '🎯 Average Focus (5/10)',
+              '⚠️ Distracted / Fatigued'
+            ];
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">Today's learning from mistake</label>
-                <input 
-                  name="learningFromMistake"
-                  type="text" 
-                  defaultValue={editingJournalEntry?.learningFromMistake || ''}
-                  placeholder="Key takeaway..."
-                  className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-sm dark:text-zinc-100"
-                />
-              </div>
+            const quickThoughtTopics = [
+              '💡 Decision',
+              '💻 Purchase',
+              '🎓 Career & Study',
+              '💭 Dilemma',
+              '✨ Idea & Goal',
+              '🌿 Personal'
+            ];
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-3">
-                  Content <span className="text-[10px] text-zinc-400 font-normal lowercase">(optional if sketching)</span>
-                </label>
-                <textarea 
-                  name="content"
-                  rows={6}
-                  defaultValue={editingJournalEntry?.content || ''}
-                  placeholder="Let your thoughts flow..."
-                  className="w-full px-4 py-4 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-medium text-sm dark:text-zinc-100 leading-relaxed resize-none overflow-y-auto"
-                />
-              </div>
-
-              {/* Optional Stylus Sketch Page Toggle & Canvas */}
-              <div className="border-t border-zinc-100 dark:border-zinc-800/80 pt-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Pencil className="w-4 h-4 text-amber-500" />
-                    <span className="text-xs font-bold uppercase tracking-wider dark:text-zinc-200">
-                      Blank Page Sketch <span className="text-[10px] text-zinc-400 font-normal lowercase">(optional stylus page)</span>
-                    </span>
-                  </div>
-                  {!includeJournalSketchPage ? (
-                    <button
-                      type="button"
-                      onClick={() => setIncludeJournalSketchPage(true)}
-                      className="text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-500/30 transition-all flex items-center gap-1.5"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Add Sketch Page</span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIncludeJournalSketchPage(false);
-                        setCurrentJournalSketch(undefined);
-                      }}
-                      className="text-xs font-semibold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-2.5 py-1 rounded-lg transition-all"
-                    >
-                      Remove Page
-                    </button>
-                  )}
-                </div>
-
-                {includeJournalSketchPage && (
-                  <div className="mt-3">
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mb-2 font-medium">
-                      Draw diagrams, mind maps, or handwritten notes with your stylus or finger on this blank journal page:
-                    </p>
-                    <SketchCanvas
-                      initialData={currentJournalSketch}
-                      onChange={(dataUrl) => setCurrentJournalSketch(dataUrl)}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-4 flex gap-3 sticky bottom-0 bg-white dark:bg-zinc-950 pb-2">
-                <Button type="button" variant="secondary" onClick={() => {
+            return (
+              <Modal 
+                key="journal-modal" 
+                isOpen={showJournalModal} 
+                onClose={() => {
                   setShowJournalModal(false);
                   setEditingJournalEntry(null);
                   setIncludeJournalSketchPage(false);
                   setCurrentJournalSketch(undefined);
-                }} className="flex-1 text-xs dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 h-10">Cancel</Button>
-                <Button type="submit" className="flex-[2] text-xs font-bold dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white h-10">
-                  {editingJournalEntry ? "Update Entry" : "Save Entry"}
-                </Button>
-              </div>
-            </form>
-          </Modal>
-        )}
+                }} 
+                title={editingJournalEntry ? (modalCategory === 'self_thought' ? "Edit Self Thought" : "Edit Daily Reflection") : (modalCategory === 'self_thought' ? "New Self Thought" : "New Daily Reflection")}
+                maxWidth={includeJournalSketchPage ? "max-w-4xl xl:max-w-5xl" : "max-w-xl"}
+              >
+                <div className="space-y-5">
+                  {/* Category Switcher in Modal */}
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-zinc-100 dark:bg-zinc-900 rounded-xl border border-zinc-200/80 dark:border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setModalCategory('daily_reflection')}
+                      className={cn(
+                        "py-2 px-3 text-xs font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer",
+                        modalCategory === 'daily_reflection'
+                          ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs"
+                          : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
+                      )}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                      <span>Daily Reflection</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setModalCategory('self_thought')}
+                      className={cn(
+                        "py-2 px-3 text-xs font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer",
+                        modalCategory === 'self_thought'
+                          ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs"
+                          : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
+                      )}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                      <span>Self Thought / Decision</span>
+                    </button>
+                  </div>
+
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const fd = new FormData(e.currentTarget);
+                    handleSaveJournalEntry({
+                      category: modalCategory,
+                      title: fd.get('title') as string,
+                      content: fd.get('content') as string,
+                      mood: modalCategory === 'daily_reflection' ? (fd.get('mood') as string) : undefined,
+                      studyQuality: modalCategory === 'daily_reflection' ? studyQualityVal : undefined,
+                      lostControl: modalCategory === 'daily_reflection' ? (fd.get('lostControl') as string) : undefined,
+                      trigger: modalCategory === 'daily_reflection' ? (fd.get('trigger') as string) : undefined,
+                      improvementTomorrow: modalCategory === 'daily_reflection' ? (fd.get('improvementTomorrow') as string) : undefined,
+                      learningFromMistake: modalCategory === 'daily_reflection' ? (fd.get('learningFromMistake') as string) : undefined,
+                      thoughtTopic: modalCategory === 'self_thought' ? (thoughtTopic || (fd.get('thoughtTopicCustom') as string) || 'Decision') : undefined,
+                      nextStepOrDecision: modalCategory === 'self_thought' ? (fd.get('nextStepOrDecision') as string) : undefined,
+                      sketchData: includeJournalSketchPage ? currentJournalSketch : undefined
+                    });
+                    setIncludeJournalSketchPage(false);
+                    setCurrentJournalSketch(undefined);
+                  }} className="space-y-5">
+
+                    {/* FIELDS FOR DAILY REFLECTION */}
+                    {modalCategory === 'daily_reflection' ? (
+                      <>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">
+                            Title <span className="text-[10px] text-zinc-400 font-normal lowercase">(optional)</span>
+                          </label>
+                          <input 
+                            name="title"
+                            type="text" 
+                            autoFocus
+                            defaultValue={editingJournalEntry?.title || ''}
+                            placeholder="Today's Review & Reflections..."
+                            className="w-full px-4 py-3 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-bold text-base dark:text-zinc-100"
+                          />
+                        </div>
+
+                        {/* Mood & Study Quality */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">My Mood Today</label>
+                            <input 
+                              name="mood"
+                              type="text" 
+                              defaultValue={editingJournalEntry?.mood || ''}
+                              placeholder="e.g. Grateful, Calm, Low Energy, Focused"
+                              className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-semibold text-xs dark:text-zinc-100"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">Quality of Study Today</label>
+                            <input 
+                              type="text" 
+                              value={studyQualityVal}
+                              onChange={(e) => setStudyQualityVal(e.target.value)}
+                              placeholder="e.g. Deep focus 5 hrs, understood calculus"
+                              className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-semibold text-xs dark:text-zinc-100"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Quick Study Quality Chips */}
+                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mr-1">Quick study rating:</span>
+                          {quickStudyChips.map(chip => (
+                            <button
+                              key={chip}
+                              type="button"
+                              onClick={() => setStudyQualityVal(chip)}
+                              className={cn(
+                                "px-2 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer",
+                                studyQualityVal === chip 
+                                  ? "bg-amber-500 text-white shadow-xs"
+                                  : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300"
+                              )}
+                            >
+                              {chip}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Mistakes & Triggers */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-rose-500 dark:text-rose-400 tracking-[0.2em] mb-2">
+                              Mistakes / Where did you lose control?
+                            </label>
+                            <input 
+                              name="lostControl"
+                              type="text" 
+                              defaultValue={editingJournalEntry?.lostControl || ''}
+                              placeholder="e.g. Broke phone boundary at 2 PM..."
+                              className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-semibold text-xs dark:text-zinc-100"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">
+                              What triggered it?
+                            </label>
+                            <input 
+                              name="trigger"
+                              type="text" 
+                              defaultValue={editingJournalEntry?.trigger || ''}
+                              placeholder="e.g. Boredom, notification ping..."
+                              className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-semibold text-xs dark:text-zinc-100"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Improvement Tomorrow & Learning */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-emerald-600 dark:text-emerald-400 tracking-[0.2em] mb-2">
+                              What can I improve tomorrow?
+                            </label>
+                            <input 
+                              name="improvementTomorrow"
+                              type="text" 
+                              defaultValue={editingJournalEntry?.improvementTomorrow || ''}
+                              placeholder="e.g. Keep phone in drawer during study..."
+                              className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-semibold text-xs dark:text-zinc-100"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-indigo-500 dark:text-indigo-400 tracking-[0.2em] mb-2">
+                              Today's learning from mistake
+                            </label>
+                            <input 
+                              name="learningFromMistake"
+                              type="text" 
+                              defaultValue={editingJournalEntry?.learningFromMistake || ''}
+                              placeholder="e.g. Action precedes motivation..."
+                              className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-semibold text-xs dark:text-zinc-100"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">
+                            General Reflections & Notes <span className="text-[10px] text-zinc-400 font-normal lowercase">(optional if sketching)</span>
+                          </label>
+                          <textarea 
+                            name="content"
+                            rows={4}
+                            defaultValue={editingJournalEntry?.content || ''}
+                            placeholder="Write about your day, wins, feelings, or summary..."
+                            className="w-full px-4 py-3 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-medium text-xs dark:text-zinc-100 leading-relaxed resize-none overflow-y-auto"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      /* FIELDS FOR SELF THOUGHT / DECISION JOURNAL */
+                      <>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-indigo-600 dark:text-indigo-400 tracking-[0.2em] mb-2">
+                            Self Thought Title <span className="text-rose-500">*</span>
+                          </label>
+                          <input 
+                            name="title"
+                            type="text" 
+                            autoFocus
+                            required
+                            defaultValue={editingJournalEntry?.title || ''}
+                            placeholder="e.g. I think I should buy this laptop, BBA over BSc decision..."
+                            className="w-full px-4 py-3 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-bold text-base dark:text-zinc-100"
+                          />
+                        </div>
+
+                        {/* Topic Tag Selector */}
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">
+                            Thought Topic / Category
+                          </label>
+                          <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                            {quickThoughtTopics.map(topic => (
+                              <button
+                                key={topic}
+                                type="button"
+                                onClick={() => setThoughtTopic(topic)}
+                                className={cn(
+                                  "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer",
+                                  thoughtTopic === topic
+                                    ? "bg-indigo-600 text-white shadow-xs"
+                                    : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300"
+                                )}
+                              >
+                                {topic}
+                              </button>
+                            ))}
+                          </div>
+                          <input 
+                            type="text" 
+                            value={thoughtTopic}
+                            onChange={(e) => setThoughtTopic(e.target.value)}
+                            placeholder="Or type a custom topic..."
+                            className="w-full px-3.5 py-2 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-medium text-xs dark:text-zinc-100"
+                          />
+                        </div>
+
+                        {/* Thought Content / Reasoning / Pros & Cons */}
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">
+                            Thought Exploration & Reasoning <span className="text-rose-500">*</span>
+                          </label>
+                          <textarea 
+                            name="content"
+                            rows={5}
+                            required
+                            defaultValue={editingJournalEntry?.content || ''}
+                            placeholder="Write your thoughts freely: Why are you considering this? What are the pros and cons? What's holding you back? What will the long-term impact be?..."
+                            className="w-full px-4 py-3 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-medium text-xs dark:text-zinc-100 leading-relaxed resize-none overflow-y-auto"
+                          />
+                        </div>
+
+                        {/* Conclusion / Decision / Next Step */}
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-indigo-600 dark:text-indigo-400 tracking-[0.2em] mb-2">
+                            Conclusion / Next Step / Decision <span className="text-[10px] text-zinc-400 font-normal lowercase">(optional)</span>
+                          </label>
+                          <input 
+                            name="nextStepOrDecision"
+                            type="text" 
+                            defaultValue={editingJournalEntry?.nextStepOrDecision || ''}
+                            placeholder="e.g. Decided to wait 14 days before buying; Research syllabus for BBA vs BSc"
+                            className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-semibold text-xs dark:text-zinc-100"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {/* Stylus Sketch Page Toggle & Canvas */}
+                    <div className="border-t border-zinc-100 dark:border-zinc-800/80 pt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Pencil className={cn("w-4 h-4", modalCategory === 'self_thought' ? "text-indigo-500" : "text-amber-500")} />
+                          <span className="text-xs font-bold uppercase tracking-wider dark:text-zinc-200">
+                            Stylus Sketch Page <span className="text-[10px] text-zinc-400 font-normal lowercase">(for mind maps, diagrams, notes)</span>
+                          </span>
+                        </div>
+                        {!includeJournalSketchPage ? (
+                          <button
+                            type="button"
+                            onClick={() => setIncludeJournalSketchPage(true)}
+                            className={cn(
+                              "text-xs font-bold px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer",
+                              modalCategory === 'self_thought'
+                                ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 border-indigo-200 dark:border-indigo-500/30"
+                                : "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 border-amber-200 dark:border-amber-500/30"
+                            )}
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Add Sketch Page</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIncludeJournalSketchPage(false);
+                              setCurrentJournalSketch(undefined);
+                            }}
+                            className="text-xs font-semibold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                          >
+                            Remove Page
+                          </button>
+                        )}
+                      </div>
+
+                      {includeJournalSketchPage && (
+                        <div className="mt-3">
+                          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mb-2 font-medium">
+                            Draw mind maps, pros & cons columns, flowcharts, or handwritten notes:
+                          </p>
+                          <SketchCanvas
+                            initialData={currentJournalSketch}
+                            onChange={(dataUrl) => setCurrentJournalSketch(dataUrl)}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-3 flex gap-3 sticky bottom-0 bg-white dark:bg-zinc-950 pb-1">
+                      <Button type="button" variant="secondary" onClick={() => {
+                        setShowJournalModal(false);
+                        setEditingJournalEntry(null);
+                        setIncludeJournalSketchPage(false);
+                        setCurrentJournalSketch(undefined);
+                      }} className="flex-1 text-xs dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 h-10">Cancel</Button>
+                      <Button type="submit" className="flex-[2] text-xs font-bold dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white h-10">
+                        {editingJournalEntry ? "Update Entry" : (modalCategory === 'self_thought' ? "Save Self Thought" : "Save Reflection")}
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+              </Modal>
+            );
+          });
+        })()}
 
         {/* Lightbox Modal for Fullscreen View of Journal Sketch Page */}
         {viewingJournalSketchEntry && (() => {

@@ -679,7 +679,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
               .sort((a, b) => getMinutes(a.startTime) - getMinutes(b.startTime))
               .map(block => {
                 const subtasks = block.subtasks || [];
-                const completedTasks = subtasks.filter(t => t.completed).length;
+                const completedTasks = subtasks.filter(t => t.completed || t.status === 'completed').length;
 
                 return (
                   <div 
@@ -746,25 +746,37 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                     {/* SUBTASKS CHECKLIST IN LIST VIEW */}
                     {subtasks.length > 0 && (
                       <div className="mt-3 pl-32 pr-4 pt-3 border-t border-zinc-100 dark:border-zinc-800/60 space-y-1.5">
-                        <span className="text-[9px] font-mono font-bold text-zinc-400 uppercase tracking-widest block mb-1">
-                          Tasks Checklist:
-                        </span>
-                        {subtasks.map(task => (
-                          <div 
-                            key={task.id} 
-                            onClick={() => onToggleSubtask && onToggleSubtask(block.id, task.id)}
-                            className="flex items-center gap-2 text-xs cursor-pointer hover:text-amber-500 transition-colors group/task"
-                          >
-                            {task.completed ? (
-                              <CheckSquare className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                            ) : (
-                              <Square className="w-3.5 h-3.5 text-zinc-400 group-hover/task:text-amber-500 shrink-0" />
-                            )}
-                            <span className={task.completed ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-700 dark:text-zinc-300 font-medium'}>
-                              {task.text}
-                            </span>
-                          </div>
-                        ))}
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[9px] font-mono font-bold text-zinc-400 uppercase tracking-widest block">
+                            Tasks Checklist:
+                          </span>
+                          <span className="text-[8px] font-mono text-zinc-400">1st click: tick • 2nd click: cross</span>
+                        </div>
+                        {subtasks.map(task => {
+                          const isCompleted = task.status === 'completed' || (task.completed && task.status !== 'cancelled');
+                          const isCancelled = task.status === 'cancelled';
+                          return (
+                            <div 
+                              key={task.id} 
+                              onClick={() => onToggleSubtask && onToggleSubtask(block.id, task.id)}
+                              className="flex items-center gap-2 text-xs cursor-pointer hover:text-amber-500 transition-colors group/task select-none"
+                              title={`${task.text} (1st click: tick, 2nd click: cross)`}
+                            >
+                              {isCompleted ? (
+                                <CheckSquare className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                              ) : isCancelled ? (
+                                <div className="w-3.5 h-3.5 rounded-sm border border-rose-500 bg-rose-500/10 flex items-center justify-center shrink-0">
+                                  <X className="w-2.5 h-2.5 text-rose-500 stroke-[3]" />
+                                </div>
+                              ) : (
+                                <div className="w-3.5 h-3.5 rounded-full border border-zinc-400 group-hover/task:border-amber-500 shrink-0" />
+                              )}
+                              <span className={isCompleted ? 'line-through text-zinc-400 dark:text-zinc-500' : isCancelled ? 'line-through text-rose-500 dark:text-rose-400 font-medium' : 'text-zinc-700 dark:text-zinc-300 font-medium'}>
+                                {task.text}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -895,7 +907,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
 
                         const colorStyle = getBlockColorStyle(block.color);
                         const subtasks = block.subtasks || [];
-                        const completedCount = subtasks.filter(t => t.completed).length;
+                        const completedCount = subtasks.filter(t => t.completed || t.status === 'completed').length;
 
                         // Layout thresholds based on pixel height
                         const paddingClass = heightPx < 32 ? 'px-1 py-0.5' : heightPx < 60 ? 'px-1.5 py-0.5' : 'px-2 py-1';
@@ -918,8 +930,8 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                                 onOpenModalWithDefaults({ 
                                   startTime: block.startTime, 
                                   endTime: block.endTime, 
-                                  date: block.date,
-                                  block
+                                  date: block.date, 
+                                  block 
                                 });
                               }
                             }}
@@ -950,27 +962,33 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                                   {heightPx < 48 && subtasks.length > 0 && (
                                     <>
                                       <span className="text-white/60 font-mono text-[8px] shrink-0 leading-none">•</span>
-                                      <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 min-w-0 py-0.5">
-                                        {subtasks.map(st => (
-                                          <span
-                                            key={st.id}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              onToggleSubtask && onToggleSubtask(block.id, st.id);
-                                            }}
-                                            className="inline-flex items-center gap-1 text-[8.5px] font-semibold bg-black/25 hover:bg-black/40 px-1 py-0.5 rounded cursor-pointer shrink-0 max-w-[100px] truncate transition-colors shadow-xs"
-                                            title={st.text}
-                                          >
-                                            {st.completed ? (
-                                              <Check className="w-2.5 h-2.5 shrink-0 text-emerald-300" />
-                                            ) : (
-                                              <div className="w-2 h-2 rounded-sm border border-white/80 shrink-0" />
-                                            )}
-                                            <span className={st.completed ? 'line-through opacity-70 truncate' : 'truncate font-bold text-white'}>
-                                              {st.text}
+                                      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1 min-w-0 py-0.5">
+                                        {subtasks.map(st => {
+                                          const isCompleted = st.status === 'completed' || (st.completed && st.status !== 'cancelled');
+                                          const isCancelled = st.status === 'cancelled';
+                                          return (
+                                            <span
+                                              key={st.id}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                onToggleSubtask && onToggleSubtask(block.id, st.id);
+                                              }}
+                                              className="inline-flex items-center gap-1.5 text-[8.5px] font-semibold bg-black/25 hover:bg-black/40 px-1.5 py-0.5 rounded cursor-pointer shrink-0 whitespace-nowrap transition-colors shadow-xs select-none"
+                                              title={`${st.text} (1st click: tick, 2nd click: cross)`}
+                                            >
+                                              {isCompleted ? (
+                                                <Check className="w-2.5 h-2.5 shrink-0 text-emerald-300 stroke-[3]" />
+                                              ) : isCancelled ? (
+                                                <X className="w-2.5 h-2.5 shrink-0 text-rose-300 stroke-[3]" />
+                                              ) : (
+                                                <div className="w-2.5 h-2.5 rounded-full border border-white/80 shrink-0" />
+                                              )}
+                                              <span className={isCompleted ? 'line-through opacity-75 font-semibold text-white whitespace-nowrap' : isCancelled ? 'line-through opacity-85 font-semibold text-rose-100 whitespace-nowrap' : 'font-bold text-white whitespace-nowrap'}>
+                                                {st.text}
+                                              </span>
                                             </span>
-                                          </span>
-                                        ))}
+                                          );
+                                        })}
                                       </div>
                                     </>
                                   )}
@@ -985,27 +1003,33 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                                     {subtasks.length > 0 && (
                                       <>
                                         <span className="text-white/60 font-mono text-[8px] shrink-0 leading-none">•</span>
-                                        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 min-w-0 py-0.5">
-                                          {subtasks.map(st => (
-                                            <span
-                                              key={st.id}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                onToggleSubtask && onToggleSubtask(block.id, st.id);
-                                              }}
-                                              className="inline-flex items-center gap-1 text-[8.5px] font-semibold bg-black/25 hover:bg-black/40 px-1 py-0.5 rounded cursor-pointer shrink-0 max-w-[100px] truncate transition-colors shadow-xs"
-                                              title={st.text}
-                                            >
-                                              {st.completed ? (
-                                                <Check className="w-2.5 h-2.5 shrink-0 text-emerald-300" />
-                                              ) : (
-                                                <div className="w-2 h-2 rounded-sm border border-white/80 shrink-0" />
-                                              )}
-                                              <span className={st.completed ? 'line-through opacity-70 truncate' : 'truncate font-bold text-white'}>
-                                                {st.text}
+                                        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1 min-w-0 py-0.5">
+                                          {subtasks.map(st => {
+                                            const isCompleted = st.status === 'completed' || (st.completed && st.status !== 'cancelled');
+                                            const isCancelled = st.status === 'cancelled';
+                                            return (
+                                              <span
+                                                key={st.id}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  onToggleSubtask && onToggleSubtask(block.id, st.id);
+                                                }}
+                                                className="inline-flex items-center gap-1.5 text-[8.5px] font-semibold bg-black/25 hover:bg-black/40 px-1.5 py-0.5 rounded cursor-pointer shrink-0 whitespace-nowrap transition-colors shadow-xs select-none"
+                                                title={`${st.text} (1st click: tick, 2nd click: cross)`}
+                                              >
+                                                {isCompleted ? (
+                                                  <Check className="w-2.5 h-2.5 shrink-0 text-emerald-300 stroke-[3]" />
+                                                ) : isCancelled ? (
+                                                  <X className="w-2.5 h-2.5 shrink-0 text-rose-300 stroke-[3]" />
+                                                ) : (
+                                                  <div className="w-2.5 h-2.5 rounded-full border border-white/80 shrink-0" />
+                                                )}
+                                                <span className={isCompleted ? 'line-through opacity-75 font-semibold text-white whitespace-nowrap' : isCancelled ? 'line-through opacity-85 font-semibold text-rose-100 whitespace-nowrap' : 'font-bold text-white whitespace-nowrap'}>
+                                                  {st.text}
+                                                </span>
                                               </span>
-                                            </span>
-                                          ))}
+                                            );
+                                          })}
                                         </div>
                                       </>
                                     )}
@@ -1029,34 +1053,41 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                             {subtasks.length > 0 && (
                               <div 
                                 onClick={(e) => e.stopPropagation()}
-                                className="hidden group-hover/card:block absolute left-0 right-0 top-full mt-1 z-50 p-2.5 bg-zinc-900/95 text-white dark:bg-zinc-950 dark:text-zinc-100 rounded-xl shadow-2xl border border-zinc-700/80 dark:border-zinc-800 text-[10px] min-w-[210px] pointer-events-auto backdrop-blur-md"
+                                className="hidden group-hover/card:block absolute left-0 right-0 top-full mt-1 z-50 p-2.5 bg-zinc-900/95 text-white dark:bg-zinc-950 dark:text-zinc-100 rounded-xl shadow-2xl border border-zinc-700/80 dark:border-zinc-800 text-[10px] min-w-[240px] pointer-events-auto backdrop-blur-md"
                               >
                                 <div className="flex items-center justify-between border-b border-zinc-700 dark:border-zinc-800 pb-1.5 mb-1.5 font-bold">
                                   <span className="flex items-center gap-1 text-amber-400 font-mono text-[9px] uppercase tracking-wider">
                                     <CheckSquare className="w-3 h-3" /> Checklist ({completedCount}/{subtasks.length})
                                   </span>
-                                  <span className="text-[8px] font-mono text-zinc-400">Click task to toggle</span>
+                                  <span className="text-[8px] font-mono text-zinc-400">1st click: tick • 2nd click: cross</span>
                                 </div>
                                 <div className="space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
-                                  {subtasks.map(st => (
-                                    <div 
-                                      key={st.id} 
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        onToggleSubtask && onToggleSubtask(block.id, st.id);
-                                      }}
-                                      className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/10 dark:hover:bg-zinc-800/80 cursor-pointer transition-colors"
-                                    >
-                                      {st.completed ? (
-                                        <Check className="w-3 h-3 text-emerald-400 shrink-0" />
-                                      ) : (
-                                        <div className="w-2.5 h-2.5 rounded-sm border border-zinc-400 shrink-0" />
-                                      )}
-                                      <span className={`text-[10px] font-medium leading-snug ${st.completed ? 'line-through text-zinc-500' : 'text-zinc-100'}`}>
-                                        {st.text}
-                                      </span>
-                                    </div>
-                                  ))}
+                                  {subtasks.map(st => {
+                                    const isCompleted = st.status === 'completed' || (st.completed && st.status !== 'cancelled');
+                                    const isCancelled = st.status === 'cancelled';
+                                    return (
+                                      <div 
+                                        key={st.id} 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onToggleSubtask && onToggleSubtask(block.id, st.id);
+                                        }}
+                                        className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/10 dark:hover:bg-zinc-800/80 cursor-pointer transition-colors select-none"
+                                        title={`${st.text} (1st click: tick, 2nd click: cross)`}
+                                      >
+                                        {isCompleted ? (
+                                          <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5] shrink-0" />
+                                        ) : isCancelled ? (
+                                          <X className="w-3.5 h-3.5 text-rose-400 stroke-[2.5] shrink-0" />
+                                        ) : (
+                                          <div className="w-3.5 h-3.5 rounded-full border border-zinc-400 shrink-0" />
+                                        )}
+                                        <span className={`text-[10px] font-medium leading-snug break-words ${isCompleted ? 'line-through text-zinc-400' : isCancelled ? 'line-through text-rose-400 font-medium' : 'text-zinc-100'}`}>
+                                          {st.text}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}
