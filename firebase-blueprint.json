@@ -95,7 +95,7 @@
         "uid": { "type": "string" },
         "timestamp": { "type": "number" }
       },
-      "required": ["date", "title", "content", "uid", "timestamp"]
+      "required": ["date", "uid", "timestamp"]
     },
     "UrgeLog": {
       "title": "UrgeLog",
