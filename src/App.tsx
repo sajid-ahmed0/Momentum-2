@@ -2991,9 +2991,9 @@ export default function App() {
                         : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
                     )}
                   >
-                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                     <span>Daily Reflections</span>
-                    <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-mono font-bold", journalSegment === 'daily_reflection' ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-500")}>
+                    <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-mono font-bold", journalSegment === 'daily_reflection' ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-500")}>
                       {dailyReflectionsList.length}
                     </span>
                   </button>
@@ -3007,9 +3007,9 @@ export default function App() {
                         : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
                     )}
                   >
-                    <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                     <span>Self Thoughts & Ideas</span>
-                    <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-mono font-bold", journalSegment === 'self_thought' ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-500")}>
+                    <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-mono font-bold", journalSegment === 'self_thought' ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-500")}>
                       {selfThoughtsList.length}
                     </span>
                   </button>
@@ -3020,20 +3020,17 @@ export default function App() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-900">
                       <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
                         <h3 className="text-xs font-black uppercase tracking-widest text-zinc-800 dark:text-zinc-200">
                           Daily Reflections ({dailyReflectionsList.length})
                         </h3>
                       </div>
-                      <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400 uppercase">
-                        Mistakes • Improvements • Study Quality • Mood
-                      </span>
                     </div>
 
                     <div className="space-y-4">
                       {dailyReflectionsList.length === 0 ? (
                         <div className="p-16 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-600 text-center">
-                          <BookOpen className="w-12 h-12 mb-4 opacity-25 text-amber-500" />
+                          <BookOpen className="w-12 h-12 mb-4 opacity-25 text-emerald-500" />
                           <p className="font-bold uppercase tracking-[0.2em] text-[11px] mb-1 text-zinc-700 dark:text-zinc-300">No daily reflections logged yet</p>
                           <p className="text-xs text-zinc-400 dark:text-zinc-500 max-w-sm mb-5">
                             Track your study quality, mistakes made, what triggered them, mood, and one improvement for tomorrow.
@@ -3077,7 +3074,7 @@ export default function App() {
                                     </span>
                                   )}
                                   {entry.studyQuality && (
-                                    <span className="px-2.5 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[9px] font-bold uppercase tracking-widest rounded-full ring-1 ring-amber-500/20 flex items-center gap-1">
+                                    <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[9px] font-bold uppercase tracking-widest rounded-full ring-1 ring-emerald-500/20 flex items-center gap-1">
                                       <span>📚 Study Quality:</span>
                                       <span className="font-semibold normal-case">{entry.studyQuality}</span>
                                     </span>
@@ -3121,7 +3118,7 @@ export default function App() {
                             ) : null}
                             
                             {!expandedEntries.has(entry.id) && ((entry.content?.length || 0) > 200 || entry.lostControl || entry.trigger || entry.improvementTomorrow || entry.learningFromMistake) && (
-                              <p className="text-[9px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 mt-4 flex items-center gap-1">
+                              <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mt-4 flex items-center gap-1">
                                 <span>Click to view reflection details</span>
                                 <ChevronDown className="w-3 h-3" />
                               </p>
@@ -3131,42 +3128,42 @@ export default function App() {
                               <div className="mt-6 pt-6 border-t border-zinc-100 dark:border-zinc-800 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5 bg-zinc-50/70 dark:bg-zinc-900/80 p-5 rounded-xl">
                                 {entry.studyQuality && (
                                   <div className="md:col-span-2">
-                                    <p className="text-[9px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-1 flex items-center gap-1.5">
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-1.5">
                                       <span>📚 Study Quality & Focus</span>
                                     </p>
-                                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.studyQuality}</p>
+                                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">{entry.studyQuality}</p>
                                   </div>
                                 )}
                                 {entry.lostControl && (
                                   <div>
-                                    <p className="text-[9px] font-bold uppercase tracking-widest text-rose-500 dark:text-rose-400 mb-1 flex items-center gap-1">
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-1 flex items-center gap-1">
                                       <span>⚠️ Where did you lose control / mistakes?</span>
                                     </p>
-                                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.lostControl}</p>
+                                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">{entry.lostControl}</p>
                                   </div>
                                 )}
                                 {entry.trigger && (
                                   <div>
-                                    <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600 mb-1">
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-1">
                                       What triggered it?
                                     </p>
-                                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.trigger}</p>
+                                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">{entry.trigger}</p>
                                   </div>
                                 )}
                                 {entry.improvementTomorrow && (
                                   <div>
-                                    <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-1">
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-1 flex items-center gap-1">
                                       <span>🌱 One improvement tomorrow</span>
                                     </p>
-                                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.improvementTomorrow}</p>
+                                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">{entry.improvementTomorrow}</p>
                                   </div>
                                 )}
                                 {entry.learningFromMistake && (
                                   <div className="md:col-span-2">
-                                    <p className="text-[9px] font-bold uppercase tracking-widest text-indigo-500 dark:text-indigo-400 mb-1 flex items-center gap-1">
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-1 flex items-center gap-1">
                                       <span>💡 Learning from mistake</span>
                                     </p>
-                                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.learningFromMistake}</p>
+                                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">{entry.learningFromMistake}</p>
                                   </div>
                                 )}
                               </div>
@@ -3181,7 +3178,7 @@ export default function App() {
                               return (
                                 <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800/80">
                                   <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                                       <Pencil className="w-3 h-3" />
                                       Stylus Sketch Page {pageCount > 1 ? `(1 of ${pageCount})` : ''}
                                     </span>
@@ -3211,7 +3208,7 @@ export default function App() {
                                       className="w-full h-40 object-contain rounded bg-white" 
                                     />
                                     {pageCount > 1 && (
-                                      <div className="absolute top-2 right-2 bg-zinc-900/85 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur border border-amber-500/30 shadow-md flex items-center gap-1">
+                                      <div className="absolute top-2 right-2 bg-zinc-900/85 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur border border-emerald-500/30 shadow-md flex items-center gap-1">
                                         <Layers className="w-3 h-3" /> {pageCount} Pages
                                       </div>
                                     )}
@@ -3236,20 +3233,17 @@ export default function App() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-900">
                       <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 inline-block"></span>
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
                         <h3 className="text-xs font-black uppercase tracking-widest text-zinc-800 dark:text-zinc-200">
                           Self Thoughts & Ideas ({selfThoughtsList.length})
                         </h3>
                       </div>
-                      <span className="text-[10px] font-mono font-bold text-indigo-500 uppercase">
-                        Decisions • Dilemmas • Purchase Ideas • Musings
-                      </span>
                     </div>
 
                     <div className="space-y-4">
                       {selfThoughtsList.length === 0 ? (
                         <div className="p-16 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-600 text-center">
-                          <Lightbulb className="w-12 h-12 mb-4 opacity-30 text-indigo-500" />
+                          <Lightbulb className="w-12 h-12 mb-4 opacity-30 text-emerald-500" />
                           <p className="font-bold uppercase tracking-[0.2em] text-[11px] mb-1 text-zinc-700 dark:text-zinc-300">No self thoughts recorded yet</p>
                           <p className="text-xs text-zinc-400 dark:text-zinc-500 max-w-sm mb-5">
                             Contemplating buying a laptop? Choosing BBA over BSc? Record your dilemmas, internal thinking, pros & cons, and future decisions.
@@ -3287,12 +3281,6 @@ export default function App() {
                                   <span className="text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-600 uppercase tracking-widest">
                                     {format(new Date(entry.timestamp), 'EEEE, MMM do')}
                                   </span>
-                                  {entry.thoughtTopic && (
-                                    <span className="px-2.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/50 text-[9px] font-bold uppercase tracking-widest rounded-full text-indigo-600 dark:text-indigo-400 ring-1 ring-indigo-200 dark:ring-indigo-800 flex items-center gap-1">
-                                      <Lightbulb className="w-2.5 h-2.5" />
-                                      {entry.thoughtTopic}
-                                    </span>
-                                  )}
                                 </div>
                                 <h3 className="text-xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">{entry.title}</h3>
                               </div>
@@ -3332,7 +3320,7 @@ export default function App() {
                             ) : null}
 
                             {!expandedEntries.has(entry.id) && (entry.content?.length || 0) > 200 && (
-                              <p className="text-[9px] font-bold uppercase tracking-widest text-indigo-500 mt-3 flex items-center gap-1">
+                              <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-500 mt-3 flex items-center gap-1">
                                 <span>Read full thought</span>
                                 <ChevronDown className="w-3 h-3" />
                               </p>
@@ -3340,11 +3328,11 @@ export default function App() {
 
                             {/* Conclusion / Next Step Callout */}
                             {entry.nextStepOrDecision && (
-                              <div className="mt-4 p-4 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/70 flex items-start gap-3">
-                                <Target className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+                              <div className="mt-4 p-4 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/70 flex items-start gap-3">
+                                <Target className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                                 <div>
-                                  <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 block mb-0.5">Conclusion / Next Action</span>
-                                  <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{entry.nextStepOrDecision}</p>
+                                  <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 block mb-0.5">Conclusion / Next Action</span>
+                                  <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">{entry.nextStepOrDecision}</p>
                                 </div>
                               </div>
                             )}
@@ -3358,7 +3346,7 @@ export default function App() {
                               return (
                                 <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800/80">
                                   <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                                       <Pencil className="w-3 h-3" />
                                       Thought Mindmap / Sketch {pageCount > 1 ? `(1 of ${pageCount})` : ''}
                                     </span>
@@ -3388,7 +3376,7 @@ export default function App() {
                                       className="w-full h-40 object-contain rounded bg-white" 
                                     />
                                     {pageCount > 1 && (
-                                      <div className="absolute top-2 right-2 bg-zinc-900/85 text-indigo-400 text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur border border-indigo-500/30 shadow-md flex items-center gap-1">
+                                      <div className="absolute top-2 right-2 bg-zinc-900/85 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur border border-emerald-500/30 shadow-md flex items-center gap-1">
                                         <Layers className="w-3 h-3" /> {pageCount} Pages
                                       </div>
                                     )}
@@ -5457,9 +5445,6 @@ export default function App() {
             const [modalCategory, setModalCategory] = useState<'daily_reflection' | 'self_thought'>(
               editingJournalEntry?.category || journalModalCategory || 'daily_reflection'
             );
-            const [thoughtTopic, setThoughtTopic] = useState<string>(
-              editingJournalEntry?.thoughtTopic || 'Decision'
-            );
             const [studyQualityVal, setStudyQualityVal] = useState<string>(
               editingJournalEntry?.studyQuality || ''
             );
@@ -5469,15 +5454,6 @@ export default function App() {
               '📚 Good Progress (7/10)',
               '🎯 Average Focus (5/10)',
               '⚠️ Distracted / Fatigued'
-            ];
-
-            const quickThoughtTopics = [
-              '💡 Decision',
-              '💻 Purchase',
-              '🎓 Career & Study',
-              '💭 Dilemma',
-              '✨ Idea & Goal',
-              '🌿 Personal'
             ];
 
             return (
@@ -5506,7 +5482,7 @@ export default function App() {
                           : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
                       )}
                     >
-                      <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                       <span>Daily Reflection</span>
                     </button>
 
@@ -5520,12 +5496,18 @@ export default function App() {
                           : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
                       )}
                     >
-                      <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                       <span>Self Thought / Decision</span>
                     </button>
                   </div>
 
-                  <form onSubmit={(e) => {
+                  <form 
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') {
+                        e.preventDefault();
+                      }
+                    }}
+                    onSubmit={(e) => {
                     e.preventDefault();
                     const fd = new FormData(e.currentTarget);
                     handleSaveJournalEntry({
@@ -5538,7 +5520,7 @@ export default function App() {
                       trigger: modalCategory === 'daily_reflection' ? (fd.get('trigger') as string) : undefined,
                       improvementTomorrow: modalCategory === 'daily_reflection' ? (fd.get('improvementTomorrow') as string) : undefined,
                       learningFromMistake: modalCategory === 'daily_reflection' ? (fd.get('learningFromMistake') as string) : undefined,
-                      thoughtTopic: modalCategory === 'self_thought' ? (thoughtTopic || (fd.get('thoughtTopicCustom') as string) || 'Decision') : undefined,
+                      thoughtTopic: undefined,
                       nextStepOrDecision: modalCategory === 'self_thought' ? (fd.get('nextStepOrDecision') as string) : undefined,
                       sketchData: includeJournalSketchPage ? currentJournalSketch : undefined
                     });
@@ -5599,7 +5581,7 @@ export default function App() {
                               className={cn(
                                 "px-2 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer",
                                 studyQualityVal === chip 
-                                  ? "bg-amber-500 text-white shadow-xs"
+                                  ? "bg-emerald-500 text-white shadow-xs"
                                   : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300"
                               )}
                             >
@@ -5611,27 +5593,27 @@ export default function App() {
                         {/* Mistakes & Triggers */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-[10px] font-bold uppercase text-rose-500 dark:text-rose-400 tracking-[0.2em] mb-2">
+                            <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">
                               Mistakes / Where did you lose control?
                             </label>
-                            <input 
+                            <textarea 
                               name="lostControl"
-                              type="text" 
+                              rows={2}
                               defaultValue={editingJournalEntry?.lostControl || ''}
                               placeholder="e.g. Broke phone boundary at 2 PM..."
-                              className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-semibold text-xs dark:text-zinc-100"
+                              className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-semibold text-xs dark:text-zinc-100 resize-none overflow-y-auto leading-relaxed"
                             />
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">
                               What triggered it?
                             </label>
-                            <input 
+                            <textarea 
                               name="trigger"
-                              type="text" 
+                              rows={2}
                               defaultValue={editingJournalEntry?.trigger || ''}
                               placeholder="e.g. Boredom, notification ping..."
-                              className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-semibold text-xs dark:text-zinc-100"
+                              className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-semibold text-xs dark:text-zinc-100 resize-none overflow-y-auto leading-relaxed"
                             />
                           </div>
                         </div>
@@ -5639,27 +5621,27 @@ export default function App() {
                         {/* Improvement Tomorrow & Learning */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-[10px] font-bold uppercase text-emerald-600 dark:text-emerald-400 tracking-[0.2em] mb-2">
+                            <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">
                               What can I improve tomorrow?
                             </label>
-                            <input 
+                            <textarea 
                               name="improvementTomorrow"
-                              type="text" 
+                              rows={2}
                               defaultValue={editingJournalEntry?.improvementTomorrow || ''}
                               placeholder="e.g. Keep phone in drawer during study..."
-                              className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-semibold text-xs dark:text-zinc-100"
+                              className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-semibold text-xs dark:text-zinc-100 resize-none overflow-y-auto leading-relaxed"
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] font-bold uppercase text-indigo-500 dark:text-indigo-400 tracking-[0.2em] mb-2">
+                            <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">
                               Today's learning from mistake
                             </label>
-                            <input 
+                            <textarea 
                               name="learningFromMistake"
-                              type="text" 
+                              rows={2}
                               defaultValue={editingJournalEntry?.learningFromMistake || ''}
                               placeholder="e.g. Action precedes motivation..."
-                              className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-semibold text-xs dark:text-zinc-100"
+                              className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all font-semibold text-xs dark:text-zinc-100 resize-none overflow-y-auto leading-relaxed"
                             />
                           </div>
                         </div>
@@ -5681,8 +5663,8 @@ export default function App() {
                       /* FIELDS FOR SELF THOUGHT / DECISION JOURNAL */
                       <>
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-indigo-600 dark:text-indigo-400 tracking-[0.2em] mb-2">
-                            Self Thought Title <span className="text-rose-500">*</span>
+                          <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">
+                            Title <span className="text-rose-500">*</span>
                           </label>
                           <input 
                             name="title"
@@ -5690,39 +5672,8 @@ export default function App() {
                             autoFocus
                             required
                             defaultValue={editingJournalEntry?.title || ''}
-                            placeholder="e.g. I think I should buy this laptop, BBA over BSc decision..."
-                            className="w-full px-4 py-3 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-bold text-base dark:text-zinc-100"
-                          />
-                        </div>
-
-                        {/* Topic Tag Selector */}
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">
-                            Thought Topic / Category
-                          </label>
-                          <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                            {quickThoughtTopics.map(topic => (
-                              <button
-                                key={topic}
-                                type="button"
-                                onClick={() => setThoughtTopic(topic)}
-                                className={cn(
-                                  "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer",
-                                  thoughtTopic === topic
-                                    ? "bg-indigo-600 text-white shadow-xs"
-                                    : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300"
-                                )}
-                              >
-                                {topic}
-                              </button>
-                            ))}
-                          </div>
-                          <input 
-                            type="text" 
-                            value={thoughtTopic}
-                            onChange={(e) => setThoughtTopic(e.target.value)}
-                            placeholder="Or type a custom topic..."
-                            className="w-full px-3.5 py-2 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-medium text-xs dark:text-zinc-100"
+                            placeholder="What's on your mind?..."
+                            className="w-full px-4 py-3 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-bold text-base dark:text-zinc-100"
                           />
                         </div>
 
@@ -5736,22 +5687,22 @@ export default function App() {
                             rows={5}
                             required
                             defaultValue={editingJournalEntry?.content || ''}
-                            placeholder="Write your thoughts freely: Why are you considering this? What are the pros and cons? What's holding you back? What will the long-term impact be?..."
-                            className="w-full px-4 py-3 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-medium text-xs dark:text-zinc-100 leading-relaxed resize-none overflow-y-auto"
+                            placeholder="Explore your thoughts, arguments, pros & cons, or feelings freely..."
+                            className="w-full px-4 py-3 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-medium text-xs dark:text-zinc-100 leading-relaxed resize-none overflow-y-auto"
                           />
                         </div>
 
                         {/* Conclusion / Decision / Next Step */}
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-indigo-600 dark:text-indigo-400 tracking-[0.2em] mb-2">
-                            Conclusion / Next Step / Decision <span className="text-[10px] text-zinc-400 font-normal lowercase">(optional)</span>
+                          <label className="block text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-[0.2em] mb-2">
+                            Conclusion / Next Step <span className="text-[10px] text-zinc-400 font-normal lowercase">(optional)</span>
                           </label>
-                          <input 
+                          <textarea 
                             name="nextStepOrDecision"
-                            type="text" 
+                            rows={2}
                             defaultValue={editingJournalEntry?.nextStepOrDecision || ''}
-                            placeholder="e.g. Decided to wait 14 days before buying; Research syllabus for BBA vs BSc"
-                            className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-semibold text-xs dark:text-zinc-100"
+                            placeholder="What did you decide or what is your next action?..."
+                            className="w-full px-3.5 py-2.5 rounded-lg border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-semibold text-xs dark:text-zinc-100 resize-none overflow-y-auto leading-relaxed"
                           />
                         </div>
                       </>
@@ -5761,7 +5712,7 @@ export default function App() {
                     <div className="border-t border-zinc-100 dark:border-zinc-800/80 pt-4">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
-                          <Pencil className={cn("w-4 h-4", modalCategory === 'self_thought' ? "text-indigo-500" : "text-amber-500")} />
+                          <Pencil className="w-4 h-4 text-emerald-500" />
                           <span className="text-xs font-bold uppercase tracking-wider dark:text-zinc-200">
                             Stylus Sketch Page <span className="text-[10px] text-zinc-400 font-normal lowercase">(for mind maps, diagrams, notes)</span>
                           </span>
@@ -5770,12 +5721,7 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => setIncludeJournalSketchPage(true)}
-                            className={cn(
-                              "text-xs font-bold px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer",
-                              modalCategory === 'self_thought'
-                                ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 border-indigo-200 dark:border-indigo-500/30"
-                                : "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 border-amber-200 dark:border-amber-500/30"
-                            )}
+                            className="text-xs font-bold px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 border-emerald-200 dark:border-emerald-500/30"
                           >
                             <Plus className="w-3.5 h-3.5" />
                             <span>Add Sketch Page</span>
@@ -5850,7 +5796,7 @@ export default function App() {
                 {/* Page Navigation Header Bar */}
                 <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-900 px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800">
                   <div className="flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-amber-500" />
+                    <Layers className="w-4 h-4 text-emerald-500" />
                     <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
                       Page {activePageIndex + 1} of {viewingPages.length}
                     </span>
@@ -5883,7 +5829,7 @@ export default function App() {
                     <img 
                       src={activePageUrl} 
                       alt={`Full Stylus Sketch Page ${activePageIndex + 1}`} 
-                      className="w-full max-h-[60vh] object-contain rounded bg-white"
+                      className="w-full max-h-[60vh] object-contain rounded bg-white" 
                     />
                   </div>
                 ) : (
@@ -5904,7 +5850,7 @@ export default function App() {
                         className={cn(
                           "relative w-20 h-14 rounded-lg border-2 overflow-hidden bg-white shrink-0 transition-all p-0.5 shadow-sm cursor-pointer",
                           activePageIndex === idx 
-                            ? "border-amber-500 ring-2 ring-amber-500/30 scale-105" 
+                            ? "border-emerald-500 ring-2 ring-emerald-500/30 scale-105" 
                             : "border-zinc-200 dark:border-zinc-700 opacity-70 hover:opacity-100"
                         )}
                       >
@@ -5944,7 +5890,7 @@ export default function App() {
                         setCurrentJournalSketch(entryToEdit.sketchData);
                         setShowJournalModal(true);
                       }}
-                      className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer"
+                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer"
                     >
                       <Pencil className="w-3.5 h-3.5" />
                       <span>Edit Sketch Pages</span>
