@@ -61,6 +61,7 @@ export interface TimeBlock {
   emoji?: string;    // e.g. '🎯', '⚡', '📚', '💪'
   color?: string;    // e.g. 'amber', 'indigo', 'emerald', 'rose', 'sky', 'purple', 'teal', 'zinc'
   subtasks?: BlockTask[];
+  showCountdown?: boolean;
   uid: string;
   timestamp: number;
 }

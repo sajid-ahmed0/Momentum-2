@@ -67,6 +67,7 @@ service cloud.firestore {
              data.startTime is string && data.startTime.matches("^\\d{2}:\\d{2}$") &&
              data.endTime is string && data.endTime.matches("^\\d{2}:\\d{2}$") &&
              data.activity is string && data.activity.size() > 0 && data.activity.size() < 200 &&
+             (!('showCountdown' in data) || data.showCountdown is bool) &&
              data.uid == request.auth.uid;
     }
 

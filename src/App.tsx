@@ -576,6 +576,9 @@ export default function App() {
   const [modalColor, setModalColor] = useState<string>('indigo');
   const [modalEmoji, setModalEmoji] = useState<string>('');
   const [modalSubtasks, setModalSubtasks] = useState<BlockTask[]>([]);
+  const [modalShowCountdown, setModalShowCountdown] = useState<boolean>(false);
+  const [modalStartTime, setModalStartTime] = useState<string>('09:00');
+  const [modalEndTime, setModalEndTime] = useState<string>('10:00');
   const [newSubtaskInput, setNewSubtaskInput] = useState<string>('');
   const [showOverthinkingModal, setShowOverthinkingModal] = useState(false);
   const [showJournalModal, setShowJournalModal] = useState(false);
@@ -1072,12 +1075,31 @@ export default function App() {
     }
   };
 
+  const getModalBlockDurationLabel = (startStr: string, endStr: string) => {
+    const [sh, sm] = (startStr || '09:00').split(':').map(Number);
+    const [eh, em] = (endStr || '10:00').split(':').map(Number);
+    let startMins = (sh || 0) * 60 + (sm || 0);
+    let endMins = (eh || 0) * 60 + (em || 0);
+    if (endMins <= startMins) endMins += 1440;
+    const totalMins = Math.max(1, endMins - startMins);
+    const hrs = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    const label = hrs === 0 ? `${mins} min${mins > 1 ? 's' : ''}` : mins === 0 ? `${hrs} hr${hrs > 1 ? 's' : ''}` : `${hrs} hr${hrs > 1 ? 's' : ''} ${mins} min${mins > 1 ? 's' : ''}`;
+    const timerPreview = hrs > 0
+      ? `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:00`
+      : `${mins.toString().padStart(2, '0')}:00`;
+    return { label, timerPreview };
+  };
+
   useEffect(() => {
     if (showScheduleModal) {
       const activeBlock = editingTimeBlock || scheduleDefaults?.block;
       setModalColor(activeBlock?.color || 'indigo');
       setModalEmoji(activeBlock?.emoji || '');
       setModalSubtasks(activeBlock?.subtasks ? JSON.parse(JSON.stringify(activeBlock.subtasks)) : []);
+      setModalShowCountdown(Boolean(activeBlock?.showCountdown));
+      setModalStartTime(activeBlock?.startTime || scheduleDefaults?.startTime || '09:00');
+      setModalEndTime(activeBlock?.endTime || scheduleDefaults?.endTime || '10:00');
       setNewSubtaskInput('');
     }
   }, [showScheduleModal, editingTimeBlock, scheduleDefaults]);
@@ -1123,7 +1145,7 @@ export default function App() {
     }
   };
 
-  const handleAddTimeBlock = async (data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; emoji?: string; subtasks?: BlockTask[] }) => {
+  const handleAddTimeBlock = async (data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; emoji?: string; subtasks?: BlockTask[]; showCountdown?: boolean }) => {
     if (!user) return;
     setShowScheduleModal(false);
     setScheduleDefaults(null);
@@ -1135,6 +1157,7 @@ export default function App() {
         endTime: data.endTime,
         color: data.color || modalColor || 'indigo',
         subtasks: data.subtasks || modalSubtasks || [],
+        showCountdown: data.showCountdown !== undefined ? Boolean(data.showCountdown) : Boolean(modalShowCountdown),
         date: data.date || scheduleDefaults?.date || format(startOfToday(), 'yyyy-MM-dd'),
         uid: user.uid,
         timestamp: Date.now()
@@ -1165,7 +1188,7 @@ export default function App() {
     }
   };
 
-  const handleEditTimeBlock = async (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; emoji?: string; subtasks?: BlockTask[] }) => {
+  const handleEditTimeBlock = async (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; emoji?: string; subtasks?: BlockTask[]; showCountdown?: boolean }) => {
     setShowScheduleModal(false);
     setEditingTimeBlock(null);
     setScheduleDefaults(null);
@@ -1178,6 +1201,7 @@ export default function App() {
         date: data.date,
         color: data.color || modalColor || 'indigo',
         subtasks: data.subtasks !== undefined ? data.subtasks : modalSubtasks,
+        showCountdown: data.showCountdown !== undefined ? Boolean(data.showCountdown) : Boolean(modalShowCountdown),
         timestamp: Date.now()
       });
     } catch (err) {
@@ -4957,6 +4981,7 @@ export default function App() {
                 date: fd.get('date') as string,
                 color: modalColor,
                 subtasks: modalSubtasks,
+                showCountdown: modalShowCountdown,
               };
               
               if (editingTimeBlock) {
@@ -5081,7 +5106,8 @@ export default function App() {
                     name="startTime"
                     type="time" 
                     required
-                    defaultValue={editingTimeBlock?.startTime || scheduleDefaults?.startTime || '09:00'}
+                    value={modalStartTime}
+                    onChange={(e) => setModalStartTime(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
                   />
                 </div>
@@ -5091,11 +5117,82 @@ export default function App() {
                     name="endTime"
                     type="time" 
                     required
-                    defaultValue={editingTimeBlock?.endTime || scheduleDefaults?.endTime || '10:00'}
+                    value={modalEndTime}
+                    onChange={(e) => setModalEndTime(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
                   />
                 </div>
               </div>
+
+              {/* OPTIONAL COUNTDOWN TIMER FOR SCHEDULE BLOCK */}
+              {(() => {
+                const { label: durationLabel, timerPreview } = getModalBlockDurationLabel(modalStartTime, modalEndTime);
+                return (
+                  <div
+                    onClick={() => setModalShowCountdown(prev => !prev)}
+                    className={cn(
+                      "p-3.5 rounded-xl border transition-all cursor-pointer select-none flex items-center justify-between gap-3",
+                      modalShowCountdown
+                        ? "bg-amber-500/10 border-amber-500/50 dark:bg-amber-500/10 dark:border-amber-500/40 shadow-xs"
+                        : "bg-zinc-50/80 dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700"
+                    )}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={cn(
+                        "w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors",
+                        modalShowCountdown
+                          ? "bg-amber-500 text-white shadow-xs"
+                          : "bg-zinc-200/70 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                      )}>
+                        <Timer className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-black uppercase tracking-tight text-zinc-900 dark:text-zinc-100">
+                            Countdown Timer
+                          </span>
+                          <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">
+                            (Optional)
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium mt-0.5 truncate">
+                          {modalShowCountdown
+                            ? `Enabled • ${durationLabel} countdown (${timerPreview})`
+                            : `Add a ${durationLabel} (${timerPreview}) countdown timer to this block`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      {modalShowCountdown && (
+                        <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 font-mono text-[10px] font-black tabular-nums">
+                          {timerPreview}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={modalShowCountdown}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setModalShowCountdown(prev => !prev);
+                        }}
+                        className={cn(
+                          "w-11 h-6 rounded-full transition-colors relative p-0.5 shrink-0",
+                          modalShowCountdown ? "bg-amber-500" : "bg-zinc-300 dark:bg-zinc-700"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "w-5 h-5 rounded-full bg-white shadow-xs transition-transform",
+                            modalShowCountdown ? "translate-x-5" : "translate-x-0"
+                          )}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* TASKS LIST FOR THIS TIME BLOCK */}
               <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800">

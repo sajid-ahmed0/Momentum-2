@@ -36,7 +36,10 @@ import {
   ZoomOut,
   Settings,
   RotateCcw,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Timer,
+  Play,
+  Pause
 } from 'lucide-react';
 import { TimeBlock, BlockTask, QuickPreset, DEFAULT_PRESETS } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -61,8 +64,8 @@ interface TimeBlockingGridProps {
   timeBlocks: TimeBlock[];
   quickPresets?: QuickPreset[];
   onUpdateQuickPresets?: (presets: QuickPreset[]) => void;
-  onAddTimeBlock: (data: { startTime: string; endTime: string; activity: string; date: string; color?: string; emoji?: string; subtasks?: BlockTask[] }) => void;
-  onEditTimeBlock: (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; emoji?: string; subtasks?: BlockTask[] }) => void;
+  onAddTimeBlock: (data: { startTime: string; endTime: string; activity: string; date: string; color?: string; emoji?: string; subtasks?: BlockTask[]; showCountdown?: boolean }) => void;
+  onEditTimeBlock: (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; emoji?: string; subtasks?: BlockTask[]; showCountdown?: boolean }) => void;
   onDeleteTimeBlock: (id: string) => void;
   onToggleSubtask?: (blockId: string, subtaskId: string) => void;
   onOpenModalWithDefaults?: (defaults: { startTime: string; endTime: string; date: string; block?: TimeBlock }) => void;
@@ -226,6 +229,331 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     let endMins = getMinutes(endStr);
     if (endMins < startMins) endMins += 1440;
     return formatMinutesToHM(endMins - startMins);
+  };
+
+  // Calculate total block duration in seconds from startTime and endTime
+  const getBlockDurationSeconds = (startStr: string, endStr: string) => {
+    let startMins = getMinutes(startStr);
+    let endMins = getMinutes(endStr);
+    if (endMins <= startMins) endMins += 1440;
+    return Math.max(60, (endMins - startMins) * 60);
+  };
+
+  // Format seconds as HH:MM:SS (if >= 1 hr) or MM:SS
+  const formatCountdownTime = (remainingSecs: number, totalSecs: number) => {
+    const clamped = Math.max(0, Math.floor(remainingSecs));
+    const hrs = Math.floor(clamped / 3600);
+    const mins = Math.floor((clamped % 3600) / 60);
+    const secs = clamped % 60;
+    if (totalSecs >= 3600 || hrs > 0) {
+      return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Block countdown timers state persisted in localStorage
+  const [blockTimers, setBlockTimers] = useState<Record<string, {
+    remainingSeconds: number;
+    totalDurationSeconds: number;
+    isRunning: boolean;
+    targetEndTimestamp?: number;
+  }>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('schedule_block_timers_v1');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const nowMs = Date.now();
+          Object.keys(parsed).forEach(id => {
+            const item = parsed[id];
+            if (item && item.isRunning && item.targetEndTimestamp) {
+              const rem = Math.max(0, Math.ceil((item.targetEndTimestamp - nowMs) / 1000));
+              parsed[id] = {
+                ...item,
+                remainingSeconds: rem,
+                isRunning: rem > 0,
+              };
+            }
+          });
+          return parsed;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return {};
+  });
+
+  // Persist blockTimers changes to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('schedule_block_timers_v1', JSON.stringify(blockTimers));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, [blockTimers]);
+
+  // Sync totalDurationSeconds when a block's startTime/endTime is edited
+  useEffect(() => {
+    setBlockTimers(prev => {
+      let changed = false;
+      const next = { ...prev };
+      timeBlocks.forEach(b => {
+        if (!b.showCountdown) return;
+        const expectedTotal = getBlockDurationSeconds(b.startTime, b.endTime);
+        const existing = next[b.id];
+        if (existing && existing.totalDurationSeconds !== expectedTotal) {
+          changed = true;
+          next[b.id] = {
+            remainingSeconds: expectedTotal,
+            totalDurationSeconds: expectedTotal,
+            isRunning: false,
+            targetEndTimestamp: undefined,
+          };
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [timeBlocks]);
+
+  // 1-second tick for any active countdown timers
+  useEffect(() => {
+    const hasRunning = Object.values(blockTimers).some((t: any) => t?.isRunning);
+    if (!hasRunning) return;
+
+    const interval = setInterval(() => {
+      const nowMs = Date.now();
+      setBlockTimers(prev => {
+        let changed = false;
+        const next = { ...prev };
+        Object.keys(next).forEach(id => {
+          const t = next[id];
+          if (t && t.isRunning && t.targetEndTimestamp) {
+            const rem = Math.max(0, Math.ceil((t.targetEndTimestamp - nowMs) / 1000));
+            if (rem !== t.remainingSeconds || rem === 0) {
+              changed = true;
+              next[id] = {
+                ...t,
+                remainingSeconds: rem,
+                isRunning: rem > 0,
+                targetEndTimestamp: rem > 0 ? t.targetEndTimestamp : undefined,
+              };
+            }
+          }
+        });
+        return changed ? next : prev;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [blockTimers]);
+
+  const handleToggleBlockTimer = (block: TimeBlock, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const totalSecs = getBlockDurationSeconds(block.startTime, block.endTime);
+    setBlockTimers(prev => {
+      const current = prev[block.id] || {
+        remainingSeconds: totalSecs,
+        totalDurationSeconds: totalSecs,
+        isRunning: false,
+      };
+      if (current.isRunning) {
+        const rem = current.targetEndTimestamp
+          ? Math.max(0, Math.ceil((current.targetEndTimestamp - Date.now()) / 1000))
+          : current.remainingSeconds;
+        return {
+          ...prev,
+          [block.id]: {
+            ...current,
+            remainingSeconds: rem,
+            isRunning: false,
+            targetEndTimestamp: undefined,
+          }
+        };
+      } else {
+        const startFrom = current.remainingSeconds <= 0 ? totalSecs : current.remainingSeconds;
+        return {
+          ...prev,
+          [block.id]: {
+            remainingSeconds: startFrom,
+            totalDurationSeconds: totalSecs,
+            isRunning: true,
+            targetEndTimestamp: Date.now() + startFrom * 1000,
+          }
+        };
+      }
+    });
+  };
+
+  const handleResetBlockTimer = (block: TimeBlock, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const totalSecs = getBlockDurationSeconds(block.startTime, block.endTime);
+    setBlockTimers(prev => ({
+      ...prev,
+      [block.id]: {
+        remainingSeconds: totalSecs,
+        totalDurationSeconds: totalSecs,
+        isRunning: false,
+        targetEndTimestamp: undefined,
+      }
+    }));
+  };
+
+  const renderBlockCountdown = (block: TimeBlock, heightPx: number, isListView = false) => {
+    const totalSecs = getBlockDurationSeconds(block.startTime, block.endTime);
+    const timerState = blockTimers[block.id];
+    const remainingSecs = timerState ? timerState.remainingSeconds : totalSecs;
+    const isRunning = Boolean(timerState?.isRunning);
+    const isCompleted = remainingSecs === 0 && timerState !== undefined;
+    const isModified = remainingSecs < totalSecs;
+    const progressPct = totalSecs > 0 ? Math.min(100, Math.max(0, ((totalSecs - remainingSecs) / totalSecs) * 100)) : 0;
+
+    if (isListView) {
+      return (
+        <div
+          onClick={(e) => handleToggleBlockTimer(block, e)}
+          className={`relative overflow-hidden inline-flex items-center gap-2 px-2.5 py-1 rounded-lg border text-xs font-mono font-bold transition-all cursor-pointer select-none ${
+            isCompleted
+              ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+              : isRunning
+                ? 'bg-amber-500/15 border-amber-500/50 text-amber-600 dark:text-amber-400 shadow-xs'
+                : 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:border-zinc-300 dark:hover:border-zinc-600'
+          }`}
+          title={isRunning ? 'Click to pause countdown' : 'Click to start countdown'}
+        >
+          <button
+            type="button"
+            onClick={(e) => handleToggleBlockTimer(block, e)}
+            className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-transform hover:scale-105 ${
+              isRunning
+                ? 'bg-amber-500 text-white'
+                : isCompleted
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+            }`}
+          >
+            {isRunning ? (
+              <Pause className="w-2.5 h-2.5 fill-current" />
+            ) : (
+              <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
+            )}
+          </button>
+          <span className="tabular-nums tracking-wider font-black text-[11px]">
+            {formatCountdownTime(remainingSecs, totalSecs)}
+          </span>
+          {isModified && (
+            <button
+              type="button"
+              onClick={(e) => handleResetBlockTimer(block, e)}
+              className="p-0.5 hover:bg-black/10 dark:hover:bg-white/10 rounded text-current opacity-70 hover:opacity-100 transition-opacity"
+              title="Reset countdown"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    // Compact layout for short blocks (< 38px height)
+    if (heightPx < 38) {
+      return (
+        <div
+          onClick={(e) => handleToggleBlockTimer(block, e)}
+          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border backdrop-blur-xs transition-all cursor-pointer select-none shrink-0 ${
+            isCompleted
+              ? 'bg-emerald-950/70 border-emerald-300/60 text-emerald-200'
+              : isRunning
+                ? 'bg-black/55 border-amber-300/70 text-white ring-1 ring-amber-300/30'
+                : 'bg-black/30 hover:bg-black/45 border-white/25 text-white'
+          }`}
+          title={isRunning ? 'Click to pause countdown' : 'Click to start countdown'}
+        >
+          {isRunning ? (
+            <Pause className="w-2.5 h-2.5 text-amber-300 fill-current shrink-0" />
+          ) : (
+            <Play className="w-2.5 h-2.5 text-white fill-current shrink-0" />
+          )}
+          <span className="font-mono text-[9.5px] font-black tracking-wider tabular-nums leading-none">
+            {formatCountdownTime(remainingSecs, totalSecs)}
+          </span>
+          {isModified && (
+            <button
+              type="button"
+              onClick={(e) => handleResetBlockTimer(block, e)}
+              className="hover:text-amber-300 transition-colors ml-0.5"
+              title="Reset timer"
+            >
+              <RotateCcw className="w-2.5 h-2.5" />
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    // Standard / Tall Schedule Block Countdown Pill — Positioned on the right side of the block
+    return (
+      <div
+        onClick={(e) => handleToggleBlockTimer(block, e)}
+        className={`relative overflow-hidden inline-flex items-center gap-2 px-2.5 py-1 rounded-lg border backdrop-blur-xs transition-all cursor-pointer select-none shrink-0 shadow-xs ${
+          isCompleted
+            ? 'bg-emerald-950/75 border-emerald-300/60 text-emerald-100'
+            : isRunning
+              ? 'bg-black/50 border-amber-300/80 text-white ring-1 ring-amber-300/30'
+              : 'bg-black/30 hover:bg-black/45 border-white/25 text-white'
+        }`}
+        title={isRunning ? 'Pause Countdown Timer' : 'Start Countdown Timer'}
+      >
+        {/* Subtle bottom progress bar */}
+        {isModified && (
+          <div
+            className="absolute bottom-0 left-0 h-[2px] bg-amber-300 transition-all duration-500"
+            style={{ width: `${progressPct}%` }}
+          />
+        )}
+
+        <button
+          type="button"
+          onClick={(e) => handleToggleBlockTimer(block, e)}
+          className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-transform hover:scale-105 shadow-2xs ${
+            isRunning
+              ? 'bg-amber-400 text-zinc-950'
+              : isCompleted
+                ? 'bg-emerald-400 text-zinc-950'
+                : 'bg-white text-zinc-900'
+          }`}
+          title={isRunning ? 'Pause' : 'Start'}
+        >
+          {isRunning ? (
+            <Pause className="w-2.5 h-2.5 fill-current" />
+          ) : (
+            <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
+          )}
+        </button>
+
+        <div className="flex flex-col justify-center leading-none">
+          <div className="flex items-center gap-1">
+            <Timer className={`w-2.5 h-2.5 shrink-0 ${isRunning ? 'text-amber-300 animate-pulse' : 'text-white/75'}`} />
+            <span className="font-mono text-[11px] sm:text-xs font-black tracking-wider tabular-nums text-white leading-none">
+              {formatCountdownTime(remainingSecs, totalSecs)}
+            </span>
+          </div>
+        </div>
+
+        {isModified && (
+          <button
+            type="button"
+            onClick={(e) => handleResetBlockTimer(block, e)}
+            className="p-0.5 rounded hover:bg-white/20 text-white/80 hover:text-white transition-colors shrink-0"
+            title="Reset Countdown"
+          >
+            <RotateCcw className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+    );
   };
 
   // Days to show based on view mode
@@ -710,6 +1038,8 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                       </div>
 
                       <div className="flex items-center gap-2">
+                        {block.showCountdown && renderBlockCountdown(block, 64, true)}
+
                         {subtasks.length > 0 && (
                           <span className="text-[10px] font-mono font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 px-2 py-1 rounded-md flex items-center gap-1">
                             <CheckSquare className="w-3 h-3 text-amber-500" />
@@ -1037,17 +1367,20 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                                 )}
                               </div>
 
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onDeleteTimeBlock(block.id);
-                                }}
-                                className="opacity-0 group-hover/card:opacity-100 p-0.5 hover:bg-black/20 rounded transition-opacity shrink-0"
-                                title="Delete block"
-                              >
-                                <X className="w-3 h-3 text-white" />
-                              </button>
-                            </div>
+                                <div className="flex items-center gap-1.5 shrink-0 self-center pl-1">
+                                  {block.showCountdown && renderBlockCountdown(block, heightPx, false)}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onDeleteTimeBlock(block.id);
+                                    }}
+                                    className="opacity-0 group-hover/card:opacity-100 p-0.5 hover:bg-black/20 rounded transition-opacity shrink-0"
+                                    title="Delete block"
+                                  >
+                                    <X className="w-3 h-3 text-white" />
+                                  </button>
+                                </div>
+                              </div>
 
                             {/* HOVER SUBTASKS POPOVER FOR EASY VISIBILITY AT ANY SCALE */}
                             {subtasks.length > 0 && (
