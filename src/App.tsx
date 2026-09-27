@@ -577,6 +577,7 @@ export default function App() {
   const [modalEmoji, setModalEmoji] = useState<string>('');
   const [modalSubtasks, setModalSubtasks] = useState<BlockTask[]>([]);
   const [modalShowCountdown, setModalShowCountdown] = useState<boolean>(false);
+  const [modalDate, setModalDate] = useState<string>(() => format(startOfToday(), 'yyyy-MM-dd'));
   const [modalStartTime, setModalStartTime] = useState<string>('09:00');
   const [modalEndTime, setModalEndTime] = useState<string>('10:00');
   const [newSubtaskInput, setNewSubtaskInput] = useState<string>('');
@@ -1075,19 +1076,44 @@ export default function App() {
     }
   };
 
-  const getModalBlockDurationLabel = (startStr: string, endStr: string) => {
+  const getModalBlockDurationLabel = (dateStr: string, startStr: string, endStr: string) => {
+    const [year, month, day] = (dateStr || format(startOfToday(), 'yyyy-MM-dd')).split('-').map(Number);
     const [sh, sm] = (startStr || '09:00').split(':').map(Number);
     const [eh, em] = (endStr || '10:00').split(':').map(Number);
-    let startMins = (sh || 0) * 60 + (sm || 0);
-    let endMins = (eh || 0) * 60 + (em || 0);
-    if (endMins <= startMins) endMins += 1440;
-    const totalMins = Math.max(1, endMins - startMins);
+
+    const startDateObj = new Date(year, (month || 1) - 1, day || 1, sh || 0, sm || 0, 0, 0);
+    let endDateObj = new Date(year, (month || 1) - 1, day || 1, eh || 0, em || 0, 0, 0);
+    if (endDateObj.getTime() <= startDateObj.getTime()) {
+      endDateObj = new Date(endDateObj.getTime() + 24 * 60 * 60 * 1000);
+    }
+
+    const startMs = startDateObj.getTime();
+    const endMs = endDateObj.getTime();
+    const nowMs = Date.now();
+    const totalSecs = Math.max(60, Math.round((endMs - startMs) / 1000));
+
+    let effectiveSecs = totalSecs;
+    if (nowMs >= endMs) {
+      effectiveSecs = 0;
+    } else if (nowMs >= startMs && nowMs < endMs) {
+      effectiveSecs = Math.max(0, Math.floor((endMs - nowMs) / 1000));
+    }
+
+    if (effectiveSecs === 0) {
+      return { label: '0 mins (Past)', timerPreview: '00:00' };
+    }
+
+    const totalMins = Math.max(1, Math.ceil(effectiveSecs / 60));
     const hrs = Math.floor(totalMins / 60);
     const mins = totalMins % 60;
     const label = hrs === 0 ? `${mins} min${mins > 1 ? 's' : ''}` : mins === 0 ? `${hrs} hr${hrs > 1 ? 's' : ''}` : `${hrs} hr${hrs > 1 ? 's' : ''} ${mins} min${mins > 1 ? 's' : ''}`;
-    const timerPreview = hrs > 0
-      ? `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:00`
-      : `${mins.toString().padStart(2, '0')}:00`;
+
+    const pHrs = Math.floor(effectiveSecs / 3600);
+    const pMins = Math.floor((effectiveSecs % 3600) / 60);
+    const pSecs = effectiveSecs % 60;
+    const timerPreview = (totalSecs >= 3600 || pHrs > 0)
+      ? `${pHrs.toString().padStart(2, '0')}:${pMins.toString().padStart(2, '0')}:${pSecs.toString().padStart(2, '0')}`
+      : `${pMins.toString().padStart(2, '0')}:${pSecs.toString().padStart(2, '0')}`;
     return { label, timerPreview };
   };
 
@@ -1098,6 +1124,7 @@ export default function App() {
       setModalEmoji(activeBlock?.emoji || '');
       setModalSubtasks(activeBlock?.subtasks ? JSON.parse(JSON.stringify(activeBlock.subtasks)) : []);
       setModalShowCountdown(Boolean(activeBlock?.showCountdown));
+      setModalDate(activeBlock?.date || scheduleDefaults?.date || format(startOfToday(), 'yyyy-MM-dd'));
       setModalStartTime(activeBlock?.startTime || scheduleDefaults?.startTime || '09:00');
       setModalEndTime(activeBlock?.endTime || scheduleDefaults?.endTime || '10:00');
       setNewSubtaskInput('');
@@ -5096,7 +5123,8 @@ export default function App() {
                     name="date"
                     type="date" 
                     required
-                    defaultValue={editingTimeBlock?.date || scheduleDefaults?.date || format(startOfToday(), 'yyyy-MM-dd')}
+                    value={modalDate}
+                    onChange={(e) => setModalDate(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-sm border border-high-line dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 font-bold text-xs dark:text-zinc-200"
                   />
                 </div>
@@ -5126,7 +5154,7 @@ export default function App() {
 
               {/* OPTIONAL COUNTDOWN TIMER FOR SCHEDULE BLOCK */}
               {(() => {
-                const { label: durationLabel, timerPreview } = getModalBlockDurationLabel(modalStartTime, modalEndTime);
+                const { label: durationLabel, timerPreview } = getModalBlockDurationLabel(modalDate, modalStartTime, modalEndTime);
                 return (
                   <div
                     onClick={() => setModalShowCountdown(prev => !prev)}
@@ -5157,8 +5185,8 @@ export default function App() {
                         </div>
                         <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium mt-0.5 truncate">
                           {modalShowCountdown
-                            ? `Enabled • ${durationLabel} countdown (${timerPreview})`
-                            : `Add a ${durationLabel} (${timerPreview}) countdown timer to this block`}
+                            ? `Auto-synced to current time • ${durationLabel} (${timerPreview})`
+                            : `Auto-sync countdown timer • ${durationLabel} (${timerPreview})`}
                         </p>
                       </div>
                     </div>
