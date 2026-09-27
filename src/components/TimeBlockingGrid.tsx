@@ -1022,7 +1022,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                         />
                         <div>
                           <h4 className="font-bold text-sm uppercase dark:text-zinc-100 flex items-center gap-2">
-                            <span className="font-mono text-zinc-500 dark:text-zinc-400">
+                            <span className="font-mono text-sm sm:text-[15px] font-black tracking-tight text-zinc-700 dark:text-zinc-200">
                               {formatTime12h(block.startTime)} – {formatTime12h(block.endTime)}
                             </span>
                             <span className="text-zinc-300 dark:text-zinc-600 font-mono text-[10px]">•</span>
@@ -1242,7 +1242,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                         // Layout thresholds based on pixel height
                         const paddingClass = heightPx < 32 ? 'px-1 py-0.5' : heightPx < 60 ? 'px-1.5 py-0.5' : 'px-2 py-1';
                         const titleSize = heightPx < 32 ? 'text-[10px]' : 'text-sm';
-                        const timeSize = heightPx < 32 ? 'text-[9px]' : 'text-[11px]';
+                        const timeSize = heightPx < 32 ? 'text-[10px]' : 'text-[13px] sm:text-sm';
 
                         return (
                           <motion.div
@@ -1270,10 +1270,10 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                             <div className="flex items-center justify-between gap-1 w-full h-full min-w-0">
                               <div className="flex flex-col justify-center min-w-0 flex-1 h-full">
                                 <div className="flex items-center gap-1.5 min-w-0 w-full truncate">
-                                  <span className={`font-mono ${timeSize} font-bold opacity-90 leading-none text-white shrink-0`}>
+                                  <span className={`font-mono ${timeSize} font-black tracking-tight leading-none text-white shrink-0`}>
                                     {formatTime12h(block.startTime)} – {formatTime12h(block.endTime)}
                                   </span>
-                                  <span className="text-white/60 font-mono text-[8px] shrink-0 leading-none">•</span>
+                                  <span className="text-white/70 font-mono text-[9px] shrink-0 leading-none">•</span>
                                   <span className={`font-black ${titleSize} uppercase shrink-0 leading-none flex items-center gap-0.5`}>
                                     {block.emoji && <span className="normal-case leading-none">{block.emoji}</span>}
                                     <span className="truncate">{block.activity}</span>
