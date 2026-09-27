@@ -1215,7 +1215,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                                 )}
                               </div>
 
-                                <div className="flex items-center gap-1.5 shrink-0 self-center pl-1">
+                                <div className="flex items-center gap-2 shrink-0 self-center pl-2 mr-12 sm:mr-16">
                                   {block.showCountdown && renderBlockCountdown(block, heightPx, false)}
                                   <button
                                     onClick={(e) => {
