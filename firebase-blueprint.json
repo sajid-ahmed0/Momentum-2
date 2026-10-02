@@ -59,6 +59,7 @@
         "activity": { "type": "string" },
         "category": { "type": "string" },
         "showCountdown": { "type": "boolean", "description": "Whether to display a countdown timer for the block duration" },
+        "googleCalendarEventId": { "type": "string", "description": "Linked Google Calendar event ID if synced" },
         "uid": { "type": "string" },
         "timestamp": { "type": "number" }
       },

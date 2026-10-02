@@ -39,9 +39,16 @@ import {
   SlidersHorizontal,
   Timer,
   Play,
-  Pause
+  Pause,
+  RefreshCw,
+  Download,
+  Upload,
+  CheckCircle2,
+  AlertCircle,
+  ExternalLink
 } from 'lucide-react';
 import { TimeBlock, BlockTask, QuickPreset, DEFAULT_PRESETS } from '../types';
+import { connectGoogleCalendar, getGoogleAccessToken, auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const COLOR_OPTIONS = [
@@ -64,8 +71,9 @@ interface TimeBlockingGridProps {
   timeBlocks: TimeBlock[];
   quickPresets?: QuickPreset[];
   onUpdateQuickPresets?: (presets: QuickPreset[]) => void;
-  onAddTimeBlock: (data: { startTime: string; endTime: string; activity: string; date: string; color?: string; emoji?: string; subtasks?: BlockTask[]; showCountdown?: boolean }) => void;
-  onEditTimeBlock: (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; emoji?: string; subtasks?: BlockTask[]; showCountdown?: boolean }) => void;
+  onAddTimeBlock: (data: { startTime: string; endTime: string; activity: string; date: string; color?: string; emoji?: string; subtasks?: BlockTask[]; showCountdown?: boolean; googleCalendarEventId?: string }) => void;
+  onAddBatchTimeBlocks?: (blocks: Array<{ startTime: string; endTime: string; activity: string; date: string; color?: string; emoji?: string; subtasks?: BlockTask[]; showCountdown?: boolean; googleCalendarEventId?: string }>) => Promise<void> | void;
+  onEditTimeBlock: (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; emoji?: string; subtasks?: BlockTask[]; showCountdown?: boolean; googleCalendarEventId?: string }) => void;
   onDeleteTimeBlock: (id: string) => void;
   onToggleSubtask?: (blockId: string, subtaskId: string) => void;
   onOpenModalWithDefaults?: (defaults: { startTime: string; endTime: string; date: string; block?: TimeBlock }) => void;
@@ -78,6 +86,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   quickPresets,
   onUpdateQuickPresets,
   onAddTimeBlock,
+  onAddBatchTimeBlocks,
   onEditTimeBlock,
   onDeleteTimeBlock,
   onToggleSubtask,
@@ -111,6 +120,28 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   const [presetNameInput, setPresetNameInput] = useState<string>('');
   const [presetDurationInput, setPresetDurationInput] = useState<number>(60);
   const [presetColorInput, setPresetColorInput] = useState<string>('indigo');
+
+  // Google Calendar Sync State
+  const [showCalendarSyncModal, setShowCalendarSyncModal] = useState<boolean>(false);
+  const [calendarSyncTab, setCalendarSyncTab] = useState<'import' | 'export'>('import');
+  const [calendarSyncRange, setCalendarSyncRange] = useState<'day' | 'week'>('day');
+  const [calendarToken, setCalendarToken] = useState<string | null>(() => getGoogleAccessToken());
+  const [isConnectingCalendar, setIsConnectingCalendar] = useState<boolean>(false);
+  const [isFetchingGCalEvents, setIsFetchingGCalEvents] = useState<boolean>(false);
+  const [isPushingToGCal, setIsPushingToGCal] = useState<boolean>(false);
+  const [gcalEvents, setGcalEvents] = useState<Array<{
+    id: string;
+    summary: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    htmlLink?: string;
+    alreadyImported: boolean;
+  }>>([]);
+  const [selectedImportIds, setSelectedImportIds] = useState<string[]>([]);
+  const [selectedExportBlockIds, setSelectedExportBlockIds] = useState<string[]>([]);
+  const [showExportConfirm, setShowExportConfirm] = useState<boolean>(false);
+  const [calendarSyncStatus, setCalendarSyncStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
   // Quick presets drag-to-scroll state
   const quickPresetScrollRef = useRef<HTMLDivElement>(null);
@@ -196,6 +227,337 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   const handleResetPresets = () => {
     savePresets(DEFAULT_PRESETS);
   };
+
+  // Compute start & end Date objects for the active Google Calendar sync range
+  const getSyncRangeBounds = (rangeMode: 'day' | 'week' = calendarSyncRange) => {
+    if (rangeMode === 'week') {
+      const start = startOfWeek(selectedDate, { weekStartsOn: 1 });
+      const end = endOfWeek(selectedDate, { weekStartsOn: 1 });
+      const startBound = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0, 0);
+      const endBound = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
+      return { startBound, endBound, days: eachDayOfInterval({ start, end }) };
+    }
+    const startBound = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 0, 0, 0, 0);
+    const endBound = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 23, 59, 59, 999);
+    return { startBound, endBound, days: [selectedDate] };
+  };
+
+  // Schedule blocks within the selected sync range
+  const syncRangeDateStrings = getSyncRangeBounds(calendarSyncRange).days.map(d => format(d, 'yyyy-MM-dd'));
+  const exportableScheduleBlocks = timeBlocks
+    .filter(b => syncRangeDateStrings.includes(b.date))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+
+  // Fetch events from user's primary Google Calendar
+  const fetchGoogleCalendarEvents = async (tokenOverride?: string, rangeOverride?: 'day' | 'week') => {
+    const activeToken = tokenOverride || calendarToken || getGoogleAccessToken();
+    if (!activeToken) return;
+
+    setIsFetchingGCalEvents(true);
+    setCalendarSyncStatus(null);
+    try {
+      const { startBound, endBound } = getSyncRangeBounds(rangeOverride || calendarSyncRange);
+      const params = new URLSearchParams({
+        timeMin: startBound.toISOString(),
+        timeMax: endBound.toISOString(),
+        singleEvents: 'true',
+        orderBy: 'startTime',
+        maxResults: '100',
+      });
+
+      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${activeToken}`,
+        },
+      });
+
+      if (res.status === 401 || res.status === 403) {
+        setCalendarToken(null);
+        setCalendarSyncStatus({
+          type: 'error',
+          message: 'Your Google Calendar session expired or needs permission. Please sign in with Google below.',
+        });
+        return;
+      }
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData?.error?.message || 'Failed to fetch Google Calendar events.');
+      }
+
+      const data = await res.json();
+      const rawItems: any[] = Array.isArray(data.items) ? data.items : [];
+
+      const parsedEvents = rawItems
+        .filter((item) => item.status !== 'cancelled')
+        .map((item) => {
+          const summary = (item.summary || 'Untitled Event').trim();
+          let dateStr = format(selectedDate, 'yyyy-MM-dd');
+          let startTimeStr = '09:00';
+          let endTimeStr = '10:00';
+
+          if (item.start?.dateTime && item.end?.dateTime) {
+            const startDt = new Date(item.start.dateTime);
+            const endDt = new Date(item.end.dateTime);
+            dateStr = format(startDt, 'yyyy-MM-dd');
+            startTimeStr = format(startDt, 'HH:mm');
+            endTimeStr = format(endDt, 'HH:mm');
+            if (endTimeStr === startTimeStr) {
+              endTimeStr = format(new Date(startDt.getTime() + 30 * 60 * 1000), 'HH:mm');
+            }
+          } else if (item.start?.date) {
+            dateStr = item.start.date;
+            startTimeStr = '09:00';
+            endTimeStr = '10:00';
+          }
+
+          const alreadyImported = timeBlocks.some(
+            (b) =>
+              (b.googleCalendarEventId && b.googleCalendarEventId === item.id) ||
+              (b.date === dateStr &&
+                b.startTime === startTimeStr &&
+                b.activity.trim().toLowerCase() === summary.toLowerCase())
+          );
+
+          return {
+            id: item.id as string,
+            summary,
+            date: dateStr,
+            startTime: startTimeStr,
+            endTime: endTimeStr,
+            htmlLink: item.htmlLink as string | undefined,
+            alreadyImported,
+          };
+        });
+
+      setGcalEvents(parsedEvents);
+      setSelectedImportIds(parsedEvents.filter((e) => !e.alreadyImported).map((e) => e.id));
+    } catch (error: any) {
+      console.error('Google Calendar fetch error:', error);
+      setCalendarSyncStatus({
+        type: 'error',
+        message: error.message || 'Could not load events from Google Calendar.',
+      });
+    } finally {
+      setIsFetchingGCalEvents(false);
+    }
+  };
+
+  // Connect Google Calendar via OAuth popup
+  const handleConnectGoogleCalendar = async () => {
+    setIsConnectingCalendar(true);
+    setCalendarSyncStatus(null);
+    try {
+      const { accessToken } = await connectGoogleCalendar();
+      setCalendarToken(accessToken);
+      setCalendarSyncStatus({
+        type: 'success',
+        message: 'Connected to Google Calendar!',
+      });
+      await fetchGoogleCalendarEvents(accessToken);
+    } catch (error: any) {
+      console.error('Google Calendar auth error:', error);
+      setCalendarSyncStatus({
+        type: 'error',
+        message: error.message || 'Google sign-in was cancelled or failed.',
+      });
+    } finally {
+      setIsConnectingCalendar(false);
+    }
+  };
+
+  // Import selected Google Calendar events into Schedule
+  const handleImportSelectedFromGCal = async () => {
+    const toImport = gcalEvents.filter((ev) => selectedImportIds.includes(ev.id) && !ev.alreadyImported);
+    if (toImport.length === 0) return;
+
+    try {
+      const blocksPayload = toImport.map((ev) => ({
+        activity: ev.summary.slice(0, 190),
+        emoji: '📅',
+        startTime: ev.startTime,
+        endTime: ev.endTime,
+        date: ev.date,
+        color: 'sky',
+        subtasks: [] as BlockTask[],
+        showCountdown: false,
+        googleCalendarEventId: ev.id,
+      }));
+
+      if (onAddBatchTimeBlocks) {
+        await onAddBatchTimeBlocks(blocksPayload);
+      } else {
+        for (const b of blocksPayload) {
+          onAddTimeBlock(b);
+        }
+      }
+
+      setGcalEvents((prev) =>
+        prev.map((ev) => (selectedImportIds.includes(ev.id) ? { ...ev, alreadyImported: true } : ev))
+      );
+      setSelectedImportIds([]);
+      setCalendarSyncStatus({
+        type: 'success',
+        message: `Imported ${toImport.length} event${toImport.length > 1 ? 's' : ''} from Google Calendar into your schedule.`,
+      });
+    } catch (error: any) {
+      setCalendarSyncStatus({
+        type: 'error',
+        message: error.message || 'Failed to import events to schedule.',
+      });
+    }
+  };
+
+  // Push selected Schedule blocks to Google Calendar (called after user confirmation)
+  const handleConfirmExportToGCal = async () => {
+    const activeToken = calendarToken || getGoogleAccessToken();
+    if (!activeToken) {
+      setShowExportConfirm(false);
+      setCalendarSyncStatus({
+        type: 'error',
+        message: 'Please sign in with Google first to push blocks to Google Calendar.',
+      });
+      return;
+    }
+
+    const blocksToExport = exportableScheduleBlocks.filter((b) => selectedExportBlockIds.includes(b.id));
+    if (blocksToExport.length === 0) {
+      setShowExportConfirm(false);
+      return;
+    }
+
+    setIsPushingToGCal(true);
+    setCalendarSyncStatus(null);
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    let createdCount = 0;
+    let updatedCount = 0;
+
+    try {
+      for (const block of blocksToExport) {
+        const [year, month, day] = block.date.split('-').map(Number);
+        const [sh, sm] = block.startTime.split(':').map(Number);
+        const [eh, em] = block.endTime.split(':').map(Number);
+
+        const startDt = new Date(year, (month || 1) - 1, day || 1, sh || 0, sm || 0, 0);
+        let endDt = new Date(year, (month || 1) - 1, day || 1, eh || 0, em || 0, 0);
+        if (endDt.getTime() <= startDt.getTime()) {
+          endDt = new Date(endDt.getTime() + 24 * 60 * 60 * 1000);
+        }
+
+        const subtaskLines =
+          block.subtasks && block.subtasks.length > 0
+            ? 'Subtasks:\n' +
+              block.subtasks.map((st) => `${st.completed ? '✓' : '○'} ${st.text}`).join('\n') +
+              '\n\n'
+            : '';
+
+        const eventBody = {
+          summary: `${block.emoji ? block.emoji + ' ' : ''}${block.activity}`.trim(),
+          description: `${subtaskLines}Synced from Schedule Block`,
+          start: {
+            dateTime: startDt.toISOString(),
+            timeZone,
+          },
+          end: {
+            dateTime: endDt.toISOString(),
+            timeZone,
+          },
+        };
+
+        let syncedEventId = block.googleCalendarEventId;
+        let updatedExisting = false;
+
+        if (syncedEventId) {
+          const patchRes = await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(syncedEventId)}`,
+            {
+              method: 'PATCH',
+              headers: {
+                Authorization: `Bearer ${activeToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(eventBody),
+            }
+          );
+
+          if (patchRes.ok) {
+            updatedExisting = true;
+            updatedCount++;
+          } else if (patchRes.status === 401 || patchRes.status === 403) {
+            setCalendarToken(null);
+            throw new Error('Your Google Calendar session expired. Please sign in with Google again.');
+          }
+        }
+
+        if (!updatedExisting) {
+          const postRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${activeToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(eventBody),
+          });
+
+          if (postRes.status === 401 || postRes.status === 403) {
+            setCalendarToken(null);
+            throw new Error('Your Google Calendar session expired. Please sign in with Google again.');
+          }
+
+          if (!postRes.ok) {
+            const errData = await postRes.json().catch(() => ({}));
+            throw new Error(errData?.error?.message || `Failed to sync "${block.activity}" to Google Calendar.`);
+          }
+
+          const createdEvent = await postRes.json();
+          if (createdEvent?.id) {
+            onEditTimeBlock(block.id, {
+              startTime: block.startTime,
+              endTime: block.endTime,
+              activity: block.activity,
+              date: block.date,
+              color: block.color,
+              emoji: block.emoji,
+              subtasks: block.subtasks,
+              showCountdown: block.showCountdown,
+              googleCalendarEventId: createdEvent.id,
+            });
+          }
+          createdCount++;
+        }
+      }
+
+      setShowExportConfirm(false);
+      const parts: string[] = [];
+      if (createdCount > 0) parts.push(`${createdCount} created`);
+      if (updatedCount > 0) parts.push(`${updatedCount} updated`);
+      setCalendarSyncStatus({
+        type: 'success',
+        message: `Google Calendar sync complete (${parts.join(', ')})!`,
+      });
+    } catch (error: any) {
+      console.error('Export to Google Calendar error:', error);
+      setShowExportConfirm(false);
+      setCalendarSyncStatus({
+        type: 'error',
+        message: error.message || 'Failed to push schedule blocks to Google Calendar.',
+      });
+    } finally {
+      setIsPushingToGCal(false);
+    }
+  };
+
+  // Auto-populate export selection and fetch events when modal opens or range changes
+  useEffect(() => {
+    if (!showCalendarSyncModal) return;
+    setShowExportConfirm(false);
+    setSelectedExportBlockIds(exportableScheduleBlocks.map((b) => b.id));
+    const token = calendarToken || getGoogleAccessToken();
+    if (token) {
+      if (!calendarToken) setCalendarToken(token);
+      fetchGoogleCalendarEvents(token, calendarSyncRange);
+    }
+  }, [showCalendarSyncModal, calendarSyncRange, selectedDate]);
 
   // Format time 12h helper
   const formatTime12h = (timeStr: string) => {
@@ -619,6 +981,28 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
               <List className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          {/* Google Calendar Sync Button */}
+          <button
+            onClick={() => {
+              setCalendarSyncStatus(null);
+              setShowCalendarSyncModal(true);
+            }}
+            className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 font-bold text-xs rounded-lg shadow-sm active:scale-95 transition-all"
+            title="Sync schedule with Google Calendar"
+          >
+            <svg className="w-4 h-4 shrink-0" viewBox="0 0 48 48">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+            </svg>
+            <span className="hidden sm:inline">Calendar Sync</span>
+            <span className="sm:hidden">Sync</span>
+            {calendarToken && (
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Google Calendar Connected" />
+            )}
+          </button>
 
           {/* Create Button */}
           <button
@@ -1286,6 +1670,416 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         </div>
       )}
 
+
+      {/* GOOGLE CALENDAR SYNC MODAL */}
+      <AnimatePresence>
+        {showCalendarSyncModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 max-w-xl w-full shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center">
+                    <svg className="w-5 h-5" viewBox="0 0 48 48">
+                      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black uppercase tracking-tight dark:text-zinc-100">
+                      Google Calendar Sync
+                    </h3>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                      Import events into your schedule or push blocks to Google Calendar
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowCalendarSyncModal(false)}
+                  className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-400"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Status Banner */}
+              {calendarSyncStatus && (
+                <div
+                  className={`p-3 rounded-xl border text-xs font-semibold flex items-start gap-2.5 ${
+                    calendarSyncStatus.type === 'success'
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                      : calendarSyncStatus.type === 'error'
+                        ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
+                        : 'bg-sky-500/10 border-sky-500/30 text-sky-600 dark:text-sky-400'
+                  }`}
+                >
+                  {calendarSyncStatus.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  )}
+                  <span className="flex-1">{calendarSyncStatus.message}</span>
+                </div>
+              )}
+
+              {/* Connection Card / Sign in with Google */}
+              {!calendarToken ? (
+                <div className="p-6 bg-zinc-50 dark:bg-zinc-900/70 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-center space-y-4">
+                  <div className="space-y-1">
+                    <p className="text-sm font-black uppercase tracking-wide dark:text-zinc-100">
+                      Connect Your Google Calendar
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
+                      Sign in with Google to grant permission to view and sync your calendar events with your schedule blocks.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={handleConnectGoogleCalendar}
+                      disabled={isConnectingCalendar}
+                      className="inline-flex items-center gap-3 px-5 py-2.5 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-100 border border-zinc-300 dark:border-zinc-700 rounded-full font-semibold text-sm shadow-sm hover:shadow transition-all disabled:opacity-60"
+                    >
+                      <svg className="w-5 h-5" viewBox="0 0 48 48">
+                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                        <path fill="none" d="M0 0h48v48H0z" />
+                      </svg>
+                      <span>{isConnectingCalendar ? 'Connecting...' : 'Sign in with Google'}</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Connected Bar + Range Selector */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                      <span className="font-bold text-zinc-700 dark:text-zinc-200">
+                        {auth.currentUser?.email ? `Connected (${auth.currentUser.email})` : 'Google Calendar Connected'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleConnectGoogleCalendar}
+                        className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400 hover:underline ml-1"
+                      >
+                        Reconnect
+                      </button>
+                    </div>
+
+                    {/* Date Scope: Selected Day vs Week */}
+                    <div className="flex items-center bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setCalendarSyncRange('day')}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                          calendarSyncRange === 'day'
+                            ? 'bg-amber-500 text-white'
+                            : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                        }`}
+                      >
+                        Selected Day ({format(selectedDate, 'MMM d')})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCalendarSyncRange('week')}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                          calendarSyncRange === 'week'
+                            ? 'bg-amber-500 text-white'
+                            : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                        }`}
+                      >
+                        Full Week
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Mode Switcher: Import vs Export */}
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-zinc-100 dark:bg-zinc-900 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCalendarSyncTab('import');
+                        setShowExportConfirm(false);
+                      }}
+                      className={`py-2 px-3 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${
+                        calendarSyncTab === 'import'
+                          ? 'bg-white dark:bg-zinc-950 text-amber-600 dark:text-amber-400 shadow-sm'
+                          : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                      }`}
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Import from Google</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCalendarSyncTab('export');
+                        setShowExportConfirm(false);
+                      }}
+                      className={`py-2 px-3 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${
+                        calendarSyncTab === 'export'
+                          ? 'bg-white dark:bg-zinc-950 text-amber-600 dark:text-amber-400 shadow-sm'
+                          : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                      }`}
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Push to Google</span>
+                    </button>
+                  </div>
+
+                  {calendarSyncTab === 'import' ? (
+                    /* IMPORT TAB: Google Calendar -> Schedule */
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                          Google Calendar Events ({gcalEvents.length})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => fetchGoogleCalendarEvents()}
+                          disabled={isFetchingGCalEvents}
+                          className="flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline disabled:opacity-50"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isFetchingGCalEvents ? 'animate-spin' : ''}`} />
+                          <span>Refresh</span>
+                        </button>
+                      </div>
+
+                      {isFetchingGCalEvents ? (
+                        <div className="py-10 text-center text-xs font-mono text-zinc-400">
+                          Loading events from Google Calendar...
+                        </div>
+                      ) : gcalEvents.length === 0 ? (
+                        <div className="py-10 text-center border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl text-xs text-zinc-400">
+                          No Google Calendar events found for this {calendarSyncRange === 'day' ? 'day' : 'week'}.
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+                          {gcalEvents.map((ev) => {
+                            const isSelected = selectedImportIds.includes(ev.id);
+                            return (
+                              <div
+                                key={ev.id}
+                                onClick={() => {
+                                  if (ev.alreadyImported) return;
+                                  setSelectedImportIds((prev) =>
+                                    prev.includes(ev.id) ? prev.filter((id) => id !== ev.id) : [...prev, ev.id]
+                                  );
+                                }}
+                                className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs transition-all ${
+                                  ev.alreadyImported
+                                    ? 'bg-zinc-50/60 dark:bg-zinc-900/40 border-zinc-200/70 dark:border-zinc-800/70 opacity-60 cursor-default'
+                                    : isSelected
+                                      ? 'bg-amber-500/10 border-amber-500/40 cursor-pointer'
+                                      : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 cursor-pointer'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  {ev.alreadyImported ? (
+                                    <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                                  ) : isSelected ? (
+                                    <CheckSquare className="w-4 h-4 text-amber-500 shrink-0" />
+                                  ) : (
+                                    <Square className="w-4 h-4 text-zinc-400 shrink-0" />
+                                  )}
+                                  <div className="min-w-0">
+                                    <p className="font-black text-zinc-900 dark:text-zinc-100 truncate">
+                                      {ev.summary}
+                                    </p>
+                                    <p className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
+                                      {ev.date} • {formatTime12h(ev.startTime)} – {formatTime12h(ev.endTime)}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {ev.alreadyImported ? (
+                                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-bold">
+                                      Synced
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 font-mono text-[10px] font-bold">
+                                      New
+                                    </span>
+                                  )}
+                                  {ev.htmlLink && (
+                                    <a
+                                      href={ev.htmlLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                                      title="Open in Google Calendar"
+                                    >
+                                      <ExternalLink className="w-3.5 h-3.5" />
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleImportSelectedFromGCal}
+                        disabled={selectedImportIds.length === 0}
+                        className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>
+                          Import Selected to Schedule ({selectedImportIds.length})
+                        </span>
+                      </button>
+                    </div>
+                  ) : (
+                    /* EXPORT TAB: Schedule -> Google Calendar */
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                          Schedule Blocks ({exportableScheduleBlocks.length})
+                        </span>
+                        {exportableScheduleBlocks.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (selectedExportBlockIds.length === exportableScheduleBlocks.length) {
+                                setSelectedExportBlockIds([]);
+                              } else {
+                                setSelectedExportBlockIds(exportableScheduleBlocks.map((b) => b.id));
+                              }
+                            }}
+                            className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline"
+                          >
+                            {selectedExportBlockIds.length === exportableScheduleBlocks.length
+                              ? 'Deselect All'
+                              : 'Select All'}
+                          </button>
+                        )}
+                      </div>
+
+                      {exportableScheduleBlocks.length === 0 ? (
+                        <div className="py-10 text-center border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl text-xs text-zinc-400">
+                          No schedule blocks found for this {calendarSyncRange === 'day' ? 'day' : 'week'} to push.
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                          {exportableScheduleBlocks.map((block) => {
+                            const isSelected = selectedExportBlockIds.includes(block.id);
+                            return (
+                              <div
+                                key={block.id}
+                                onClick={() => {
+                                  setShowExportConfirm(false);
+                                  setSelectedExportBlockIds((prev) =>
+                                    prev.includes(block.id)
+                                      ? prev.filter((id) => id !== block.id)
+                                      : [...prev, block.id]
+                                  );
+                                }}
+                                className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs cursor-pointer transition-all ${
+                                  isSelected
+                                    ? 'bg-amber-500/10 border-amber-500/40'
+                                    : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  {isSelected ? (
+                                    <CheckSquare className="w-4 h-4 text-amber-500 shrink-0" />
+                                  ) : (
+                                    <Square className="w-4 h-4 text-zinc-400 shrink-0" />
+                                  )}
+                                  <div className="min-w-0">
+                                    <p className="font-black text-zinc-900 dark:text-zinc-100 truncate">
+                                      {block.emoji ? `${block.emoji} ` : ''}{block.activity}
+                                    </p>
+                                    <p className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
+                                      {block.date} • {formatTime12h(block.startTime)} – {formatTime12h(block.endTime)}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <span
+                                  className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-bold shrink-0 ${
+                                    block.googleCalendarEventId
+                                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                      : 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400'
+                                  }`}
+                                >
+                                  {block.googleCalendarEventId ? 'Update Existing' : 'Create Event'}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Explicit User Confirmation Step before mutating Google Calendar */}
+                      {showExportConfirm ? (
+                        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-3">
+                          <div className="space-y-1">
+                            <p className="text-xs font-black uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                              Confirm Google Calendar Update
+                            </p>
+                            <p className="text-xs text-zinc-700 dark:text-zinc-300">
+                              Are you sure you want to sync{' '}
+                              <span className="font-bold">{selectedExportBlockIds.length}</span> schedule block
+                              {selectedExportBlockIds.length > 1 ? 's' : ''} to your primary Google Calendar? This will
+                              create or update the selected events on your calendar.
+                            </p>
+                          </div>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setShowExportConfirm(false)}
+                              disabled={isPushingToGCal}
+                              className="px-3 py-1.5 rounded-lg bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-bold"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleConfirmExportToGCal}
+                              disabled={isPushingToGCal}
+                              className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-black uppercase tracking-wider shadow-md disabled:opacity-50"
+                            >
+                              {isPushingToGCal ? 'Syncing...' : 'Confirm & Sync'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setShowExportConfirm(true)}
+                          disabled={selectedExportBlockIds.length === 0 || isPushingToGCal}
+                          className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Upload className="w-4 h-4" />
+                          <span>
+                            Push Selected to Google Calendar ({selectedExportBlockIds.length})
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* CUSTOMIZE QUICK PRESETS MODAL */}
       <AnimatePresence>

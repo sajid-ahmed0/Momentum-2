@@ -62,6 +62,7 @@ export interface TimeBlock {
   color?: string;    // e.g. 'amber', 'indigo', 'emerald', 'rose', 'sky', 'purple', 'teal', 'zinc'
   subtasks?: BlockTask[];
   showCountdown?: boolean;
+  googleCalendarEventId?: string;
   uid: string;
   timestamp: number;
 }

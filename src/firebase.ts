@@ -7,7 +7,9 @@ import {
   signOut, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
-  signInAnonymously
+  signInAnonymously,
+  onAuthStateChanged,
+  User
 } from 'firebase/auth';
 import { getFirestore, enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -29,20 +31,91 @@ if (typeof window !== 'undefined') {
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-export const signInWithGoogle = async () => {
-  if (auth.currentUser && auth.currentUser.isAnonymous) {
-    try {
-      return await linkWithPopup(auth.currentUser, googleProvider);
-    } catch (error: any) {
-      if (error.code === 'auth/credential-already-in-use') {
-        return await signInWithPopup(auth, googleProvider);
-      }
-      throw error;
-    }
+export const SCOPES = [
+  'https://www.googleapis.com/auth/calendar.events',
+];
+
+SCOPES.forEach((scope) => {
+  googleProvider.addScope(scope);
+});
+
+// Flag to indicate if we are in the middle of a sign-in flow.
+let isSigningIn = false;
+// Cache the OAuth access token in memory only (never in localStorage or sessionStorage).
+let cachedAccessToken: string | null = null;
+
+onAuthStateChanged(auth, (user) => {
+  if (!user && !isSigningIn) {
+    cachedAccessToken = null;
   }
-  return await signInWithPopup(auth, googleProvider);
+});
+
+export const getGoogleAccessToken = (): string | null => {
+  return cachedAccessToken;
 };
+
+export const signInWithGoogle = async () => {
+  try {
+    isSigningIn = true;
+    let result;
+    if (auth.currentUser && auth.currentUser.isAnonymous) {
+      try {
+        result = await linkWithPopup(auth.currentUser, googleProvider);
+      } catch (error: any) {
+        if (error.code === 'auth/credential-already-in-use') {
+          result = await signInWithPopup(auth, googleProvider);
+        } else {
+          throw error;
+        }
+      }
+    } else {
+      result = await signInWithPopup(auth, googleProvider);
+    }
+
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (credential?.accessToken) {
+      cachedAccessToken = credential.accessToken;
+    }
+    return result;
+  } finally {
+    isSigningIn = false;
+  }
+};
+
+export const connectGoogleCalendar = async (): Promise<{ user: User; accessToken: string }> => {
+  try {
+    isSigningIn = true;
+    googleProvider.setCustomParameters({ prompt: 'consent' });
+    let result;
+    if (auth.currentUser && auth.currentUser.isAnonymous) {
+      try {
+        result = await linkWithPopup(auth.currentUser, googleProvider);
+      } catch (error: any) {
+        if (error.code === 'auth/credential-already-in-use') {
+          result = await signInWithPopup(auth, googleProvider);
+        } else {
+          throw error;
+        }
+      }
+    } else {
+      result = await signInWithPopup(auth, googleProvider);
+    }
+
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (!credential?.accessToken) {
+      throw new Error('Failed to obtain Google Calendar access token. Please try signing in again.');
+    }
+    cachedAccessToken = credential.accessToken;
+    return { user: result.user, accessToken: cachedAccessToken };
+  } finally {
+    isSigningIn = false;
+  }
+};
+
 export const loginWithEmail = (email: string, pass: string) => signInWithEmailAndPassword(auth, email, pass);
 export const registerWithEmail = (email: string, pass: string) => createUserWithEmailAndPassword(auth, email, pass);
 export const loginAnonymously = () => signInAnonymously(auth);
-export const logout = () => signOut(auth);
+export const logout = async () => {
+  cachedAccessToken = null;
+  await signOut(auth);
+};
