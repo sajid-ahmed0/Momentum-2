@@ -147,68 +147,25 @@ const clearCalendarSessionFromIdb = async () => {
   });
 };
 
-// Silent token refresh via Google Identity Services if the 1-hour access token expired
-const GOOGLE_OAUTH_CLIENT_ID = '792771806071-gtqtrn76qo3k7ap5lb11qv644d631vjl.apps.googleusercontent.com';
-let gisScriptPromise: Promise<boolean> | null = null;
-
-const loadGisScript = (): Promise<boolean> => {
-  if (typeof window === 'undefined') return Promise.resolve(false);
-  if ((window as any).google?.accounts?.oauth2) return Promise.resolve(true);
-  if (gisScriptPromise) return gisScriptPromise;
-
-  gisScriptPromise = new Promise((resolve) => {
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => resolve(Boolean((window as any).google?.accounts?.oauth2));
-    script.onerror = () => resolve(false);
-    document.head.appendChild(script);
-  });
-  return gisScriptPromise;
+export const clearExpiredCalendarToken = async () => {
+  cachedAccessToken = null;
+  cachedTokenExpiry = 0;
+  if (cachedCalendarEmail) {
+    await saveCalendarSessionToIdb('', 0, cachedCalendarEmail);
+  } else {
+    await clearCalendarSessionFromIdb();
+  }
+  notifyCalendarAuthListeners();
 };
 
-export const trySilentCalendarTokenRefresh = async (hintEmail?: string | null): Promise<string | null> => {
-  const emailToHint = hintEmail || cachedCalendarEmail || calendarOAuthAuth.currentUser?.email;
-  if (!emailToHint) return null;
-
-  const loaded = await loadGisScript();
-  if (!loaded) return null;
-
-  return new Promise((resolve) => {
-    try {
-      const oauth2 = (window as any).google.accounts.oauth2;
-      const tokenClient = oauth2.initTokenClient({
-        client_id: GOOGLE_OAUTH_CLIENT_ID,
-        scope: SCOPES.join(' '),
-        hint: emailToHint,
-        prompt: '',
-        callback: (response: any) => {
-          if (response && response.access_token) {
-            const expiresInSecs = Number(response.expires_in) || 3500;
-            const expiresAt = Date.now() + (expiresInSecs - 60) * 1000;
-            cachedAccessToken = response.access_token;
-            cachedTokenExpiry = expiresAt;
-            cachedCalendarEmail = emailToHint;
-            saveCalendarSessionToIdb(response.access_token, expiresAt, emailToHint);
-            notifyCalendarAuthListeners();
-            resolve(response.access_token);
-          } else {
-            resolve(null);
-          }
-        },
-        error_callback: () => {
-          resolve(null);
-        },
-      });
-      tokenClient.requestAccessToken({ prompt: '' });
-    } catch {
-      resolve(null);
-    }
-  });
+export const trySilentCalendarTokenRefresh = async (_hintEmail?: string | null): Promise<string | null> => {
+  if (cachedAccessToken && cachedTokenExpiry > Date.now()) {
+    return cachedAccessToken;
+  }
+  return null;
 };
 
-// Restore saved Google Calendar session on app load
+// Restore saved Google Calendar session on app load without opening any background popups
 if (typeof window !== 'undefined') {
   loadCalendarSessionFromIdb().then(async (saved) => {
     if (saved) {
@@ -216,21 +173,18 @@ if (typeof window !== 'undefined') {
       if (saved.token && saved.expiresAt > Date.now()) {
         cachedAccessToken = saved.token;
         cachedTokenExpiry = saved.expiresAt;
-        notifyCalendarAuthListeners();
-      } else if (cachedCalendarEmail) {
-        notifyCalendarAuthListeners();
-        await trySilentCalendarTokenRefresh(cachedCalendarEmail);
+      } else {
+        cachedAccessToken = null;
+        cachedTokenExpiry = 0;
       }
+      notifyCalendarAuthListeners();
     }
   });
 
-  onAuthStateChanged(calendarOAuthAuth, async (calUser) => {
+  onAuthStateChanged(calendarOAuthAuth, (calUser) => {
     if (calUser?.email) {
       cachedCalendarEmail = calUser.email;
       notifyCalendarAuthListeners();
-      if (!cachedAccessToken || cachedTokenExpiry <= Date.now()) {
-        await trySilentCalendarTokenRefresh(calUser.email);
-      }
     }
   });
 }

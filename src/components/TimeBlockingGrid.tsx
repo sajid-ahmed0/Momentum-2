@@ -53,7 +53,7 @@ import {
   getGoogleAccessToken,
   getConnectedCalendarEmail,
   subscribeCalendarAuth,
-  trySilentCalendarTokenRefresh,
+  clearExpiredCalendarToken,
   auth
 } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
@@ -709,11 +709,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     rangeOverride?: 'day' | 'week',
     isBackgroundSync: boolean = false
   ) => {
-    let activeToken = tokenOverride || calendarToken || getGoogleAccessToken();
-    if (!activeToken && calendarEmail) {
-      activeToken = await trySilentCalendarTokenRefresh(calendarEmail);
-      if (activeToken) setCalendarToken(activeToken);
-    }
+    const activeToken = tokenOverride || calendarToken || getGoogleAccessToken();
     if (!activeToken) return;
 
     setIsFetchingGCalEvents(true);
@@ -738,31 +734,19 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         maxResults: '150',
       });
 
-      let res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
+      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${activeToken}`,
         },
       });
 
-      if ((res.status === 401 || res.status === 403) && calendarEmail) {
-        const refreshed = await trySilentCalendarTokenRefresh(calendarEmail);
-        if (refreshed) {
-          activeToken = refreshed;
-          setCalendarToken(refreshed);
-          res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
-            headers: {
-              Authorization: `Bearer ${refreshed}`,
-            },
-          });
-        }
-      }
-
       if (res.status === 401 || res.status === 403) {
+        await clearExpiredCalendarToken();
         setCalendarToken(null);
         if (!isBackgroundSync) {
           setCalendarSyncStatus({
-            type: 'error',
-            message: 'Your Google Calendar session expired. Click Reconnect to refresh access.',
+            type: 'info',
+            message: 'Your Google Calendar session expired. Click "Sign in with Google" below to reconnect.',
           });
         }
         return;
@@ -1194,16 +1178,19 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   // Push selected Schedule blocks to Google Calendar immediately
   const handleConfirmExportToGCal = async () => {
     let activeToken = calendarToken || getGoogleAccessToken();
-    if (!activeToken && calendarEmail) {
-      activeToken = await trySilentCalendarTokenRefresh(calendarEmail);
-      if (activeToken) setCalendarToken(activeToken);
-    }
     if (!activeToken) {
-      setCalendarSyncStatus({
-        type: 'error',
-        message: 'Please sign in with Google first to push blocks to Google Calendar.',
-      });
-      return;
+      try {
+        const { user: calUser, accessToken } = await connectGoogleCalendar(false);
+        activeToken = accessToken;
+        setCalendarToken(accessToken);
+        if (calUser?.email) setCalendarEmail(calUser.email);
+      } catch {
+        setCalendarSyncStatus({
+          type: 'error',
+          message: 'Please sign in with Google first to push blocks to Google Calendar.',
+        });
+        return;
+      }
     }
 
     const blocksToExport = exportableScheduleBlocks.filter((b) => selectedExportBlockIds.includes(b.id));
@@ -1229,16 +1216,10 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         try {
           result = await upsertSingleBlockToGoogleCalendar(block, activeToken, calendarTimeZone, knownActiveIds);
         } catch (err: any) {
-          if ((err?.status === 401 || err?.status === 403 || err?.message === 'AUTH_EXPIRED') && calendarEmail) {
-            const refreshed = await trySilentCalendarTokenRefresh(calendarEmail);
-            if (refreshed) {
-              activeToken = refreshed;
-              setCalendarToken(refreshed);
-              result = await upsertSingleBlockToGoogleCalendar(block, refreshed, calendarTimeZone, knownActiveIds);
-            } else {
-              setCalendarToken(null);
-              throw new Error('Your Google Calendar session expired. Please click Reconnect and try again.');
-            }
+          if (err?.status === 401 || err?.status === 403 || err?.message === 'AUTH_EXPIRED') {
+            await clearExpiredCalendarToken();
+            setCalendarToken(null);
+            throw new Error('Your Google Calendar session expired. Please click "Sign in with Google" to reconnect and try again.');
           } else {
             throw err;
           }
@@ -1356,23 +1337,22 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     if (token) {
       if (!calendarToken) setCalendarToken(token);
       fetchGoogleCalendarEvents(token, calendarSyncRange, false);
-    } else if (calendarEmail) {
-      trySilentCalendarTokenRefresh(calendarEmail).then((refreshed) => {
-        if (refreshed) {
-          setCalendarToken(refreshed);
-          fetchGoogleCalendarEvents(refreshed, calendarSyncRange, false);
-        }
-      });
     }
-  }, [showCalendarSyncModal, calendarSyncRange, selectedDate, calendarToken, calendarEmail, autoSyncEnabled, activeScheduleBlocks.length]);
+  }, [showCalendarSyncModal, calendarSyncRange, selectedDate, calendarToken, autoSyncEnabled, activeScheduleBlocks.length]);
 
-  // Background Two-Way Auto-Sync: automatically sync Google Calendar <-> Momentum Schedule without opening the modal
+  // Background Two-Way Auto-Sync: automatically sync Google Calendar <-> Momentum Schedule while a valid token is active
   useEffect(() => {
-    if (!autoSyncEnabled || (!calendarToken && !calendarEmail)) return;
+    const activeToken = calendarToken || getGoogleAccessToken();
+    if (!autoSyncEnabled || !activeToken) return;
 
     const runBackgroundSync = () => {
+      const currentValidToken = getGoogleAccessToken();
+      if (!currentValidToken) {
+        setCalendarToken(null);
+        return;
+      }
       const bgRange: 'day' | 'week' = viewMode === 'day' ? 'day' : 'week';
-      fetchGoogleCalendarEvents(undefined, bgRange, true);
+      fetchGoogleCalendarEvents(currentValidToken, bgRange, true);
     };
 
     runBackgroundSync();
@@ -1385,7 +1365,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
       clearInterval(intervalId);
       window.removeEventListener('focus', handleWindowFocus);
     };
-  }, [autoSyncEnabled, calendarToken, calendarEmail, selectedDate, viewMode, activeScheduleBlocks.length]);
+  }, [autoSyncEnabled, calendarToken, selectedDate, viewMode, activeScheduleBlocks.length]);
 
   // Format time 12h helper
   const formatTime12h = (timeStr: string) => {
@@ -1829,8 +1809,10 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
             <span className="sm:hidden">Sync</span>
             {isFetchingGCalEvents ? (
               <RefreshCw className="w-3 h-3 text-amber-500 animate-spin shrink-0" />
-            ) : (calendarToken || calendarEmail) ? (
+            ) : calendarToken ? (
               <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Google Calendar Auto-Sync Active" />
+            ) : calendarEmail ? (
+              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Google Calendar session expired — click to reconnect" />
             ) : null}
           </button>
 
@@ -2577,14 +2559,16 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                 <div className="p-6 bg-zinc-50 dark:bg-zinc-900/70 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-center space-y-4">
                   <div className="space-y-1">
                     <p className="text-sm font-black uppercase tracking-wide dark:text-zinc-100">
-                      Connect Your Google Calendar
+                      {calendarEmail ? 'Reconnect Google Calendar' : 'Connect Your Google Calendar'}
                     </p>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
-                      Sign in with Google to grant permission to view and sync your calendar events with your schedule blocks.
+                      {calendarEmail
+                        ? `Your 1-hour Google Calendar session for ${calendarEmail} has expired. Click below to reconnect and sync your latest schedule blocks.`
+                        : 'Sign in with Google to grant permission to view and sync your calendar events with your schedule blocks.'}
                     </p>
                   </div>
 
-                  <div className="flex justify-center">
+                  <div className="flex flex-col items-center gap-2">
                     <button
                       type="button"
                       onClick={() => handleConnectGoogleCalendar(false)}
@@ -2598,8 +2582,24 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                         <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
                         <path fill="none" d="M0 0h48v48H0z" />
                       </svg>
-                      <span>{isConnectingCalendar ? 'Connecting...' : 'Sign in with Google'}</span>
+                      <span>
+                        {isConnectingCalendar
+                          ? 'Connecting...'
+                          : calendarEmail
+                            ? `Reconnect (${calendarEmail})`
+                            : 'Sign in with Google'}
+                      </span>
                     </button>
+                    {calendarEmail && (
+                      <button
+                        type="button"
+                        onClick={() => handleConnectGoogleCalendar(true)}
+                        disabled={isConnectingCalendar}
+                        className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline"
+                      >
+                        Switch Google Account
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (
