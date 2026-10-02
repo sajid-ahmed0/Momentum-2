@@ -291,6 +291,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   const deletedOrGhostBlockIdsRef = useRef<Set<string>>(new Set());
   const locallyEditedBlockIdsRef = useRef<Set<string>>(new Set());
   const gcalUpdatedBlockIdsRef = useRef<Set<string>>(new Set());
+  const recentLocalEditsRef = useRef<Map<string, number>>(new Map());
   const recentlyCreatedGCalEventTimeRef = useRef<Map<string, number>>(new Map());
   const prevBlocksMapRef = useRef<Map<string, TimeBlock>>(new Map());
 
@@ -572,8 +573,8 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   };
 
   const buildGoogleCalendarEventBody = (block: TimeBlock, targetTz?: string) => {
-    const resolvedTz = targetTz || calendarTimeZone || scheduleTimeZone || DEFAULT_SCHEDULE_TIMEZONE;
-    const safeDate = block.date && /^\d{4}-\d{2}-\d{2}$/.test(block.date) ? block.date : getDateStrInTz(selectedDate, scheduleTimeZone);
+    const resolvedTz = targetTz || DEFAULT_SCHEDULE_TIMEZONE;
+    const safeDate = block.date && /^\d{4}-\d{2}-\d{2}$/.test(block.date) ? block.date : getDateStrInTz(selectedDate, DEFAULT_SCHEDULE_TIMEZONE);
     const [year, month, day] = safeDate.split('-').map(Number);
     const [shRaw, smRaw] = (block.startTime || '09:00').split(':').map(Number);
     const [ehRaw, emRaw] = (block.endTime || '10:00').split(':').map(Number);
@@ -582,20 +583,20 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     const eh = Number.isFinite(ehRaw) ? ehRaw : 10;
     const em = Number.isFinite(emRaw) ? emRaw : 0;
 
-    const startDt = new Date(year, (month || 1) - 1, day || 1, sh, sm, 0);
-    let endDt = new Date(year, (month || 1) - 1, day || 1, eh, em, 0);
-    if (endDt.getTime() === startDt.getTime()) {
-      endDt = new Date(startDt.getTime() + 30 * 60 * 1000);
-    } else if (endDt.getTime() < startDt.getTime()) {
-      endDt = new Date(endDt.getTime() + 24 * 60 * 60 * 1000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const isOvernight = eh < sh || (eh === sh && em <= sm);
+    let endYear = year;
+    let endMonth = month;
+    let endDay = day;
+    if (isOvernight) {
+      const nextDateObj = new Date(year, (month || 1) - 1, (day || 1) + 1);
+      endYear = nextDateObj.getFullYear();
+      endMonth = nextDateObj.getMonth() + 1;
+      endDay = nextDateObj.getDate();
     }
 
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const startOffset = getTimeZoneOffsetString(resolvedTz, startDt);
-    const endOffset = getTimeZoneOffsetString(resolvedTz, endDt);
-
-    const startRfc3339 = `${startDt.getFullYear()}-${pad(startDt.getMonth() + 1)}-${pad(startDt.getDate())}T${pad(startDt.getHours())}:${pad(startDt.getMinutes())}:00${startOffset}`;
-    const endRfc3339 = `${endDt.getFullYear()}-${pad(endDt.getMonth() + 1)}-${pad(endDt.getDate())}T${pad(endDt.getHours())}:${pad(endDt.getMinutes())}:00${endOffset}`;
+    const startRfc3339 = `${year}-${pad(month)}-${pad(day)}T${pad(sh)}:${pad(sm)}:00+06:00`;
+    const endRfc3339 = `${endYear}-${pad(endMonth)}-${pad(endDay)}T${pad(eh)}:${pad(em)}:00+06:00`;
 
     const subtaskLines =
       block.subtasks && block.subtasks.length > 0
@@ -615,11 +616,11 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
       colorId: momentumColorToGCalColorId(block.color),
       start: {
         dateTime: startRfc3339,
-        timeZone: resolvedTz,
+        timeZone: DEFAULT_SCHEDULE_TIMEZONE,
       },
       end: {
         dateTime: endRfc3339,
-        timeZone: resolvedTz,
+        timeZone: DEFAULT_SCHEDULE_TIMEZONE,
       },
     };
   };
@@ -749,18 +750,19 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     };
   };
 
-  // Extract wall-clock YYYY-MM-DD and HH:mm in the Google Calendar's own timezone (so 2-3pm in GCal stays 2-3pm in Momentum)
-  const extractDateAndTimeInTz = (isoString: string, tz: string): { dateStr: string; timeStr: string } => {
+  // Extract wall-clock YYYY-MM-DD and HH:mm in the schedule's timezone (Asia/Dhaka, GMT+6)
+  const extractDateAndTimeInTz = (isoString: string, tz: string = DEFAULT_SCHEDULE_TIMEZONE): { dateStr: string; timeStr: string } => {
     try {
       const dt = new Date(isoString);
       if (!isNaN(dt.getTime())) {
         const parts = new Intl.DateTimeFormat('en-US', {
-          timeZone: tz,
+          timeZone: tz || DEFAULT_SCHEDULE_TIMEZONE,
           year: 'numeric',
           month: '2-digit',
           day: '2-digit',
           hour: '2-digit',
           minute: '2-digit',
+          hourCycle: 'h23',
           hour12: false,
         }).formatToParts(dt);
         const y = parts.find((p) => p.type === 'year')?.value;
@@ -777,12 +779,18 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         }
       }
     } catch {}
+    const dt = new Date(isoString);
+    if (!isNaN(dt.getTime())) {
+      return {
+        dateStr: getDateStrInTz(dt, DEFAULT_SCHEDULE_TIMEZONE),
+        timeStr: get24HourTimeInTz(dt, DEFAULT_SCHEDULE_TIMEZONE),
+      };
+    }
     const match = isoString.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
     if (match) {
       return { dateStr: match[1], timeStr: match[2] };
     }
-    const dt = new Date(isoString);
-    return { dateStr: format(dt, 'yyyy-MM-dd'), timeStr: format(dt, 'HH:mm') };
+    return { dateStr: format(new Date(), 'yyyy-MM-dd'), timeStr: '09:00' };
   };
 
   // Fetch events from user's primary Google Calendar (and two-way auto-sync with schedule if enabled)
@@ -891,9 +899,8 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
           let endTimeStr = '10:00';
 
           if (item.start?.dateTime && item.end?.dateTime) {
-            const eventTz = item.start.timeZone || detectedTz || scheduleTimeZone || DEFAULT_SCHEDULE_TIMEZONE;
-            const parsedStart = extractDateAndTimeInTz(item.start.dateTime, eventTz);
-            const parsedEnd = extractDateAndTimeInTz(item.end.dateTime, item.end.timeZone || eventTz);
+            const parsedStart = extractDateAndTimeInTz(item.start.dateTime, DEFAULT_SCHEDULE_TIMEZONE);
+            const parsedEnd = extractDateAndTimeInTz(item.end.dateTime, DEFAULT_SCHEDULE_TIMEZONE);
             dateStr = parsedStart.dateStr;
             startTimeStr = parsedStart.timeStr;
             endTimeStr = parsedEnd.timeStr;
@@ -956,17 +963,24 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
             );
             const prevSyncedSig = lastSyncedEventSignatureRef.current.get(item.id);
 
+            const isUserCreatedBlock = existingLinkedBlock.emoji !== '📅';
+            const wasRecentlyEditedLocally =
+              locallyEditedBlockIdsRef.current.has(existingLinkedBlock.id) ||
+              Date.now() - (recentLocalEditsRef.current.get(existingLinkedBlock.id) || 0) < 90000;
+
             if (gcalSig !== blockSig && autoSyncEnabled) {
               if (
-                locallyEditedBlockIdsRef.current.has(existingLinkedBlock.id) ||
-                (prevSyncedSig && prevSyncedSig === gcalSig && prevSyncedSig !== blockSig)
+                wasRecentlyEditedLocally ||
+                (prevSyncedSig && prevSyncedSig === gcalSig && prevSyncedSig !== blockSig) ||
+                isUserCreatedBlock
               ) {
-                // User edited this block inside Momentum -> push the new Momentum time/title/color to Google Calendar
+                // User-created block in Momentum Schedule takes priority over background drift!
+                // Push the user's chosen Momentum time/title/color to Google Calendar
                 locallyEditedBlockIdsRef.current.delete(existingLinkedBlock.id);
                 setSyncedEventSignature(item.id, blockSig);
                 blocksEditedLocallyToPush.push(existingLinkedBlock);
               } else {
-                // Event changed in Google Calendar (including time or color) -> update Momentum block to match Google Calendar
+                // Legitimate change from Google Calendar on an imported calendar event (emoji === '📅')
                 setSyncedEventSignature(item.id, gcalSig);
                 gcalUpdatedBlockIdsRef.current.add(existingLinkedBlock.id);
                 onEditTimeBlock(
@@ -1072,7 +1086,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         for (const editedBlock of blocksEditedLocallyToPush) {
           if (ghostBlocksToDelete.has(editedBlock.id) || deletedOrGhostBlockIdsRef.current.has(editedBlock.id)) continue;
           try {
-            await upsertSingleBlockToGoogleCalendar(editedBlock, activeToken, detectedTz, activeGCalEventIds);
+            await upsertSingleBlockToGoogleCalendar(editedBlock, activeToken, DEFAULT_SCHEDULE_TIMEZONE, activeGCalEventIds);
           } catch (err) {
             console.warn('Failed to push locally edited block to Google Calendar:', err);
           }
@@ -1133,11 +1147,32 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
               const resPush = await upsertSingleBlockToGoogleCalendar(
                 blockToPush,
                 activeToken,
-                detectedTz,
+                DEFAULT_SCHEDULE_TIMEZONE,
                 activeGCalEventIds
               );
               if (resPush.eventId) {
                 activeGCalEventIds.add(resPush.eventId);
+                setLinkedGCalId(blockToPush.id, resPush.eventId);
+                setSyncedEventSignature(
+                  resPush.eventId,
+                  makeSyncSignature(blockToPush.date, blockToPush.startTime, blockToPush.endTime, blockToPush.activity, blockToPush.color, blockToPush.emoji)
+                );
+                gcalUpdatedBlockIdsRef.current.add(blockToPush.id);
+                onEditTimeBlock(
+                  blockToPush.id,
+                  {
+                    startTime: blockToPush.startTime,
+                    endTime: blockToPush.endTime,
+                    activity: blockToPush.activity,
+                    date: blockToPush.date,
+                    color: blockToPush.color,
+                    emoji: blockToPush.emoji,
+                    subtasks: blockToPush.subtasks,
+                    showCountdown: blockToPush.showCountdown,
+                    googleCalendarEventId: resPush.eventId,
+                  },
+                  true
+                );
                 parsedEvents.push({
                   id: resPush.eventId,
                   summary: `${blockToPush.emoji ? blockToPush.emoji + ' ' : ''}${blockToPush.activity}`.trim(),
@@ -1277,7 +1312,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         autoPushedBlockIdsRef.current.add(block.id);
         let result;
         try {
-          result = await upsertSingleBlockToGoogleCalendar(block, activeToken, calendarTimeZone, knownActiveIds);
+          result = await upsertSingleBlockToGoogleCalendar(block, activeToken, DEFAULT_SCHEDULE_TIMEZONE, knownActiveIds);
         } catch (err: any) {
           if (err?.status === 401 || err?.status === 403 || err?.message === 'AUTH_EXPIRED') {
             await clearExpiredCalendarToken();
@@ -1355,6 +1390,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
 
       if (changed) {
         locallyEditedBlockIdsRef.current.add(block.id);
+        recentLocalEditsRef.current.set(block.id, Date.now());
         let linkedId = getLinkedGCalId(block) || getLinkedGCalId(prev);
         if (!linkedId) {
           const matchedEv = gcalEvents.find(
@@ -1381,7 +1417,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
           upsertSingleBlockToGoogleCalendar(
             { ...block, googleCalendarEventId: linkedId },
             activeToken,
-            calendarTimeZone
+            DEFAULT_SCHEDULE_TIMEZONE
           ).catch((err) => {
             console.warn('Immediate edit sync to Google Calendar failed:', err);
           });
