@@ -21,6 +21,7 @@ import {
 import { 
   ChevronLeft, 
   ChevronRight, 
+  ChevronDown,
   Calendar as CalendarIcon, 
   Clock, 
   Plus, 
@@ -45,7 +46,8 @@ import {
   Upload,
   CheckCircle2,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  Globe
 } from 'lucide-react';
 import { TimeBlock, BlockTask, QuickPreset, DEFAULT_PRESETS } from '../types';
 import {
@@ -57,6 +59,79 @@ import {
   auth
 } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
+
+// BDT (GMT+6) Default Timezone Configuration
+export const DEFAULT_SCHEDULE_TIMEZONE = 'Asia/Dhaka';
+
+export const SUPPORTED_SCHEDULE_TIMEZONES = [
+  { id: 'Asia/Dhaka', label: 'BDT (GMT+6) — Bangladesh Standard Time', short: 'BDT (GMT+6)', flag: '🇧🇩' },
+  { id: 'Asia/Kolkata', label: 'IST (GMT+5:30) — India Standard Time', short: 'IST (GMT+5:30)', flag: '🇮🇳' },
+  { id: 'Asia/Dubai', label: 'GST (GMT+4) — Gulf Standard Time', short: 'GST (GMT+4)', flag: '🇦🇪' },
+  { id: 'UTC', label: 'UTC (GMT+0) — Coordinated Universal Time', short: 'UTC (GMT+0)', flag: '🌐' },
+  { id: 'Europe/London', label: 'GMT/BST (London)', short: 'GMT/BST', flag: '🇬🇧' },
+  { id: 'America/New_York', label: 'EST/EDT (New York)', short: 'ET', flag: '🇺🇸' },
+  { id: 'America/Los_Angeles', label: 'PST/PDT (Los Angeles)', short: 'PT', flag: '🇺🇸' },
+];
+
+export const getMinutesInTz = (date: Date = new Date(), tz: string = DEFAULT_SCHEDULE_TIMEZONE): number => {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false,
+    }).formatToParts(date);
+    const h = Number(parts.find((p) => p.type === 'hour')?.value ?? 0) % 24;
+    const m = Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
+    return h * 60 + m;
+  } catch {
+    return date.getHours() * 60 + date.getMinutes();
+  }
+};
+
+export const formatTimeInTz = (date: Date = new Date(), tz: string = DEFAULT_SCHEDULE_TIMEZONE): string => {
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(date);
+  } catch {
+    return format(date, 'h:mm a');
+  }
+};
+
+export const getDateStrInTz = (date: Date = new Date(), tz: string = DEFAULT_SCHEDULE_TIMEZONE): string => {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(date);
+  } catch {
+    return format(date, 'yyyy-MM-dd');
+  }
+};
+
+export const getTodayDateInTz = (tz: string = DEFAULT_SCHEDULE_TIMEZONE): Date => {
+  const dateStr = getDateStrInTz(new Date(), tz);
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
+
+export const get24HourTimeInTz = (date: Date = new Date(), tz: string = DEFAULT_SCHEDULE_TIMEZONE): string => {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(date);
+    let h = parts.find((p) => p.type === 'hour')?.value || '00';
+    if (h === '24') h = '00';
+    const m = parts.find((p) => p.type === 'minute')?.value || '00';
+    return `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
+  } catch {
+    return format(date, 'HH:mm');
+  }
+};
 
 export const COLOR_OPTIONS = [
   { id: 'indigo', name: 'Indigo', bg: 'bg-indigo-600 border-indigo-700 text-white', dot: '#4f46e5' },
@@ -136,7 +211,17 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   zoomScale: controlledZoomScale,
   onZoomScaleChange,
 }) => {
-  const [selectedDate, setSelectedDate] = useState<Date>(startOfToday());
+  const [scheduleTimeZone, setScheduleTimeZone] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('momentum_schedule_timezone');
+      if (saved) return saved;
+    } catch {}
+    return DEFAULT_SCHEDULE_TIMEZONE;
+  });
+  const [showTzDropdown, setShowTzDropdown] = useState<boolean>(false);
+  const tzDropdownRef = useRef<HTMLDivElement>(null);
+
+  const [selectedDate, setSelectedDate] = useState<Date>(() => getTodayDateInTz(DEFAULT_SCHEDULE_TIMEZONE));
   const [viewMode, setViewMode] = useState<'day' | '3day' | 'week' | 'month' | 'list'>('day');
   const [internalZoomScale, setInternalZoomScale] = useState<number>(1.0); // 0.6 = 60%, 1.0 = 100%, 2.0 = 200%
   
@@ -189,8 +274,31 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
       const savedTz = localStorage.getItem('momentum_gcal_timezone');
       if (savedTz) return savedTz;
     } catch {}
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    return DEFAULT_SCHEDULE_TIMEZONE;
   });
+
+  const handleSelectScheduleTimeZone = (tz: string) => {
+    setScheduleTimeZone(tz);
+    try {
+      localStorage.setItem('momentum_schedule_timezone', tz);
+    } catch {}
+    setCalendarTimeZone(tz);
+    try {
+      localStorage.setItem('momentum_gcal_timezone', tz);
+    } catch {}
+  };
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (tzDropdownRef.current && !tzDropdownRef.current.contains(e.target as Node)) {
+        setShowTzDropdown(false);
+      }
+    };
+    if (showTzDropdown) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      return () => document.removeEventListener('mousedown', handleOutsideClick);
+    }
+  }, [showTzDropdown]);
   const [calendarSyncStatus, setCalendarSyncStatus] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
@@ -373,11 +481,11 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   // Scroll to current hour on load or zoom change
   useEffect(() => {
     if (gridScrollRef.current) {
-      const currentHour = now.getHours();
+      const currentHour = Math.floor(getMinutesInTz(now, scheduleTimeZone) / 60);
       const scrollTarget = Math.max(0, (currentHour - 1) * HOUR_HEIGHT);
       gridScrollRef.current.scrollTop = scrollTarget;
     }
-  }, [viewMode]);
+  }, [viewMode, scheduleTimeZone]);
 
   const savePresets = (newPresets: QuickPreset[]) => {
     if (onUpdateQuickPresets) {
@@ -495,8 +603,8 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   };
 
   const buildGoogleCalendarEventBody = (block: TimeBlock, targetTz?: string) => {
-    const resolvedTz = targetTz || calendarTimeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-    const safeDate = block.date && /^\d{4}-\d{2}-\d{2}$/.test(block.date) ? block.date : format(selectedDate, 'yyyy-MM-dd');
+    const resolvedTz = targetTz || calendarTimeZone || scheduleTimeZone || DEFAULT_SCHEDULE_TIMEZONE;
+    const safeDate = block.date && /^\d{4}-\d{2}-\d{2}$/.test(block.date) ? block.date : getDateStrInTz(selectedDate, scheduleTimeZone);
     const [year, month, day] = safeDate.split('-').map(Number);
     const [shRaw, smRaw] = (block.startTime || '09:00').split(':').map(Number);
     const [ehRaw, emRaw] = (block.endTime || '10:00').split(':').map(Number);
@@ -809,12 +917,12 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
             summary.startsWith('📅')
           );
 
-          let dateStr = format(selectedDate, 'yyyy-MM-dd');
+          let dateStr = getDateStrInTz(selectedDate, scheduleTimeZone);
           let startTimeStr = '09:00';
           let endTimeStr = '10:00';
 
           if (item.start?.dateTime && item.end?.dateTime) {
-            const eventTz = item.start.timeZone || detectedTz;
+            const eventTz = item.start.timeZone || detectedTz || scheduleTimeZone || DEFAULT_SCHEDULE_TIMEZONE;
             const parsedStart = extractDateAndTimeInTz(item.start.dateTime, eventTz);
             const parsedEnd = extractDateAndTimeInTz(item.end.dateTime, item.end.timeZone || eventTz);
             dateStr = parsedStart.dateStr;
@@ -1417,24 +1525,22 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Compute real-time countdown state synced directly to current time
+  // Compute real-time countdown state synced directly to current time in BDT (GMT+6)
   const getLiveBlockCountdownState = (block: TimeBlock, currentNow: Date) => {
-    const [year, month, day] = (block.date || format(startOfToday(), 'yyyy-MM-dd')).split('-').map(Number);
+    const todayDateStr = getDateStrInTz(currentNow, scheduleTimeZone);
+    const blockDate = block.date || todayDateStr;
+    const currentMinsInTz = getMinutesInTz(currentNow, scheduleTimeZone);
     const [sh, sm] = (block.startTime || '09:00').split(':').map(Number);
     const [eh, em] = (block.endTime || '10:00').split(':').map(Number);
-
-    const startDateObj = new Date(year, (month || 1) - 1, day || 1, sh || 0, sm || 0, 0, 0);
-    let endDateObj = new Date(year, (month || 1) - 1, day || 1, eh || 0, em || 0, 0, 0);
-    if (endDateObj.getTime() <= startDateObj.getTime()) {
-      endDateObj = new Date(endDateObj.getTime() + 24 * 60 * 60 * 1000);
+    const startMins = (Number.isFinite(sh) ? sh : 9) * 60 + (Number.isFinite(sm) ? sm : 0);
+    let endMins = (Number.isFinite(eh) ? eh : 10) * 60 + (Number.isFinite(em) ? em : 0);
+    if (endMins <= startMins) {
+      endMins += 1440; // overnight block
     }
+    const totalSecs = Math.max(60, (endMins - startMins) * 60);
 
-    const startMs = startDateObj.getTime();
-    const endMs = endDateObj.getTime();
-    const nowMs = currentNow.getTime();
-    const totalSecs = Math.max(60, Math.round((endMs - startMs) / 1000));
-
-    if (nowMs >= endMs) {
+    // If block is for a past date in BDT
+    if (blockDate < todayDateStr) {
       return {
         remainingSecs: 0,
         totalSecs,
@@ -1444,8 +1550,34 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
       };
     }
 
-    if (nowMs >= startMs && nowMs < endMs) {
-      const remainingSecs = Math.max(0, Math.floor((endMs - nowMs) / 1000));
+    // If block is for a future date in BDT
+    if (blockDate > todayDateStr) {
+      return {
+        remainingSecs: totalSecs,
+        totalSecs,
+        isRunning: false,
+        isCompleted: false,
+        progressPct: 0,
+      };
+    }
+
+    // Block is today in BDT
+    const currentSecsOfDay = currentMinsInTz * 60 + (currentNow.getSeconds() % 60);
+    const startSecs = startMins * 60;
+    const endSecs = endMins * 60;
+
+    if (currentSecsOfDay >= endSecs) {
+      return {
+        remainingSecs: 0,
+        totalSecs,
+        isRunning: false,
+        isCompleted: true,
+        progressPct: 100,
+      };
+    }
+
+    if (currentSecsOfDay >= startSecs && currentSecsOfDay < endSecs) {
+      const remainingSecs = Math.max(0, endSecs - currentSecsOfDay);
       const progressPct = totalSecs > 0 ? Math.min(100, Math.max(0, ((totalSecs - remainingSecs) / totalSecs) * 100)) : 0;
       return {
         remainingSecs,
@@ -1613,15 +1745,16 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   };
 
   const handleToday = () => {
-    setSelectedDate(startOfToday());
+    setSelectedDate(getTodayDateInTz(scheduleTimeZone));
   };
 
   // Hours array 0..23
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
-  // Compute Current Time indicator position (in pixels)
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  // Compute Current Time indicator position (in pixels) in BDT (GMT+6)
+  const currentMinutes = getMinutesInTz(now, scheduleTimeZone);
   const currentTimeTop = (currentMinutes / 60) * HOUR_HEIGHT;
+  const todayStrInScheduleTz = getDateStrInTz(now, scheduleTimeZone);
 
   // Handle clicking on an empty slot in the grid
   const handleSlotClick = (dayDate: Date, hour: number) => {
@@ -1661,7 +1794,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
       activity,
       startTime: `${startH}:${startM}`,
       endTime: `${endH}:${endM}`,
-      date: format(selectedDate, 'yyyy-MM-dd'),
+      date: getDateStrInTz(selectedDate, scheduleTimeZone),
       color
     });
   };
@@ -1783,6 +1916,72 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
             </button>
           </div>
 
+          {/* Timezone Selector Dropdown */}
+          <div className="relative" ref={tzDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setShowTzDropdown(prev => !prev)}
+              className="flex items-center gap-1.5 px-2.5 py-2 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 font-bold text-xs rounded-lg shadow-sm active:scale-95 transition-all"
+              title="Momentum Schedule Timezone: BDT (GMT+6)"
+            >
+              <Globe className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span className="font-mono text-xs font-bold text-zinc-700 dark:text-zinc-200">
+                {SUPPORTED_SCHEDULE_TIMEZONES.find(t => t.id === scheduleTimeZone)?.short || 'BDT (GMT+6)'}
+              </span>
+              <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform ${showTzDropdown ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showTzDropdown && (
+              <div 
+                className="absolute right-0 mt-1.5 w-72 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl z-50 p-2 text-xs backdrop-blur-md"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="px-2.5 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400 border-b border-zinc-100 dark:border-zinc-800/80 mb-1 flex items-center justify-between">
+                  <span>Momentum Schedule Timezone</span>
+                  <span className="text-emerald-500 font-bold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Active
+                  </span>
+                </div>
+                <div className="space-y-1 max-h-60 overflow-y-auto custom-scrollbar">
+                  {SUPPORTED_SCHEDULE_TIMEZONES.map((tz) => {
+                    const isSelected = scheduleTimeZone === tz.id;
+                    return (
+                      <button
+                        key={tz.id}
+                        type="button"
+                        onClick={() => {
+                          handleSelectScheduleTimeZone(tz.id);
+                          setShowTzDropdown(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors ${
+                          isSelected
+                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/20'
+                            : 'hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-700 dark:text-zinc-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-base">{tz.flag}</span>
+                          <div>
+                            <div className="font-bold text-xs">{tz.short}</div>
+                            <div className="text-[10px] text-zinc-400 dark:text-zinc-500">{tz.label.split('—')[1]?.trim() || tz.label}</div>
+                          </div>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 text-amber-500 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800/80 px-2 py-1 text-[11px] text-zinc-500 dark:text-zinc-400 flex items-center justify-between">
+                  <span>Current Time:</span>
+                  <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                    {formatTimeInTz(now, scheduleTimeZone)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Google Calendar Sync Button */}
           <button
             onClick={() => {
@@ -1816,7 +2015,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                 onOpenModalWithDefaults({
                   startTime: '09:00',
                   endTime: '10:00',
-                  date: format(selectedDate, 'yyyy-MM-dd')
+                  date: getDateStrInTz(selectedDate, scheduleTimeZone)
                 });
               } else {
                 const activity = prompt('Activity name:');
@@ -1825,7 +2024,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                     activity,
                     startTime: '09:00',
                     endTime: '10:00',
-                    date: format(selectedDate, 'yyyy-MM-dd')
+                    date: getDateStrInTz(selectedDate, scheduleTimeZone)
                   });
                 }
               }
@@ -1909,8 +2108,8 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                 <div className="grid grid-cols-7 auto-rows-fr min-h-full border-l border-t border-zinc-200 dark:border-zinc-800">
                   {monthDays.map(dayDate => {
                     const isCurrentMonth = isSameMonth(dayDate, selectedDate);
-                    const isDayToday = isToday(dayDate);
                     const dateStr = format(dayDate, 'yyyy-MM-dd');
+                    const isDayToday = dateStr === todayStrInScheduleTz;
                     const dayBlocks = activeScheduleBlocks
                       .filter(b => b.date === dateStr)
                       .sort((a, b) => getMinutes(a.startTime) - getMinutes(b.startTime));
@@ -2166,7 +2365,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
             <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${displayedDays.length}, minmax(0, 1fr))` }}>
               {displayedDays.map(day => {
                 const isSelected = isSameDay(day, selectedDate);
-                const isDayToday = isToday(day);
+                const isDayToday = format(day, 'yyyy-MM-dd') === todayStrInScheduleTz;
                 return (
                   <div 
                     key={day.toISOString()}
@@ -2224,7 +2423,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                 {displayedDays.map(day => {
                   const dateStr = format(day, 'yyyy-MM-dd');
                   const dayBlocks = activeScheduleBlocks.filter(b => b.date === dateStr);
-                  const isDayToday = isToday(day);
+                  const isDayToday = dateStr === todayStrInScheduleTz;
 
                   return (
                     <div 
@@ -2257,8 +2456,9 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                         >
                           <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm -ml-1.5" />
                           <div className="h-0.5 flex-1 bg-red-500/80 shadow-sm" />
-                          <span className="text-[8px] font-mono font-bold bg-red-500 text-white px-1 py-0.5 rounded ml-1 shadow-sm">
-                            {format(now, 'h:mm a')}
+                          <span className="text-[8px] font-mono font-bold bg-red-500 text-white px-1.5 py-0.5 rounded ml-1 shadow-sm flex items-center gap-1">
+                            <span>{formatTimeInTz(now, scheduleTimeZone)}</span>
+                            <span className="opacity-80 text-[7px]">BDT</span>
                           </span>
                         </div>
                       )}
@@ -2599,12 +2799,15 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                 <>
                   {/* Connected Bar + Range Selector */}
                   <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
                       <span className="font-bold text-zinc-700 dark:text-zinc-200">
                         {calendarEmail || auth.currentUser?.email
                           ? `Connected (${calendarEmail || auth.currentUser?.email})`
                           : 'Google Calendar Connected'}
+                      </span>
+                      <span className="px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded text-[10px] font-mono font-bold">
+                        BDT (GMT+6)
                       </span>
                       <button
                         type="button"

@@ -91,7 +91,7 @@ import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail, 
 import { Habit, HabitLog, TimeBlock, OverthinkingLog, DailyTask, JournalEntry, UrgeLog, Exam, BlockTask, QuickPreset, DEFAULT_PRESETS } from './types';
 import { cn } from './lib/utils';
 import { BreathingGuide } from './components/BreathingGuide';
-import { TimeBlockingGrid, COLOR_OPTIONS } from './components/TimeBlockingGrid';
+import { TimeBlockingGrid, COLOR_OPTIONS, DEFAULT_SCHEDULE_TIMEZONE, getDateStrInTz, get24HourTimeInTz } from './components/TimeBlockingGrid';
 import { SketchCanvas } from './components/SketchCanvas';
 import { parseSketchPages } from './utils/sketchUtils';
 import { parseTimeInput, formatMinutesToTime, getCurrentTime } from './utils/timeHabitUtils';
@@ -577,7 +577,7 @@ export default function App() {
   const [modalEmoji, setModalEmoji] = useState<string>('');
   const [modalSubtasks, setModalSubtasks] = useState<BlockTask[]>([]);
   const [modalShowCountdown, setModalShowCountdown] = useState<boolean>(false);
-  const [modalDate, setModalDate] = useState<string>(() => format(startOfToday(), 'yyyy-MM-dd'));
+  const [modalDate, setModalDate] = useState<string>(() => getDateStrInTz(new Date(), DEFAULT_SCHEDULE_TIMEZONE));
   const [modalStartTime, setModalStartTime] = useState<string>('09:00');
   const [modalEndTime, setModalEndTime] = useState<string>('10:00');
   const [newSubtaskInput, setNewSubtaskInput] = useState<string>('');
@@ -1125,7 +1125,7 @@ export default function App() {
       setModalEmoji(activeBlock?.emoji || '');
       setModalSubtasks(activeBlock?.subtasks ? JSON.parse(JSON.stringify(activeBlock.subtasks)) : []);
       setModalShowCountdown(Boolean(activeBlock?.showCountdown));
-      setModalDate(activeBlock?.date || scheduleDefaults?.date || format(startOfToday(), 'yyyy-MM-dd'));
+      setModalDate(activeBlock?.date || scheduleDefaults?.date || getDateStrInTz(new Date(), DEFAULT_SCHEDULE_TIMEZONE));
       setModalStartTime(activeBlock?.startTime || scheduleDefaults?.startTime || '09:00');
       setModalEndTime(activeBlock?.endTime || scheduleDefaults?.endTime || '10:00');
       setNewSubtaskInput('');
@@ -1202,7 +1202,7 @@ export default function App() {
         subtasks: data.subtasks || modalSubtasks || [],
         showCountdown: data.showCountdown !== undefined ? Boolean(data.showCountdown) : Boolean(modalShowCountdown),
         googleCalendarEventId: data.googleCalendarEventId,
-        date: data.date || scheduleDefaults?.date || format(startOfToday(), 'yyyy-MM-dd'),
+        date: data.date || scheduleDefaults?.date || getDateStrInTz(new Date(), DEFAULT_SCHEDULE_TIMEZONE),
         uid: user.uid,
         timestamp: Date.now()
       }));
@@ -1224,7 +1224,7 @@ export default function App() {
           subtasks: b.subtasks || [],
           showCountdown: Boolean(b.showCountdown),
           googleCalendarEventId: b.googleCalendarEventId,
-          date: b.date || format(startOfToday(), 'yyyy-MM-dd'),
+          date: b.date || getDateStrInTz(new Date(), DEFAULT_SCHEDULE_TIMEZONE),
           uid: user.uid,
           timestamp: Date.now()
         }));
@@ -1563,12 +1563,12 @@ export default function App() {
   };
 
   const getStats = () => {
-    const today = format(startOfToday(), 'yyyy-MM-dd');
+    const today = getDateStrInTz(new Date(), DEFAULT_SCHEDULE_TIMEZONE);
     const todayLogs = logs.filter(l => l.date === today && l.status === 'completed');
     const habitComp = habits.length > 0 ? Math.round((todayLogs.length / habits.length) * 100) : 0;
     
-    // Simple next/current task
-    const now = format(new Date(), 'HH:mm');
+    // Simple next/current task in BDT
+    const now = get24HourTimeInTz(new Date(), DEFAULT_SCHEDULE_TIMEZONE);
     const currentBlock = timeBlocks.find(b => b.startTime <= now && b.endTime >= now);
     const nextBlock = timeBlocks.find(b => b.startTime > now);
     
