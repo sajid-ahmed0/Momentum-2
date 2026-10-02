@@ -1914,7 +1914,8 @@ export default function App() {
       if (err.code === 'auth/popup-closed-by-user') {
         setAuthError('Sign-in window was closed');
       } else if (err.code === 'auth/unauthorized-domain') {
-        setAuthError('This domain is not authorized in Firebase. Please add your GitHub domain to "Authorized domains" in Firebase Console.');
+        const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'current domain';
+        setAuthError(`The domain "${currentHost}" is not yet authorized in Firebase Auth. If you are running on an external domain (like GitHub Pages), add "${currentHost}" to Firebase Console > Authentication > Settings > Authorized domains (Project: project-61d3edb4-a424-4742-ae0).`);
       } else if (err.code === 'auth/popup-blocked') {
         setAuthError('Sign-in popup was blocked. Please enable popups for this site in your browser settings (look for a popup blocker icon in your address bar), or click "Open in New Tab" at the top right of your preview window to run in a standalone tab.');
       } else {
