@@ -281,11 +281,11 @@ export const signInWithGoogle = async () => {
   }
 };
 
-export const connectGoogleCalendar = async (): Promise<{ user: User; accessToken: string }> => {
+export const connectGoogleCalendar = async (forceSelectAccount: boolean = false): Promise<{ user: User; accessToken: string }> => {
   try {
     isSigningIn = true;
     const hintEmail = cachedCalendarEmail || calendarOAuthAuth.currentUser?.email || auth.currentUser?.email;
-    if (hintEmail) {
+    if (hintEmail && !forceSelectAccount) {
       calendarGoogleProvider.setCustomParameters({ login_hint: hintEmail });
     } else {
       calendarGoogleProvider.setCustomParameters({ prompt: 'select_account' });
