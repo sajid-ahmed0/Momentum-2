@@ -1234,21 +1234,24 @@ export default function App() {
     }
   };
 
-  const handleEditTimeBlock = async (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; emoji?: string; subtasks?: BlockTask[]; showCountdown?: boolean; googleCalendarEventId?: string }) => {
-    setShowScheduleModal(false);
-    setEditingTimeBlock(null);
-    setScheduleDefaults(null);
+  const handleEditTimeBlock = async (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; emoji?: string; subtasks?: BlockTask[]; showCountdown?: boolean; googleCalendarEventId?: string }, isBackgroundSync: boolean = false) => {
+    if (!isBackgroundSync) {
+      setShowScheduleModal(false);
+      setEditingTimeBlock(null);
+      setScheduleDefaults(null);
+    }
+    const existingBlock = timeBlocks.find(b => b.id === id);
     try {
       await updateDoc(doc(db, 'timeBlocks', id), cleanFirestoreData({
         activity: data.activity,
-        emoji: data.emoji !== undefined ? data.emoji : (modalEmoji || ''),
+        emoji: data.emoji !== undefined ? data.emoji : (existingBlock?.emoji ?? modalEmoji ?? ''),
         startTime: data.startTime,
         endTime: data.endTime,
-        date: data.date,
-        color: data.color || modalColor || 'indigo',
-        subtasks: data.subtasks !== undefined ? data.subtasks : modalSubtasks,
-        showCountdown: data.showCountdown !== undefined ? Boolean(data.showCountdown) : Boolean(modalShowCountdown),
-        googleCalendarEventId: data.googleCalendarEventId,
+        date: data.date || existingBlock?.date,
+        color: data.color || existingBlock?.color || modalColor || 'indigo',
+        subtasks: data.subtasks !== undefined ? data.subtasks : (existingBlock?.subtasks ?? modalSubtasks),
+        showCountdown: data.showCountdown !== undefined ? Boolean(data.showCountdown) : Boolean(existingBlock?.showCountdown ?? modalShowCountdown),
+        googleCalendarEventId: data.googleCalendarEventId !== undefined ? data.googleCalendarEventId : existingBlock?.googleCalendarEventId,
         timestamp: Date.now()
       }));
     } catch (err) {
@@ -5026,7 +5029,11 @@ export default function App() {
               };
               
               if (editingTimeBlock) {
-                handleEditTimeBlock(editingTimeBlock.id, data);
+                const latestBlock = timeBlocks.find(b => b.id === editingTimeBlock.id) || editingTimeBlock;
+                handleEditTimeBlock(editingTimeBlock.id, {
+                  ...data,
+                  googleCalendarEventId: latestBlock.googleCalendarEventId,
+                });
               } else {
                 handleAddTimeBlock(data);
               }

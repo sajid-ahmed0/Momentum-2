@@ -74,13 +74,48 @@ export const getBlockColorStyle = (colorId?: string) => {
   return matched ? matched.bg : 'bg-indigo-600 border-indigo-700 text-white';
 };
 
+// Map Momentum color IDs <-> Google Calendar Event colorId ("1" through "11")
+export const MOMENTUM_COLOR_TO_GCAL_ID: Record<string, string> = {
+  indigo: '9',   // Blueberry
+  rose: '11',    // Tomato
+  amber: '6',    // Tangerine
+  emerald: '10', // Basil
+  sky: '7',      // Peacock
+  purple: '3',   // Grape
+  teal: '2',     // Sage
+  zinc: '8',     // Graphite
+};
+
+export const GCAL_ID_TO_MOMENTUM_COLOR: Record<string, string> = {
+  '1': 'indigo',  // Lavender
+  '2': 'teal',    // Sage
+  '3': 'purple',  // Grape
+  '4': 'rose',    // Flamingo
+  '5': 'amber',   // Banana
+  '6': 'amber',   // Tangerine
+  '7': 'sky',     // Peacock
+  '8': 'zinc',    // Graphite
+  '9': 'indigo',  // Blueberry
+  '10': 'emerald',// Basil
+  '11': 'rose',   // Tomato
+};
+
+export const momentumColorToGCalColorId = (colorId?: string): string => {
+  return (colorId && MOMENTUM_COLOR_TO_GCAL_ID[colorId]) || '9';
+};
+
+export const gcalColorIdToMomentumColor = (gcalColorId?: string, fallbackColor: string = 'sky'): string => {
+  if (!gcalColorId) return fallbackColor;
+  return GCAL_ID_TO_MOMENTUM_COLOR[String(gcalColorId)] || fallbackColor;
+};
+
 interface TimeBlockingGridProps {
   timeBlocks: TimeBlock[];
   quickPresets?: QuickPreset[];
   onUpdateQuickPresets?: (presets: QuickPreset[]) => void;
   onAddTimeBlock: (data: { startTime: string; endTime: string; activity: string; date: string; color?: string; emoji?: string; subtasks?: BlockTask[]; showCountdown?: boolean; googleCalendarEventId?: string }) => void;
   onAddBatchTimeBlocks?: (blocks: Array<{ startTime: string; endTime: string; activity: string; date: string; color?: string; emoji?: string; subtasks?: BlockTask[]; showCountdown?: boolean; googleCalendarEventId?: string }>) => Promise<void> | void;
-  onEditTimeBlock: (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; emoji?: string; subtasks?: BlockTask[]; showCountdown?: boolean; googleCalendarEventId?: string }) => void;
+  onEditTimeBlock: (id: string, data: { startTime: string; endTime: string; activity: string; date?: string; color?: string; emoji?: string; subtasks?: BlockTask[]; showCountdown?: boolean; googleCalendarEventId?: string }, isBackgroundSync?: boolean) => void;
   onDeleteTimeBlock: (id: string) => void;
   onToggleSubtask?: (blockId: string, subtaskId: string) => void;
   onOpenModalWithDefaults?: (defaults: { startTime: string; endTime: string; date: string; block?: TimeBlock }) => void;
@@ -143,6 +178,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     date: string;
     startTime: string;
     endTime: string;
+    color: string;
     htmlLink?: string;
     alreadyImported: boolean;
   }>>([]);
@@ -175,7 +211,67 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   }, [timeBlocks]);
   const autoImportedEventIdsRef = useRef<Set<string>>(new Set());
   const autoPushedBlockIdsRef = useRef<Set<string>>(new Set());
-  const lastSyncedEventSignatureRef = useRef<Map<string, string>>(new Map());
+  const deletedOrGhostBlockIdsRef = useRef<Set<string>>(new Set());
+  const locallyEditedBlockIdsRef = useRef<Set<string>>(new Set());
+  const gcalUpdatedBlockIdsRef = useRef<Set<string>>(new Set());
+  const prevBlocksMapRef = useRef<Map<string, TimeBlock>>(new Map());
+
+  const lastSyncedEventSignatureRef = useRef<Map<string, string>>(
+    (() => {
+      try {
+        const raw = localStorage.getItem('momentum_gcal_synced_sigs');
+        if (raw) return new Map(Object.entries(JSON.parse(raw)));
+      } catch {}
+      return new Map();
+    })()
+  );
+
+  const setSyncedEventSignature = (gcalId: string, sig: string) => {
+    if (!gcalId) return;
+    lastSyncedEventSignatureRef.current.set(gcalId, sig);
+    try {
+      const obj = Object.fromEntries(lastSyncedEventSignatureRef.current.entries());
+      localStorage.setItem('momentum_gcal_synced_sigs', JSON.stringify(obj));
+    } catch {}
+  };
+
+  const blockToGCalIdRef = useRef<Map<string, string>>(
+    (() => {
+      try {
+        const raw = localStorage.getItem('momentum_block_gcal_map');
+        if (raw) return new Map(Object.entries(JSON.parse(raw)));
+      } catch {}
+      return new Map();
+    })()
+  );
+
+  const setLinkedGCalId = (blockId: string, gcalId: string) => {
+    if (!blockId || !gcalId) return;
+    blockToGCalIdRef.current.set(blockId, gcalId);
+    try {
+      const obj = Object.fromEntries(blockToGCalIdRef.current.entries());
+      localStorage.setItem('momentum_block_gcal_map', JSON.stringify(obj));
+    } catch {}
+  };
+
+  const getLinkedGCalId = (block: TimeBlock): string | undefined => {
+    return block.googleCalendarEventId || blockToGCalIdRef.current.get(block.id);
+  };
+
+  const normalizeActivityName = (activity: string, emoji?: string): string => {
+    let cleaned = (activity || '').trim();
+    if (emoji && cleaned.startsWith(emoji)) {
+      cleaned = cleaned.slice(emoji.length).trim();
+    }
+    if (cleaned.startsWith('📅')) {
+      cleaned = cleaned.slice('📅'.length).trim();
+    }
+    return cleaned.toLowerCase();
+  };
+
+  const makeSyncSignature = (date: string, startTime: string, endTime: string, activity: string, color?: string, emoji?: string): string => {
+    return `${date}|${startTime}|${endTime}|${normalizeActivityName(activity, emoji)}|${color || 'indigo'}`;
+  };
 
   const getDismissedGCalIds = (): Set<string> => {
     try {
@@ -196,12 +292,14 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   };
 
   const handleDeleteBlockWithGCal = async (block: TimeBlock) => {
-    if (block.googleCalendarEventId) {
-      addDismissedGCalId(block.googleCalendarEventId);
+    deletedOrGhostBlockIdsRef.current.add(block.id);
+    const linkedGCalId = getLinkedGCalId(block);
+    if (linkedGCalId) {
+      addDismissedGCalId(linkedGCalId);
       const activeToken = calendarToken || getGoogleAccessToken();
       if (activeToken) {
         fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(block.googleCalendarEventId)}`,
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(linkedGCalId)}`,
           {
             method: 'DELETE',
             headers: { Authorization: `Bearer ${activeToken}` },
@@ -330,9 +428,47 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     return { startBound, endBound, days: [selectedDate] };
   };
 
+  // Deduplicate active schedule blocks & filter out any deleted/ghost blocks so only real existing schedules appear
+  const activeScheduleBlocks = React.useMemo(() => {
+    const visible = timeBlocks.filter((b) => !deletedOrGhostBlockIdsRef.current.has(b.id));
+    const bySlotKey = new Map<string, TimeBlock>();
+    const duplicatesToRemove: TimeBlock[] = [];
+
+    for (const block of visible) {
+      const slotKey = `${block.date}|${block.startTime}|${block.endTime}|${normalizeActivityName(block.activity, block.emoji)}`;
+      const existing = bySlotKey.get(slotKey);
+      if (!existing) {
+        bySlotKey.set(slotKey, block);
+      } else {
+        // Prefer user-created block (without auto-import '📅' marker) over auto-imported duplicate
+        const existingIsAutoImport = existing.emoji === '📅';
+        const currentIsAutoImport = block.emoji === '📅';
+        if (existingIsAutoImport && !currentIsAutoImport) {
+          duplicatesToRemove.push(existing);
+          bySlotKey.set(slotKey, block);
+        } else {
+          duplicatesToRemove.push(block);
+        }
+      }
+    }
+
+    if (duplicatesToRemove.length > 0) {
+      setTimeout(() => {
+        duplicatesToRemove.forEach((dup) => {
+          if (!deletedOrGhostBlockIdsRef.current.has(dup.id)) {
+            deletedOrGhostBlockIdsRef.current.add(dup.id);
+            onDeleteTimeBlock(dup.id);
+          }
+        });
+      }, 0);
+    }
+
+    return Array.from(bySlotKey.values());
+  }, [timeBlocks]);
+
   // Schedule blocks within the selected sync range
   const syncRangeDateStrings = getSyncRangeBounds(calendarSyncRange).days.map(d => format(d, 'yyyy-MM-dd'));
-  const exportableScheduleBlocks = timeBlocks
+  const exportableScheduleBlocks = activeScheduleBlocks
     .filter(b => syncRangeDateStrings.includes(b.date))
     .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
 
@@ -395,6 +531,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
       status: 'confirmed',
       summary: `${block.emoji ? block.emoji + ' ' : ''}${cleanActivity || 'Scheduled Block'}`.trim(),
       description: `${subtaskLines}Synced from Momentum Schedule`,
+      colorId: momentumColorToGCalColorId(block.color),
       start: {
         dateTime: startRfc3339,
         timeZone: resolvedTz,
@@ -414,7 +551,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     knownActiveEventIds?: Set<string>
   ): Promise<{ action: 'created' | 'updated'; eventId: string; htmlLink?: string; calendarEmail?: string }> => {
     const eventBody = buildGoogleCalendarEventBody(block, targetTz);
-    const syncedEventId = block.googleCalendarEventId;
+    const syncedEventId = getLinkedGCalId(block);
 
     if (syncedEventId) {
       let isStillActiveInGCal = knownActiveEventIds ? knownActiveEventIds.has(syncedEventId) : false;
@@ -453,9 +590,11 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
           const patchedEvent = await patchRes.json();
           if (patchedEvent && patchedEvent.status !== 'cancelled') {
             const patchedId = patchedEvent.id || syncedEventId;
-            lastSyncedEventSignatureRef.current.set(
+            locallyEditedBlockIdsRef.current.delete(block.id);
+            setLinkedGCalId(block.id, patchedId);
+            setSyncedEventSignature(
               patchedId,
-              `${block.date}|${block.startTime}|${block.endTime}|${block.activity.trim().toLowerCase()}`
+              makeSyncSignature(block.date, block.startTime, block.endTime, block.activity, block.color, block.emoji)
             );
             return {
               action: 'updated',
@@ -496,21 +635,28 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     const createdEvent = await postRes.json();
     if (createdEvent?.id) {
       autoImportedEventIdsRef.current.add(createdEvent.id);
-      lastSyncedEventSignatureRef.current.set(
+      setLinkedGCalId(block.id, createdEvent.id);
+      const latestBlock = timeBlocksRef.current.find((b) => b.id === block.id) || block;
+      setSyncedEventSignature(
         createdEvent.id,
-        `${block.date}|${block.startTime}|${block.endTime}|${block.activity.trim().toLowerCase()}`
+        makeSyncSignature(latestBlock.date, latestBlock.startTime, latestBlock.endTime, latestBlock.activity, latestBlock.color, latestBlock.emoji)
       );
-      onEditTimeBlock(block.id, {
-        startTime: block.startTime,
-        endTime: block.endTime,
-        activity: block.activity,
-        date: block.date,
-        color: block.color,
-        emoji: block.emoji,
-        subtasks: block.subtasks,
-        showCountdown: block.showCountdown,
-        googleCalendarEventId: createdEvent.id,
-      });
+      gcalUpdatedBlockIdsRef.current.add(block.id);
+      onEditTimeBlock(
+        block.id,
+        {
+          startTime: latestBlock.startTime,
+          endTime: latestBlock.endTime,
+          activity: latestBlock.activity,
+          date: latestBlock.date,
+          color: latestBlock.color,
+          emoji: latestBlock.emoji,
+          subtasks: latestBlock.subtasks,
+          showCountdown: latestBlock.showCountdown,
+          googleCalendarEventId: createdEvent.id,
+        },
+        true
+      );
     }
 
     return {
@@ -640,7 +786,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
       }
 
       const rawItems: any[] = Array.isArray(data.items) ? data.items : [];
-      const currentBlocks = timeBlocksRef.current;
+      const currentBlocks = timeBlocksRef.current.filter((b) => !deletedOrGhostBlockIdsRef.current.has(b.id));
       const dismissedIds = getDismissedGCalIds();
 
       const stripEmojiPrefix = (text: string, emoji?: string) => {
@@ -648,15 +794,25 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         if (emoji && cleaned.startsWith(emoji)) {
           cleaned = cleaned.slice(emoji.length).trim();
         }
+        if (cleaned.startsWith('📅')) {
+          cleaned = cleaned.slice('📅'.length).trim();
+        }
         return cleaned;
       };
 
       const blocksEditedLocallyToPush: TimeBlock[] = [];
+      const staleGCalEventIdsToDelete = new Set<string>();
+      const ghostBlocksToDelete = new Set<string>();
 
       const parsedEvents = rawItems
         .filter((item) => item.status !== 'cancelled')
         .map((item) => {
           const summary = (item.summary || 'Untitled Event').trim();
+          const isFromMomentum = Boolean(
+            (item.description && String(item.description).includes('Synced from Momentum Schedule')) ||
+            summary.startsWith('📅')
+          );
+
           let dateStr = format(selectedDate, 'yyyy-MM-dd');
           let startTimeStr = '09:00';
           let endTimeStr = '10:00';
@@ -679,66 +835,137 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
             endTimeStr = '10:00';
           }
 
-          const existingLinkedBlock = currentBlocks.find(
-            (b) => b.googleCalendarEventId && b.googleCalendarEventId === item.id
+          // Prefer linking to a user-created block (emoji !== '📅') over an auto-imported ghost block
+          let existingLinkedBlock = currentBlocks.find(
+            (b) => b.emoji !== '📅' && getLinkedGCalId(b) === item.id
           );
+          if (!existingLinkedBlock) {
+            existingLinkedBlock = currentBlocks.find((b) => getLinkedGCalId(b) === item.id);
+          }
 
-          const normalizedSummaryForBlock = existingLinkedBlock
-            ? stripEmojiPrefix(summary, existingLinkedBlock.emoji).slice(0, 190)
-            : summary.slice(0, 190);
-
-          if (existingLinkedBlock) {
-            const gcalSig = `${dateStr}|${startTimeStr}|${endTimeStr}|${normalizedSummaryForBlock.toLowerCase()}`;
-            const blockSig = `${existingLinkedBlock.date}|${existingLinkedBlock.startTime}|${existingLinkedBlock.endTime}|${existingLinkedBlock.activity.trim().toLowerCase()}`;
-            const prevSyncedSig = lastSyncedEventSignatureRef.current.get(item.id);
-
-            if (gcalSig !== blockSig && autoSyncEnabled) {
-              if (prevSyncedSig && prevSyncedSig === gcalSig && prevSyncedSig !== blockSig) {
-                // User edited this block inside Momentum -> push the new Momentum time/title to Google Calendar
-                lastSyncedEventSignatureRef.current.set(item.id, blockSig);
-                blocksEditedLocallyToPush.push(existingLinkedBlock);
-              } else {
-                // Event changed in Google Calendar (or fixing shifted time in Momentum) -> update Momentum block to match Google Calendar
-                lastSyncedEventSignatureRef.current.set(item.id, gcalSig);
-                onEditTimeBlock(existingLinkedBlock.id, {
-                  startTime: startTimeStr,
-                  endTime: endTimeStr,
-                  activity: normalizedSummaryForBlock,
-                  date: dateStr,
-                  color: existingLinkedBlock.color,
-                  emoji: existingLinkedBlock.emoji,
-                  subtasks: existingLinkedBlock.subtasks,
-                  showCountdown: existingLinkedBlock.showCountdown,
-                  googleCalendarEventId: item.id,
-                });
-              }
-            } else {
-              lastSyncedEventSignatureRef.current.set(item.id, gcalSig);
-            }
+          // Clean up circularly re-imported ghost blocks (emoji === '📅' whose Google Calendar event actually originated from Momentum)
+          if (existingLinkedBlock && existingLinkedBlock.emoji === '📅' && isFromMomentum) {
+            ghostBlocksToDelete.add(existingLinkedBlock.id);
+            staleGCalEventIdsToDelete.add(item.id);
+            return null;
           }
 
           const matchingUnlinkedBlock = !existingLinkedBlock
             ? currentBlocks.find(
                 (b) =>
+                  !ghostBlocksToDelete.has(b.id) &&
+                  b.emoji !== '📅' &&
                   b.date === dateStr &&
                   b.startTime === startTimeStr &&
-                  (b.activity.trim().toLowerCase() === summary.toLowerCase() ||
-                    `${b.emoji ? b.emoji + ' ' : ''}${b.activity}`.trim().toLowerCase() === summary.toLowerCase())
+                  normalizeActivityName(b.activity, b.emoji) === normalizeActivityName(summary)
               )
             : undefined;
 
-          if (matchingUnlinkedBlock && !matchingUnlinkedBlock.googleCalendarEventId) {
-            onEditTimeBlock(matchingUnlinkedBlock.id, {
-              startTime: matchingUnlinkedBlock.startTime,
-              endTime: matchingUnlinkedBlock.endTime,
-              activity: matchingUnlinkedBlock.activity,
-              date: matchingUnlinkedBlock.date,
-              color: matchingUnlinkedBlock.color,
-              emoji: matchingUnlinkedBlock.emoji,
-              subtasks: matchingUnlinkedBlock.subtasks,
-              showCountdown: matchingUnlinkedBlock.showCountdown,
-              googleCalendarEventId: item.id,
-            });
+          // If an event on Google Calendar came from Momentum ("Synced from Momentum Schedule")
+          // and does NOT match any active user block in Momentum, it is a previously edited/deleted schedule block!
+          if (!existingLinkedBlock && !matchingUnlinkedBlock && isFromMomentum) {
+            // Also check if a circular '📅' block in Momentum was matching this stale event by time/title
+            const circularGhostBlock = currentBlocks.find(
+              (b) =>
+                b.emoji === '📅' &&
+                b.date === dateStr &&
+                b.startTime === startTimeStr &&
+                normalizeActivityName(b.activity, b.emoji) === normalizeActivityName(summary)
+            );
+            if (circularGhostBlock) {
+              ghostBlocksToDelete.add(circularGhostBlock.id);
+            }
+            staleGCalEventIdsToDelete.add(item.id);
+            return null;
+          }
+
+          const targetBlock = existingLinkedBlock || matchingUnlinkedBlock;
+          const mappedGCalColor = gcalColorIdToMomentumColor(
+            item.colorId,
+            targetBlock?.color || 'sky'
+          );
+
+          const normalizedSummaryForBlock = targetBlock
+            ? stripEmojiPrefix(summary, targetBlock.emoji).slice(0, 190)
+            : stripEmojiPrefix(summary).slice(0, 190);
+
+          if (existingLinkedBlock) {
+            const gcalSig = makeSyncSignature(dateStr, startTimeStr, endTimeStr, normalizedSummaryForBlock, mappedGCalColor, existingLinkedBlock.emoji);
+            const blockSig = makeSyncSignature(
+              existingLinkedBlock.date,
+              existingLinkedBlock.startTime,
+              existingLinkedBlock.endTime,
+              existingLinkedBlock.activity,
+              existingLinkedBlock.color,
+              existingLinkedBlock.emoji
+            );
+            const prevSyncedSig = lastSyncedEventSignatureRef.current.get(item.id);
+
+            if (gcalSig !== blockSig && autoSyncEnabled) {
+              if (
+                locallyEditedBlockIdsRef.current.has(existingLinkedBlock.id) ||
+                (prevSyncedSig && prevSyncedSig === gcalSig && prevSyncedSig !== blockSig)
+              ) {
+                // User edited this block inside Momentum -> push the new Momentum time/title/color to Google Calendar
+                locallyEditedBlockIdsRef.current.delete(existingLinkedBlock.id);
+                setSyncedEventSignature(item.id, blockSig);
+                blocksEditedLocallyToPush.push(existingLinkedBlock);
+              } else {
+                // Event changed in Google Calendar (including time or color) -> update Momentum block to match Google Calendar
+                setSyncedEventSignature(item.id, gcalSig);
+                gcalUpdatedBlockIdsRef.current.add(existingLinkedBlock.id);
+                onEditTimeBlock(
+                  existingLinkedBlock.id,
+                  {
+                    startTime: startTimeStr,
+                    endTime: endTimeStr,
+                    activity: normalizedSummaryForBlock,
+                    date: dateStr,
+                    color: mappedGCalColor,
+                    emoji: existingLinkedBlock.emoji,
+                    subtasks: existingLinkedBlock.subtasks,
+                    showCountdown: existingLinkedBlock.showCountdown,
+                    googleCalendarEventId: item.id,
+                  },
+                  true
+                );
+              }
+            } else {
+              setSyncedEventSignature(item.id, blockSig);
+              // If Google Calendar didn't have colorId set yet, push the block's colorId
+              if (!item.colorId && existingLinkedBlock.color) {
+                blocksEditedLocallyToPush.push(existingLinkedBlock);
+              }
+            }
+          }
+
+          if (matchingUnlinkedBlock) {
+            setLinkedGCalId(matchingUnlinkedBlock.id, item.id);
+            const blockSig = makeSyncSignature(
+              matchingUnlinkedBlock.date,
+              matchingUnlinkedBlock.startTime,
+              matchingUnlinkedBlock.endTime,
+              matchingUnlinkedBlock.activity,
+              matchingUnlinkedBlock.color,
+              matchingUnlinkedBlock.emoji
+            );
+            setSyncedEventSignature(item.id, blockSig);
+            gcalUpdatedBlockIdsRef.current.add(matchingUnlinkedBlock.id);
+            onEditTimeBlock(
+              matchingUnlinkedBlock.id,
+              {
+                startTime: matchingUnlinkedBlock.startTime,
+                endTime: matchingUnlinkedBlock.endTime,
+                activity: matchingUnlinkedBlock.activity,
+                date: matchingUnlinkedBlock.date,
+                color: item.colorId ? mappedGCalColor : matchingUnlinkedBlock.color,
+                emoji: matchingUnlinkedBlock.emoji,
+                subtasks: matchingUnlinkedBlock.subtasks,
+                showCountdown: matchingUnlinkedBlock.showCountdown,
+                googleCalendarEventId: item.id,
+              },
+              true
+            );
           }
 
           const alreadyImported =
@@ -752,25 +979,58 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
             date: dateStr,
             startTime: startTimeStr,
             endTime: endTimeStr,
+            color: mappedGCalColor,
             htmlLink: item.htmlLink as string | undefined,
             alreadyImported,
           };
         })
-        .filter((ev) => rangeDatesSet.has(ev.date));
+        .filter((ev): ev is NonNullable<typeof ev> => Boolean(ev) && rangeDatesSet.has(ev.date));
 
       const activeGCalEventIds = new Set(parsedEvents.map((ev) => ev.id));
 
+      // Also check any remaining '📅' imported blocks in the active date range whose Google Calendar event was deleted/cancelled
+      for (const b of currentBlocks) {
+        if (!rangeDatesSet.has(b.date)) continue;
+        const linkedId = getLinkedGCalId(b);
+        if (b.emoji === '📅' && linkedId && !activeGCalEventIds.has(linkedId)) {
+          ghostBlocksToDelete.add(b.id);
+        }
+      }
+
+      // Remove circular/ghost blocks from Momentum Schedule
+      for (const ghostBlockId of ghostBlocksToDelete) {
+        if (!deletedOrGhostBlockIdsRef.current.has(ghostBlockId)) {
+          deletedOrGhostBlockIdsRef.current.add(ghostBlockId);
+          onDeleteTimeBlock(ghostBlockId);
+        }
+      }
+
+      // Delete stale previously-edited Momentum events from Google Calendar in the background
+      for (const staleEventId of staleGCalEventIdsToDelete) {
+        addDismissedGCalId(staleEventId);
+        fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(staleEventId)}`,
+          {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${activeToken}` },
+          }
+        ).catch(() => {});
+      }
+
       // Two-Way Auto-Sync when autoSyncEnabled is ON:
-      // 1) Import new Google Calendar events -> Momentum Schedule
-      // 2) Push unsynced or locally edited Momentum Schedule blocks -> Google Calendar
+      // 1) Push locally edited Momentum Schedule blocks -> Google Calendar
+      // 2) Import genuine new external Google Calendar events -> Momentum Schedule
+      // 3) Auto-push brand-new unsynced Momentum Schedule blocks -> Google Calendar
       if (autoSyncEnabled) {
         for (const editedBlock of blocksEditedLocallyToPush) {
+          if (ghostBlocksToDelete.has(editedBlock.id) || deletedOrGhostBlockIdsRef.current.has(editedBlock.id)) continue;
           try {
             await upsertSingleBlockToGoogleCalendar(editedBlock, activeToken, detectedTz, activeGCalEventIds);
           } catch (err) {
             console.warn('Failed to push locally edited block to Google Calendar:', err);
           }
         }
+
         const eventsToAutoImport = parsedEvents.filter(
           (ev) => !ev.alreadyImported && !dismissedIds.has(ev.id) && !autoImportedEventIdsRef.current.has(ev.id)
         );
@@ -787,7 +1047,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
             startTime: ev.startTime,
             endTime: ev.endTime,
             date: ev.date,
-            color: 'sky',
+            color: ev.color || 'sky',
             subtasks: [] as BlockTask[],
             showCountdown: false,
             googleCalendarEventId: ev.id,
@@ -802,17 +1062,19 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
           }
         }
 
-        // Auto-push any Momentum schedule block in the active range that isn't on Google Calendar yet
+        // Auto-push any brand-new user-created Momentum schedule block in the active range that hasn't been synced yet
         const blocksInRangeToAutoPush = currentBlocks.filter((b) => {
+          if (ghostBlocksToDelete.has(b.id) || deletedOrGhostBlockIdsRef.current.has(b.id)) return false;
+          if (b.emoji === '📅') return false;
           if (!rangeDatesSet.has(b.date)) return false;
           if (autoPushedBlockIdsRef.current.has(b.id)) return false;
-          if (b.googleCalendarEventId && activeGCalEventIds.has(b.googleCalendarEventId)) return false;
+          const linkedId = getLinkedGCalId(b);
+          if (linkedId) return false;
           const matchesExistingGCal = parsedEvents.some(
             (ev) =>
               ev.date === b.date &&
               ev.startTime === b.startTime &&
-              (ev.summary.toLowerCase() === b.activity.trim().toLowerCase() ||
-                ev.summary.toLowerCase() === `${b.emoji ? b.emoji + ' ' : ''}${b.activity}`.trim().toLowerCase())
+              normalizeActivityName(ev.summary) === normalizeActivityName(b.activity, b.emoji)
           );
           return !matchesExistingGCal;
         });
@@ -835,6 +1097,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                   date: blockToPush.date,
                   startTime: blockToPush.startTime,
                   endTime: blockToPush.endTime,
+                  color: blockToPush.color || 'indigo',
                   htmlLink: resPush.htmlLink,
                   alreadyImported: true,
                 });
@@ -898,7 +1161,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         startTime: ev.startTime,
         endTime: ev.endTime,
         date: ev.date,
-        color: 'sky',
+        color: ev.color || 'sky',
         subtasks: [] as BlockTask[],
         showCountdown: false,
         googleCalendarEventId: ev.id,
@@ -1023,6 +1286,68 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     }
   };
 
+  // Detect local user edits to existing schedule blocks in Momentum and immediately update Google Calendar in-place
+  useEffect(() => {
+    const prevMap = prevBlocksMapRef.current;
+    const nextMap = new Map<string, TimeBlock>();
+
+    for (const block of activeScheduleBlocks) {
+      nextMap.set(block.id, block);
+      const prev = prevMap.get(block.id);
+      if (!prev) continue;
+
+      if (gcalUpdatedBlockIdsRef.current.has(block.id)) {
+        gcalUpdatedBlockIdsRef.current.delete(block.id);
+        continue;
+      }
+
+      const changed =
+        prev.date !== block.date ||
+        prev.startTime !== block.startTime ||
+        prev.endTime !== block.endTime ||
+        prev.activity !== block.activity ||
+        prev.color !== block.color ||
+        prev.emoji !== block.emoji;
+
+      if (changed) {
+        locallyEditedBlockIdsRef.current.add(block.id);
+        let linkedId = getLinkedGCalId(block) || getLinkedGCalId(prev);
+        if (!linkedId) {
+          const matchedEv = gcalEvents.find(
+            (ev) =>
+              ev.date === prev.date &&
+              ev.startTime === prev.startTime &&
+              normalizeActivityName(ev.summary) === normalizeActivityName(prev.activity, prev.emoji)
+          );
+          if (matchedEv) {
+            linkedId = matchedEv.id;
+            setLinkedGCalId(block.id, linkedId);
+          }
+        }
+
+        if (linkedId) {
+          setSyncedEventSignature(
+            linkedId,
+            makeSyncSignature(block.date, block.startTime, block.endTime, block.activity, block.color, block.emoji)
+          );
+        }
+
+        const activeToken = calendarToken || getGoogleAccessToken();
+        if (autoSyncEnabled && activeToken) {
+          upsertSingleBlockToGoogleCalendar(
+            { ...block, googleCalendarEventId: linkedId },
+            activeToken,
+            calendarTimeZone
+          ).catch((err) => {
+            console.warn('Immediate edit sync to Google Calendar failed:', err);
+          });
+        }
+      }
+    }
+
+    prevBlocksMapRef.current = nextMap;
+  }, [activeScheduleBlocks]);
+
   // Auto-populate export selection and fetch events when modal opens or range changes
   useEffect(() => {
     if (!showCalendarSyncModal) return;
@@ -1039,7 +1364,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         }
       });
     }
-  }, [showCalendarSyncModal, calendarSyncRange, selectedDate, calendarToken, calendarEmail, autoSyncEnabled, timeBlocks.length]);
+  }, [showCalendarSyncModal, calendarSyncRange, selectedDate, calendarToken, calendarEmail, autoSyncEnabled, activeScheduleBlocks.length]);
 
   // Background Two-Way Auto-Sync: automatically sync Google Calendar <-> Momentum Schedule without opening the modal
   useEffect(() => {
@@ -1060,7 +1385,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
       clearInterval(intervalId);
       window.removeEventListener('focus', handleWindowFocus);
     };
-  }, [autoSyncEnabled, calendarToken, calendarEmail, selectedDate, viewMode, timeBlocks.length]);
+  }, [autoSyncEnabled, calendarToken, calendarEmail, selectedDate, viewMode, activeScheduleBlocks.length]);
 
   // Format time 12h helper
   const formatTime12h = (timeStr: string) => {
@@ -1611,7 +1936,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                     const isCurrentMonth = isSameMonth(dayDate, selectedDate);
                     const isDayToday = isToday(dayDate);
                     const dateStr = format(dayDate, 'yyyy-MM-dd');
-                    const dayBlocks = timeBlocks
+                    const dayBlocks = activeScheduleBlocks
                       .filter(b => b.date === dateStr)
                       .sort((a, b) => getMinutes(a.startTime) - getMinutes(b.startTime));
 
@@ -1719,11 +2044,11 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
               Schedule for {format(selectedDate, 'EEEE, MMMM d')}
             </h3>
             <span className="text-[10px] font-mono text-zinc-400 font-bold">
-              {timeBlocks.filter(b => b.date === format(selectedDate, 'yyyy-MM-dd')).length} Blocks Scheduled
+              {activeScheduleBlocks.filter(b => b.date === format(selectedDate, 'yyyy-MM-dd')).length} Blocks Scheduled
             </span>
           </div>
 
-          {timeBlocks.filter(b => b.date === format(selectedDate, 'yyyy-MM-dd')).length === 0 ? (
+          {activeScheduleBlocks.filter(b => b.date === format(selectedDate, 'yyyy-MM-dd')).length === 0 ? (
             <div className="p-16 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl text-center text-zinc-400">
               <Clock className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p className="text-xs font-bold uppercase tracking-widest">No time blocks set for this day</p>
@@ -1739,7 +2064,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
               </button>
             </div>
           ) : (
-            timeBlocks
+            activeScheduleBlocks
               .filter(b => b.date === format(selectedDate, 'yyyy-MM-dd'))
               .sort((a, b) => getMinutes(a.startTime) - getMinutes(b.startTime))
               .map(block => {
@@ -1923,7 +2248,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
               >
                 {displayedDays.map(day => {
                   const dateStr = format(day, 'yyyy-MM-dd');
-                  const dayBlocks = timeBlocks.filter(b => b.date === dateStr);
+                  const dayBlocks = activeScheduleBlocks.filter(b => b.date === dateStr);
                   const isDayToday = isToday(day);
 
                   return (
@@ -2419,6 +2744,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                         <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
                           {gcalEvents.map((ev) => {
                             const isSelected = selectedImportIds.includes(ev.id);
+                            const evDotColor = COLOR_OPTIONS.find((c) => c.id === ev.color)?.dot || '#0ea5e9';
                             return (
                               <div
                                 key={ev.id}
@@ -2444,6 +2770,11 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                                   ) : (
                                     <Square className="w-4 h-4 text-zinc-400 shrink-0" />
                                   )}
+                                  <span
+                                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                                    style={{ backgroundColor: evDotColor }}
+                                    title={`Color: ${COLOR_OPTIONS.find((c) => c.id === ev.color)?.name || 'Blue'}`}
+                                  />
                                   <div className="min-w-0">
                                     <p className="font-black text-zinc-900 dark:text-zinc-100 truncate">
                                       {ev.summary}
@@ -2529,9 +2860,11 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                         <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
                           {exportableScheduleBlocks.map((block) => {
                             const isSelected = selectedExportBlockIds.includes(block.id);
+                            const linkedId = getLinkedGCalId(block);
                             const isActiveOnGCal = Boolean(
-                              block.googleCalendarEventId && gcalEvents.some((ev) => ev.id === block.googleCalendarEventId)
+                              linkedId && gcalEvents.some((ev) => ev.id === linkedId)
                             );
+                            const blockDotColor = COLOR_OPTIONS.find((c) => c.id === block.color)?.dot || '#4f46e5';
                             return (
                               <div
                                 key={block.id}
@@ -2554,6 +2887,11 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                                   ) : (
                                     <Square className="w-4 h-4 text-zinc-400 shrink-0" />
                                   )}
+                                  <span
+                                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                                    style={{ backgroundColor: blockDotColor }}
+                                    title={`Color: ${COLOR_OPTIONS.find((c) => c.id === block.color)?.name || 'Indigo'}`}
+                                  />
                                   <div className="min-w-0">
                                     <p className="font-black text-zinc-900 dark:text-zinc-100 truncate">
                                       {block.emoji ? `${block.emoji} ` : ''}{block.activity}
@@ -2564,15 +2902,28 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                                   </div>
                                 </div>
 
-                                <span
-                                  className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-bold shrink-0 ${
-                                    isActiveOnGCal
-                                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                                      : 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400'
-                                  }`}
-                                >
-                                  {isActiveOnGCal ? 'Synced on Google' : 'Create Event'}
-                                </span>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-bold shrink-0 ${
+                                      isActiveOnGCal
+                                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                        : 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400'
+                                    }`}
+                                  >
+                                    {isActiveOnGCal ? 'Synced on Google' : 'Create Event'}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteBlockWithGCal(block);
+                                    }}
+                                    className="p-1 text-zinc-400 hover:text-rose-500 rounded-md hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+                                    title="Delete schedule block"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               </div>
                             );
                           })}
