@@ -441,14 +441,17 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
       if (!existing) {
         bySlotKey.set(slotKey, block);
       } else {
-        // Prefer user-created block (without auto-import '📅' marker) over auto-imported duplicate
+        // Only clean up circular auto-imported duplicate ('📅') when a user-created block exists for the same slot
         const existingIsAutoImport = existing.emoji === '📅';
         const currentIsAutoImport = block.emoji === '📅';
         if (existingIsAutoImport && !currentIsAutoImport) {
           duplicatesToRemove.push(existing);
           bySlotKey.set(slotKey, block);
-        } else {
+        } else if (currentIsAutoImport && !existingIsAutoImport) {
           duplicatesToRemove.push(block);
+        } else {
+          // Both are user-created blocks: keep both visible using unique id key
+          bySlotKey.set(`${slotKey}_${block.id}`, block);
         }
       }
     }
@@ -456,7 +459,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     if (duplicatesToRemove.length > 0) {
       setTimeout(() => {
         duplicatesToRemove.forEach((dup) => {
-          if (!deletedOrGhostBlockIdsRef.current.has(dup.id)) {
+          if (dup.emoji === '📅' && !deletedOrGhostBlockIdsRef.current.has(dup.id)) {
             deletedOrGhostBlockIdsRef.current.add(dup.id);
             onDeleteTimeBlock(dup.id);
           }
@@ -788,7 +791,6 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
       };
 
       const blocksEditedLocallyToPush: TimeBlock[] = [];
-      const staleGCalEventIdsToDelete = new Set<string>();
       const ghostBlocksToDelete = new Set<string>();
       const cancelledGCalEventIds = new Set<string>();
 
@@ -840,7 +842,6 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
           // Clean up circularly re-imported ghost blocks (emoji === '📅' whose Google Calendar event actually originated from Momentum)
           if (existingLinkedBlock && existingLinkedBlock.emoji === '📅' && isFromMomentum) {
             ghostBlocksToDelete.add(existingLinkedBlock.id);
-            staleGCalEventIdsToDelete.add(item.id);
             return null;
           }
 
@@ -851,27 +852,10 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                   b.emoji !== '📅' &&
                   b.date === dateStr &&
                   b.startTime === startTimeStr &&
-                  normalizeActivityName(b.activity, b.emoji) === normalizeActivityName(summary)
+                  (normalizeActivityName(b.activity, b.emoji) === normalizeActivityName(summary, b.emoji) ||
+                   normalizeActivityName(b.activity) === normalizeActivityName(summary))
               )
             : undefined;
-
-          // If an event on Google Calendar came from Momentum ("Synced from Momentum Schedule")
-          // and does NOT match any active user block in Momentum, it is a previously edited/deleted schedule block!
-          if (!existingLinkedBlock && !matchingUnlinkedBlock && isFromMomentum) {
-            // Also check if a circular '📅' block in Momentum was matching this stale event by time/title
-            const circularGhostBlock = currentBlocks.find(
-              (b) =>
-                b.emoji === '📅' &&
-                b.date === dateStr &&
-                b.startTime === startTimeStr &&
-                normalizeActivityName(b.activity, b.emoji) === normalizeActivityName(summary)
-            );
-            if (circularGhostBlock) {
-              ghostBlocksToDelete.add(circularGhostBlock.id);
-            }
-            staleGCalEventIdsToDelete.add(item.id);
-            return null;
-          }
 
           const targetBlock = existingLinkedBlock || matchingUnlinkedBlock;
           const mappedGCalColor = gcalColorIdToMomentumColor(
@@ -982,42 +966,25 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
 
       const activeGCalEventIds = new Set(parsedEvents.map((ev) => ev.id));
 
-      // Check all synced blocks in the active date range whose Google Calendar event was deleted/cancelled
-      // (both imported '📅' blocks and blocks created in Momentum that were synced to Google Calendar)
+      // Only delete a Momentum block if its corresponding Google Calendar event was explicitly cancelled/deleted in Google Calendar
       for (const b of currentBlocks) {
         if (!rangeDatesSet.has(b.date)) continue;
         if (locallyEditedBlockIdsRef.current.has(b.id)) continue;
         const linkedId = getLinkedGCalId(b);
         if (!linkedId) continue;
 
-        const isExplicitlyCancelled = cancelledGCalEventIds.has(linkedId);
-        const createdRecentlyMs = recentlyCreatedGCalEventTimeRef.current.get(linkedId);
-        const isJustCreated = Boolean(createdRecentlyMs && Date.now() - createdRecentlyMs < 8000);
-
-        if (isExplicitlyCancelled || (!activeGCalEventIds.has(linkedId) && !isJustCreated)) {
+        if (cancelledGCalEventIds.has(linkedId)) {
           ghostBlocksToDelete.add(b.id);
           addDismissedGCalId(linkedId);
         }
       }
 
-      // Remove circular/ghost blocks from Momentum Schedule
+      // Remove deleted blocks from Momentum Schedule
       for (const ghostBlockId of ghostBlocksToDelete) {
         if (!deletedOrGhostBlockIdsRef.current.has(ghostBlockId)) {
           deletedOrGhostBlockIdsRef.current.add(ghostBlockId);
           onDeleteTimeBlock(ghostBlockId);
         }
-      }
-
-      // Delete stale previously-edited Momentum events from Google Calendar in the background
-      for (const staleEventId of staleGCalEventIdsToDelete) {
-        addDismissedGCalId(staleEventId);
-        fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(staleEventId)}`,
-          {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${activeToken}` },
-          }
-        ).catch(() => {});
       }
 
       // Two-Way Auto-Sync when autoSyncEnabled is ON:
