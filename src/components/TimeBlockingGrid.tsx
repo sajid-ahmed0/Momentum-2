@@ -214,6 +214,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   const deletedOrGhostBlockIdsRef = useRef<Set<string>>(new Set());
   const locallyEditedBlockIdsRef = useRef<Set<string>>(new Set());
   const gcalUpdatedBlockIdsRef = useRef<Set<string>>(new Set());
+  const recentlyCreatedGCalEventTimeRef = useRef<Map<string, number>>(new Map());
   const prevBlocksMapRef = useRef<Map<string, TimeBlock>>(new Map());
 
   const lastSyncedEventSignatureRef = useRef<Map<string, string>>(
@@ -634,6 +635,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
 
     const createdEvent = await postRes.json();
     if (createdEvent?.id) {
+      recentlyCreatedGCalEventTimeRef.current.set(createdEvent.id, Date.now());
       autoImportedEventIdsRef.current.add(createdEvent.id);
       setLinkedGCalId(block.id, createdEvent.id);
       const latestBlock = timeBlocksRef.current.find((b) => b.id === block.id) || block;
@@ -730,8 +732,9 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         timeMin: queryMin.toISOString(),
         timeMax: queryMax.toISOString(),
         singleEvents: 'true',
+        showDeleted: 'true',
         orderBy: 'startTime',
-        maxResults: '150',
+        maxResults: '250',
       });
 
       const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
@@ -787,6 +790,13 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
       const blocksEditedLocallyToPush: TimeBlock[] = [];
       const staleGCalEventIdsToDelete = new Set<string>();
       const ghostBlocksToDelete = new Set<string>();
+      const cancelledGCalEventIds = new Set<string>();
+
+      for (const item of rawItems) {
+        if (item?.status === 'cancelled' && item?.id) {
+          cancelledGCalEventIds.add(String(item.id));
+        }
+      }
 
       const parsedEvents = rawItems
         .filter((item) => item.status !== 'cancelled')
@@ -972,12 +982,21 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
 
       const activeGCalEventIds = new Set(parsedEvents.map((ev) => ev.id));
 
-      // Also check any remaining '📅' imported blocks in the active date range whose Google Calendar event was deleted/cancelled
+      // Check all synced blocks in the active date range whose Google Calendar event was deleted/cancelled
+      // (both imported '📅' blocks and blocks created in Momentum that were synced to Google Calendar)
       for (const b of currentBlocks) {
         if (!rangeDatesSet.has(b.date)) continue;
+        if (locallyEditedBlockIdsRef.current.has(b.id)) continue;
         const linkedId = getLinkedGCalId(b);
-        if (b.emoji === '📅' && linkedId && !activeGCalEventIds.has(linkedId)) {
+        if (!linkedId) continue;
+
+        const isExplicitlyCancelled = cancelledGCalEventIds.has(linkedId);
+        const createdRecentlyMs = recentlyCreatedGCalEventTimeRef.current.get(linkedId);
+        const isJustCreated = Boolean(createdRecentlyMs && Date.now() - createdRecentlyMs < 8000);
+
+        if (isExplicitlyCancelled || (!activeGCalEventIds.has(linkedId) && !isJustCreated)) {
           ghostBlocksToDelete.add(b.id);
+          addDismissedGCalId(linkedId);
         }
       }
 
@@ -1357,13 +1376,20 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
 
     runBackgroundSync();
 
-    const intervalId = setInterval(runBackgroundSync, 60000);
+    const intervalId = setInterval(runBackgroundSync, 15000);
     const handleWindowFocus = () => runBackgroundSync();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        runBackgroundSync();
+      }
+    };
     window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       clearInterval(intervalId);
       window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [autoSyncEnabled, calendarToken, selectedDate, viewMode, activeScheduleBlocks.length]);
 
