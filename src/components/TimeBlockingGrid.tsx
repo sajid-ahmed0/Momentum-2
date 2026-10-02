@@ -150,6 +150,48 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   const [selectedExportBlockIds, setSelectedExportBlockIds] = useState<string[]>([]);
   const [showExportConfirm, setShowExportConfirm] = useState<boolean>(false);
   const [calendarSyncStatus, setCalendarSyncStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('momentum_gcal_auto_sync') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
+  // Keep latest timeBlocks in a ref & track in-flight auto-imported event IDs to avoid duplicates
+  const timeBlocksRef = useRef<TimeBlock[]>(timeBlocks);
+  useEffect(() => {
+    timeBlocksRef.current = timeBlocks;
+  }, [timeBlocks]);
+  const autoImportedEventIdsRef = useRef<Set<string>>(new Set());
+
+  const getDismissedGCalIds = (): Set<string> => {
+    try {
+      const raw = localStorage.getItem('momentum_dismissed_gcal_ids');
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  };
+
+  const addDismissedGCalId = (gcalId?: string) => {
+    if (!gcalId) return;
+    try {
+      const set = getDismissedGCalIds();
+      set.add(gcalId);
+      localStorage.setItem('momentum_dismissed_gcal_ids', JSON.stringify(Array.from(set)));
+    } catch {}
+  };
+
+  const toggleAutoSync = () => {
+    setAutoSyncEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('momentum_gcal_auto_sync', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   // Subscribe to persistent Google Calendar session on load & across page refreshes
   useEffect(() => {
@@ -265,8 +307,12 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     .filter(b => syncRangeDateStrings.includes(b.date))
     .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
 
-  // Fetch events from user's primary Google Calendar
-  const fetchGoogleCalendarEvents = async (tokenOverride?: string, rangeOverride?: 'day' | 'week') => {
+  // Fetch events from user's primary Google Calendar (and auto-sync to schedule if enabled)
+  const fetchGoogleCalendarEvents = async (
+    tokenOverride?: string,
+    rangeOverride?: 'day' | 'week',
+    isBackgroundSync: boolean = false
+  ) => {
     let activeToken = tokenOverride || calendarToken || getGoogleAccessToken();
     if (!activeToken && calendarEmail) {
       activeToken = await trySilentCalendarTokenRefresh(calendarEmail);
@@ -275,7 +321,9 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     if (!activeToken) return;
 
     setIsFetchingGCalEvents(true);
-    setCalendarSyncStatus(null);
+    if (!isBackgroundSync) {
+      setCalendarSyncStatus(null);
+    }
     try {
       const { startBound, endBound } = getSyncRangeBounds(rangeOverride || calendarSyncRange);
       const params = new URLSearchParams({
@@ -306,10 +354,12 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
 
       if (res.status === 401 || res.status === 403) {
         setCalendarToken(null);
-        setCalendarSyncStatus({
-          type: 'error',
-          message: 'Your Google Calendar session expired. Click Reconnect to refresh access.',
-        });
+        if (!isBackgroundSync) {
+          setCalendarSyncStatus({
+            type: 'error',
+            message: 'Your Google Calendar session expired. Click Reconnect to refresh access.',
+          });
+        }
         return;
       }
 
@@ -320,6 +370,8 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
 
       const data = await res.json();
       const rawItems: any[] = Array.isArray(data.items) ? data.items : [];
+      const currentBlocks = timeBlocksRef.current;
+      const dismissedIds = getDismissedGCalIds();
 
       const parsedEvents = rawItems
         .filter((item) => item.status !== 'cancelled')
@@ -344,13 +396,41 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
             endTimeStr = '10:00';
           }
 
-          const alreadyImported = timeBlocks.some(
-            (b) =>
-              (b.googleCalendarEventId && b.googleCalendarEventId === item.id) ||
-              (b.date === dateStr &&
-                b.startTime === startTimeStr &&
-                b.activity.trim().toLowerCase() === summary.toLowerCase())
+          const existingLinkedBlock = currentBlocks.find(
+            (b) => b.googleCalendarEventId && b.googleCalendarEventId === item.id
           );
+
+          // If an already-synced Google Calendar event changed time, date, or title in Google Calendar, update it automatically
+          if (
+            autoSyncEnabled &&
+            existingLinkedBlock &&
+            (existingLinkedBlock.date !== dateStr ||
+              existingLinkedBlock.startTime !== startTimeStr ||
+              existingLinkedBlock.endTime !== endTimeStr ||
+              existingLinkedBlock.activity !== summary.slice(0, 190))
+          ) {
+            onEditTimeBlock(existingLinkedBlock.id, {
+              startTime: startTimeStr,
+              endTime: endTimeStr,
+              activity: summary.slice(0, 190),
+              date: dateStr,
+              color: existingLinkedBlock.color,
+              emoji: existingLinkedBlock.emoji,
+              subtasks: existingLinkedBlock.subtasks,
+              showCountdown: existingLinkedBlock.showCountdown,
+              googleCalendarEventId: item.id,
+            });
+          }
+
+          const alreadyImported =
+            Boolean(existingLinkedBlock) ||
+            autoImportedEventIdsRef.current.has(item.id) ||
+            currentBlocks.some(
+              (b) =>
+                b.date === dateStr &&
+                b.startTime === startTimeStr &&
+                b.activity.trim().toLowerCase() === summary.toLowerCase()
+            );
 
           return {
             id: item.id as string,
@@ -363,14 +443,59 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
           };
         });
 
+      // Automatically import new Google Calendar events into Momentum Schedule when autoSyncEnabled is ON
+      if (autoSyncEnabled) {
+        const eventsToAutoImport = parsedEvents.filter(
+          (ev) => !ev.alreadyImported && !dismissedIds.has(ev.id) && !autoImportedEventIdsRef.current.has(ev.id)
+        );
+
+        if (eventsToAutoImport.length > 0) {
+          eventsToAutoImport.forEach((ev) => {
+            autoImportedEventIdsRef.current.add(ev.id);
+            ev.alreadyImported = true;
+          });
+
+          const blocksPayload = eventsToAutoImport.map((ev) => ({
+            activity: ev.summary.slice(0, 190),
+            emoji: '📅',
+            startTime: ev.startTime,
+            endTime: ev.endTime,
+            date: ev.date,
+            color: 'sky',
+            subtasks: [] as BlockTask[],
+            showCountdown: false,
+            googleCalendarEventId: ev.id,
+          }));
+
+          if (onAddBatchTimeBlocks) {
+            await onAddBatchTimeBlocks(blocksPayload);
+          } else {
+            for (const b of blocksPayload) {
+              onAddTimeBlock(b);
+            }
+          }
+
+          if (!isBackgroundSync) {
+            setCalendarSyncStatus({
+              type: 'success',
+              message: `Auto-synced ${eventsToAutoImport.length} Google Calendar event${
+                eventsToAutoImport.length > 1 ? 's' : ''
+              } to your schedule.`,
+            });
+          }
+        }
+      }
+
       setGcalEvents(parsedEvents);
       setSelectedImportIds(parsedEvents.filter((e) => !e.alreadyImported).map((e) => e.id));
     } catch (error: any) {
       console.error('Google Calendar fetch error:', error);
-      setCalendarSyncStatus({
-        type: 'error',
-        message: error.message || 'Could not load events from Google Calendar.',
-      });
+      if (!isBackgroundSync) {
+        setCalendarSyncStatus({
+          type: 'error',
+          message: error.message || 'Could not load events from Google Calendar.',
+        });
+      }
     } finally {
       setIsFetchingGCalEvents(false);
     }
@@ -588,16 +713,37 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     const token = calendarToken || getGoogleAccessToken();
     if (token) {
       if (!calendarToken) setCalendarToken(token);
-      fetchGoogleCalendarEvents(token, calendarSyncRange);
+      fetchGoogleCalendarEvents(token, calendarSyncRange, false);
     } else if (calendarEmail) {
       trySilentCalendarTokenRefresh(calendarEmail).then((refreshed) => {
         if (refreshed) {
           setCalendarToken(refreshed);
-          fetchGoogleCalendarEvents(refreshed, calendarSyncRange);
+          fetchGoogleCalendarEvents(refreshed, calendarSyncRange, false);
         }
       });
     }
-  }, [showCalendarSyncModal, calendarSyncRange, selectedDate, calendarToken, calendarEmail]);
+  }, [showCalendarSyncModal, calendarSyncRange, selectedDate, calendarToken, calendarEmail, autoSyncEnabled]);
+
+  // Background Auto-Sync: automatically pull Google Calendar events into the schedule without opening the modal
+  useEffect(() => {
+    if (!autoSyncEnabled || (!calendarToken && !calendarEmail)) return;
+
+    const runBackgroundSync = () => {
+      const bgRange: 'day' | 'week' = viewMode === 'day' ? 'day' : 'week';
+      fetchGoogleCalendarEvents(undefined, bgRange, true);
+    };
+
+    runBackgroundSync();
+
+    const intervalId = setInterval(runBackgroundSync, 60000);
+    const handleWindowFocus = () => runBackgroundSync();
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [autoSyncEnabled, calendarToken, calendarEmail, selectedDate, viewMode]);
 
   // Format time 12h helper
   const formatTime12h = (timeStr: string) => {
@@ -1039,9 +1185,11 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
             </svg>
             <span className="hidden sm:inline">Calendar Sync</span>
             <span className="sm:hidden">Sync</span>
-            {calendarToken && (
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Google Calendar Connected" />
-            )}
+            {isFetchingGCalEvents ? (
+              <RefreshCw className="w-3 h-3 text-amber-500 animate-spin shrink-0" />
+            ) : (calendarToken || calendarEmail) ? (
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Google Calendar Auto-Sync Active" />
+            ) : null}
           </button>
 
           {/* Create Button */}
@@ -1644,6 +1792,9 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
+                                      if (block.googleCalendarEventId) {
+                                        addDismissedGCalId(block.googleCalendarEventId);
+                                      }
                                       onDeleteTimeBlock(block.id);
                                     }}
                                     className="opacity-0 group-hover/card:opacity-100 p-0.5 hover:bg-black/20 rounded transition-opacity shrink-0"
@@ -1843,6 +1994,39 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                       >
                         Full Week
                       </button>
+                    </div>
+                  </div>
+
+                  {/* Auto-Sync Toggle Bar */}
+                  <div
+                    onClick={toggleAutoSync}
+                    className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
+                      autoSyncEnabled
+                        ? 'bg-emerald-500/10 border-emerald-500/30'
+                        : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <RefreshCw className={`w-4 h-4 ${autoSyncEnabled ? 'text-emerald-500' : 'text-zinc-400'}`} />
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wide dark:text-zinc-100">
+                          Auto-Sync Google Calendar to Schedule
+                        </p>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                          Automatically adds new Google Calendar events to your schedule in the background
+                        </p>
+                      </div>
+                    </div>
+                    <div
+                      className={`w-10 h-5 rounded-full p-0.5 transition-colors shrink-0 ${
+                        autoSyncEnabled ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'
+                      }`}
+                    >
+                      <div
+                        className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                          autoSyncEnabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
                     </div>
                   </div>
 
