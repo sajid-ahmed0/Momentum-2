@@ -211,15 +211,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   zoomScale: controlledZoomScale,
   onZoomScaleChange,
 }) => {
-  const [scheduleTimeZone, setScheduleTimeZone] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('momentum_schedule_timezone');
-      if (saved) return saved;
-    } catch {}
-    return DEFAULT_SCHEDULE_TIMEZONE;
-  });
-  const [showTzDropdown, setShowTzDropdown] = useState<boolean>(false);
-  const tzDropdownRef = useRef<HTMLDivElement>(null);
+  const scheduleTimeZone = DEFAULT_SCHEDULE_TIMEZONE; // Fixed at BDT (GMT+6)
 
   const [selectedDate, setSelectedDate] = useState<Date>(() => getTodayDateInTz(DEFAULT_SCHEDULE_TIMEZONE));
   const [viewMode, setViewMode] = useState<'day' | '3day' | 'week' | 'month' | 'list'>('day');
@@ -276,29 +268,6 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     } catch {}
     return DEFAULT_SCHEDULE_TIMEZONE;
   });
-
-  const handleSelectScheduleTimeZone = (tz: string) => {
-    setScheduleTimeZone(tz);
-    try {
-      localStorage.setItem('momentum_schedule_timezone', tz);
-    } catch {}
-    setCalendarTimeZone(tz);
-    try {
-      localStorage.setItem('momentum_gcal_timezone', tz);
-    } catch {}
-  };
-
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (tzDropdownRef.current && !tzDropdownRef.current.contains(e.target as Node)) {
-        setShowTzDropdown(false);
-      }
-    };
-    if (showTzDropdown) {
-      document.addEventListener('mousedown', handleOutsideClick);
-      return () => document.removeEventListener('mousedown', handleOutsideClick);
-    }
-  }, [showTzDropdown]);
   const [calendarSyncStatus, setCalendarSyncStatus] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
@@ -1914,72 +1883,6 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
             >
               <List className="w-3.5 h-3.5" />
             </button>
-          </div>
-
-          {/* Timezone Selector Dropdown */}
-          <div className="relative" ref={tzDropdownRef}>
-            <button
-              type="button"
-              onClick={() => setShowTzDropdown(prev => !prev)}
-              className="flex items-center gap-1.5 px-2.5 py-2 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 font-bold text-xs rounded-lg shadow-sm active:scale-95 transition-all"
-              title="Momentum Schedule Timezone: BDT (GMT+6)"
-            >
-              <Globe className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-              <span className="font-mono text-xs font-bold text-zinc-700 dark:text-zinc-200">
-                {SUPPORTED_SCHEDULE_TIMEZONES.find(t => t.id === scheduleTimeZone)?.short || 'BDT (GMT+6)'}
-              </span>
-              <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform ${showTzDropdown ? 'rotate-180' : ''}`} />
-            </button>
-
-            {showTzDropdown && (
-              <div 
-                className="absolute right-0 mt-1.5 w-72 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl z-50 p-2 text-xs backdrop-blur-md"
-                onClick={e => e.stopPropagation()}
-              >
-                <div className="px-2.5 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400 border-b border-zinc-100 dark:border-zinc-800/80 mb-1 flex items-center justify-between">
-                  <span>Momentum Schedule Timezone</span>
-                  <span className="text-emerald-500 font-bold flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Active
-                  </span>
-                </div>
-                <div className="space-y-1 max-h-60 overflow-y-auto custom-scrollbar">
-                  {SUPPORTED_SCHEDULE_TIMEZONES.map((tz) => {
-                    const isSelected = scheduleTimeZone === tz.id;
-                    return (
-                      <button
-                        key={tz.id}
-                        type="button"
-                        onClick={() => {
-                          handleSelectScheduleTimeZone(tz.id);
-                          setShowTzDropdown(false);
-                        }}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors ${
-                          isSelected
-                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/20'
-                            : 'hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-700 dark:text-zinc-300'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span className="text-base">{tz.flag}</span>
-                          <div>
-                            <div className="font-bold text-xs">{tz.short}</div>
-                            <div className="text-[10px] text-zinc-400 dark:text-zinc-500">{tz.label.split('—')[1]?.trim() || tz.label}</div>
-                          </div>
-                        </div>
-                        {isSelected && <Check className="w-4 h-4 text-amber-500 shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800/80 px-2 py-1 text-[11px] text-zinc-500 dark:text-zinc-400 flex items-center justify-between">
-                  <span>Current Time:</span>
-                  <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
-                    {formatTimeInTz(now, scheduleTimeZone)}
-                  </span>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Google Calendar Sync Button */}
