@@ -35,8 +35,23 @@ export const SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
 ];
 
+// Dedicated secondary Firebase app for Google Calendar OAuth (provisioned on project-61d3edb4-a424-4742-ae0)
+// so that the user's primary Firestore database & Auth account stay on gen-lang-client-0011544447 with all existing data intact.
+const calendarOAuthApp = initializeApp(
+  {
+    projectId: 'project-61d3edb4-a424-4742-ae0',
+    appId: '1:792771806071:web:fd614f979e8f544e399772',
+    apiKey: 'AIzaSyDgeRP-9RAMQSNCzUYYQo5J406eAVjhOq0',
+    authDomain: 'project-61d3edb4-a424-4742-ae0.firebaseapp.com',
+    storageBucket: 'project-61d3edb4-a424-4742-ae0.firebasestorage.app',
+    messagingSenderId: '792771806071',
+  },
+  'google-calendar-oauth'
+);
+const calendarOAuthAuth = getAuth(calendarOAuthApp);
+const calendarGoogleProvider = new GoogleAuthProvider();
 SCOPES.forEach((scope) => {
-  googleProvider.addScope(scope);
+  calendarGoogleProvider.addScope(scope);
 });
 
 // Flag to indicate if we are in the middle of a sign-in flow.
@@ -71,11 +86,6 @@ export const signInWithGoogle = async () => {
     } else {
       result = await signInWithPopup(auth, googleProvider);
     }
-
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (credential?.accessToken) {
-      cachedAccessToken = credential.accessToken;
-    }
     return result;
   } finally {
     isSigningIn = false;
@@ -85,21 +95,8 @@ export const signInWithGoogle = async () => {
 export const connectGoogleCalendar = async (): Promise<{ user: User; accessToken: string }> => {
   try {
     isSigningIn = true;
-    googleProvider.setCustomParameters({ prompt: 'consent' });
-    let result;
-    if (auth.currentUser && auth.currentUser.isAnonymous) {
-      try {
-        result = await linkWithPopup(auth.currentUser, googleProvider);
-      } catch (error: any) {
-        if (error.code === 'auth/credential-already-in-use') {
-          result = await signInWithPopup(auth, googleProvider);
-        } else {
-          throw error;
-        }
-      }
-    } else {
-      result = await signInWithPopup(auth, googleProvider);
-    }
+    calendarGoogleProvider.setCustomParameters({ prompt: 'consent' });
+    const result = await signInWithPopup(calendarOAuthAuth, calendarGoogleProvider);
 
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
