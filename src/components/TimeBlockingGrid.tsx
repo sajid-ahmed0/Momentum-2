@@ -48,7 +48,14 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { TimeBlock, BlockTask, QuickPreset, DEFAULT_PRESETS } from '../types';
-import { connectGoogleCalendar, getGoogleAccessToken, auth } from '../firebase';
+import {
+  connectGoogleCalendar,
+  getGoogleAccessToken,
+  getConnectedCalendarEmail,
+  subscribeCalendarAuth,
+  trySilentCalendarTokenRefresh,
+  auth
+} from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const COLOR_OPTIONS = [
@@ -126,6 +133,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   const [calendarSyncTab, setCalendarSyncTab] = useState<'import' | 'export'>('import');
   const [calendarSyncRange, setCalendarSyncRange] = useState<'day' | 'week'>('day');
   const [calendarToken, setCalendarToken] = useState<string | null>(() => getGoogleAccessToken());
+  const [calendarEmail, setCalendarEmail] = useState<string | null>(() => getConnectedCalendarEmail());
   const [isConnectingCalendar, setIsConnectingCalendar] = useState<boolean>(false);
   const [isFetchingGCalEvents, setIsFetchingGCalEvents] = useState<boolean>(false);
   const [isPushingToGCal, setIsPushingToGCal] = useState<boolean>(false);
@@ -142,6 +150,15 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   const [selectedExportBlockIds, setSelectedExportBlockIds] = useState<string[]>([]);
   const [showExportConfirm, setShowExportConfirm] = useState<boolean>(false);
   const [calendarSyncStatus, setCalendarSyncStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
+  // Subscribe to persistent Google Calendar session on load & across page refreshes
+  useEffect(() => {
+    const unsubscribe = subscribeCalendarAuth(({ token, email }) => {
+      setCalendarToken(token);
+      if (email) setCalendarEmail(email);
+    });
+    return unsubscribe;
+  }, []);
 
   // Quick presets drag-to-scroll state
   const quickPresetScrollRef = useRef<HTMLDivElement>(null);
@@ -250,7 +267,11 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
 
   // Fetch events from user's primary Google Calendar
   const fetchGoogleCalendarEvents = async (tokenOverride?: string, rangeOverride?: 'day' | 'week') => {
-    const activeToken = tokenOverride || calendarToken || getGoogleAccessToken();
+    let activeToken = tokenOverride || calendarToken || getGoogleAccessToken();
+    if (!activeToken && calendarEmail) {
+      activeToken = await trySilentCalendarTokenRefresh(calendarEmail);
+      if (activeToken) setCalendarToken(activeToken);
+    }
     if (!activeToken) return;
 
     setIsFetchingGCalEvents(true);
@@ -265,17 +286,29 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         maxResults: '100',
       });
 
-      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
+      let res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${activeToken}`,
         },
       });
 
+      if ((res.status === 401 || res.status === 403) && calendarEmail) {
+        const refreshed = await trySilentCalendarTokenRefresh(calendarEmail);
+        if (refreshed) {
+          setCalendarToken(refreshed);
+          res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
+            headers: {
+              Authorization: `Bearer ${refreshed}`,
+            },
+          });
+        }
+      }
+
       if (res.status === 401 || res.status === 403) {
         setCalendarToken(null);
         setCalendarSyncStatus({
           type: 'error',
-          message: 'Your Google Calendar session expired or needs permission. Please sign in with Google below.',
+          message: 'Your Google Calendar session expired. Click Reconnect to refresh access.',
         });
         return;
       }
@@ -556,8 +589,15 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     if (token) {
       if (!calendarToken) setCalendarToken(token);
       fetchGoogleCalendarEvents(token, calendarSyncRange);
+    } else if (calendarEmail) {
+      trySilentCalendarTokenRefresh(calendarEmail).then((refreshed) => {
+        if (refreshed) {
+          setCalendarToken(refreshed);
+          fetchGoogleCalendarEvents(refreshed, calendarSyncRange);
+        }
+      });
     }
-  }, [showCalendarSyncModal, calendarSyncRange, selectedDate]);
+  }, [showCalendarSyncModal, calendarSyncRange, selectedDate, calendarToken, calendarEmail]);
 
   // Format time 12h helper
   const formatTime12h = (timeStr: string) => {
@@ -1766,7 +1806,9 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                       <span className="font-bold text-zinc-700 dark:text-zinc-200">
-                        {auth.currentUser?.email ? `Connected (${auth.currentUser.email})` : 'Google Calendar Connected'}
+                        {calendarEmail || auth.currentUser?.email
+                          ? `Connected (${calendarEmail || auth.currentUser?.email})`
+                          : 'Google Calendar Connected'}
                       </span>
                       <button
                         type="button"
