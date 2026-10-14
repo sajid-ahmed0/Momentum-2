@@ -47,11 +47,13 @@ import {
   CheckCircle2,
   AlertCircle,
   ExternalLink,
-  Globe
+  Globe,
+  Unlink
 } from 'lucide-react';
 import { TimeBlock, BlockTask, QuickPreset, DEFAULT_PRESETS } from '../types';
 import {
   connectGoogleCalendar,
+  disconnectGoogleCalendar,
   getGoogleAccessToken,
   getConnectedCalendarEmail,
   subscribeCalendarAuth,
@@ -247,6 +249,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   const [calendarToken, setCalendarToken] = useState<string | null>(() => getGoogleAccessToken());
   const [calendarEmail, setCalendarEmail] = useState<string | null>(() => getConnectedCalendarEmail());
   const [isConnectingCalendar, setIsConnectingCalendar] = useState<boolean>(false);
+  const [isDisconnectingCalendar, setIsDisconnectingCalendar] = useState<boolean>(false);
   const [isFetchingGCalEvents, setIsFetchingGCalEvents] = useState<boolean>(false);
   const [isPushingToGCal, setIsPushingToGCal] = useState<boolean>(false);
   const [gcalEvents, setGcalEvents] = useState<Array<{
@@ -685,10 +688,13 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
               calendarEmail: patchedEvent.organizer?.email || patchedEvent.creator?.email,
             };
           }
-        } else if (patchRes.status === 401 || patchRes.status === 403) {
+        } else if (patchRes.status === 401) {
           const err: any = new Error('AUTH_EXPIRED');
-          err.status = patchRes.status;
+          err.status = 401;
           throw err;
+        } else if (patchRes.status === 403) {
+          const errData = await patchRes.json().catch(() => ({}));
+          throw new Error(errData?.error?.message || 'Google Calendar API rate limit or quota exceeded. Please try again shortly.');
         }
       }
     }
@@ -703,10 +709,13 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
       body: JSON.stringify(eventBody),
     });
 
-    if (postRes.status === 401 || postRes.status === 403) {
+    if (postRes.status === 401) {
       const err: any = new Error('AUTH_EXPIRED');
-      err.status = postRes.status;
+      err.status = 401;
       throw err;
+    } else if (postRes.status === 403) {
+      const errData = await postRes.json().catch(() => ({}));
+      throw new Error(errData?.error?.message || 'Google Calendar API rate limit or quota exceeded. Please try again shortly.');
     }
 
     if (!postRes.ok) {
@@ -831,13 +840,24 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         },
       });
 
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         await clearExpiredCalendarToken();
         setCalendarToken(null);
         if (!isBackgroundSync) {
           setCalendarSyncStatus({
             type: 'info',
             message: 'Your Google Calendar session expired. Click "Sign in with Google" below to reconnect.',
+          });
+        }
+        return;
+      }
+
+      if (res.status === 403) {
+        console.warn('Google Calendar API rate limit or permission warning (HTTP 403). Retaining session.');
+        if (!isBackgroundSync) {
+          setCalendarSyncStatus({
+            type: 'error',
+            message: 'Google Calendar API rate limit reached. Auto-sync will retry automatically shortly.',
           });
         }
         return;
@@ -1231,6 +1251,30 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     }
   };
 
+  // Disconnect Google Calendar and clear active session
+  const handleDisconnectGoogleCalendar = async () => {
+    setIsDisconnectingCalendar(true);
+    try {
+      await disconnectGoogleCalendar();
+      setCalendarToken(null);
+      setCalendarEmail(null);
+      setGcalEvents([]);
+      setSelectedImportIds([]);
+      setCalendarSyncStatus({
+        type: 'info',
+        message: 'Google Calendar has been disconnected. Two-way auto-sync is stopped.',
+      });
+    } catch (error: any) {
+      console.error('Google Calendar disconnect error:', error);
+      setCalendarSyncStatus({
+        type: 'error',
+        message: 'Failed to disconnect Google Calendar. Please try again.',
+      });
+    } finally {
+      setIsDisconnectingCalendar(false);
+    }
+  };
+
   // Import selected Google Calendar events into Schedule
   const handleImportSelectedFromGCal = async () => {
     const toImport = gcalEvents.filter((ev) => selectedImportIds.includes(ev.id) && !ev.alreadyImported);
@@ -1314,7 +1358,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         try {
           result = await upsertSingleBlockToGoogleCalendar(block, activeToken, DEFAULT_SCHEDULE_TIMEZONE, knownActiveIds);
         } catch (err: any) {
-          if (err?.status === 401 || err?.status === 403 || err?.message === 'AUTH_EXPIRED') {
+          if (err?.status === 401 || err?.message === 'AUTH_EXPIRED') {
             await clearExpiredCalendarToken();
             setCalendarToken(null);
             throw new Error('Your Google Calendar session expired. Please click "Sign in with Google" to reconnect and try again.');
@@ -1456,7 +1500,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
 
     runBackgroundSync();
 
-    const intervalId = setInterval(runBackgroundSync, 15000);
+    const intervalId = setInterval(runBackgroundSync, 60000);
     const handleWindowFocus = () => runBackgroundSync();
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -2753,7 +2797,17 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                         onClick={() => handleConnectGoogleCalendar(true)}
                         className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400 hover:underline ml-1"
                       >
-                        Switch / Reconnect
+                        Switch Account
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDisconnectGoogleCalendar}
+                        disabled={isDisconnectingCalendar}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900/50 rounded transition-colors ml-1 disabled:opacity-50"
+                        title="Disconnect Google Calendar"
+                      >
+                        <Unlink className="w-2.5 h-2.5" />
+                        <span>{isDisconnectingCalendar ? 'Disconnecting...' : 'Disconnect'}</span>
                       </button>
                     </div>
 
@@ -3080,6 +3134,36 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                       </button>
                     </div>
                   )}
+
+                  {/* Account Connection Footer */}
+                  <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                      <span>
+                        Syncing as <strong className="text-zinc-800 dark:text-zinc-200">{calendarEmail || auth.currentUser?.email || 'Google Calendar'}</strong>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleConnectGoogleCalendar(true)}
+                        disabled={isConnectingCalendar}
+                        className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline"
+                      >
+                        Switch Account
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDisconnectGoogleCalendar}
+                        disabled={isDisconnectingCalendar}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-950/70 border border-rose-200 dark:border-rose-900/50 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        <Unlink className="w-3.5 h-3.5" />
+                        <span>{isDisconnectingCalendar ? 'Disconnecting...' : 'Disconnect Calendar'}</span>
+                      </button>
+                    </div>
+                  </div>
                 </>
               )}
             </motion.div>

@@ -165,17 +165,14 @@ export const trySilentCalendarTokenRefresh = async (_hintEmail?: string | null):
   return null;
 };
 
-// Restore saved Google Calendar session on app load without opening any background popups
+// Restore saved Google Calendar session on app load
 if (typeof window !== 'undefined') {
   loadCalendarSessionFromIdb().then(async (saved) => {
     if (saved) {
       cachedCalendarEmail = saved.email || calendarOAuthAuth.currentUser?.email || null;
-      if (saved.token && saved.expiresAt > Date.now()) {
+      if (saved.token) {
         cachedAccessToken = saved.token;
-        cachedTokenExpiry = saved.expiresAt;
-      } else {
-        cachedAccessToken = null;
-        cachedTokenExpiry = 0;
+        cachedTokenExpiry = saved.expiresAt || (Date.now() + 2 * 60 * 60 * 1000);
       }
       notifyCalendarAuthListeners();
     }
@@ -189,23 +186,8 @@ if (typeof window !== 'undefined') {
   });
 }
 
-let hadAuthenticatedUser = false;
-onAuthStateChanged(auth, (user) => {
-  if (user && !user.isAnonymous) {
-    hadAuthenticatedUser = true;
-  } else if (!user && hadAuthenticatedUser && !isSigningIn) {
-    hadAuthenticatedUser = false;
-    cachedAccessToken = null;
-    cachedTokenExpiry = 0;
-    notifyCalendarAuthListeners();
-  }
-});
-
 export const getGoogleAccessToken = (): string | null => {
-  if (cachedAccessToken && cachedTokenExpiry > Date.now()) {
-    return cachedAccessToken;
-  }
-  return null;
+  return cachedAccessToken;
 };
 
 export const getConnectedCalendarEmail = (): string | null => {
