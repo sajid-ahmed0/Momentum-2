@@ -61,22 +61,24 @@ let cachedAccessToken: string | null = null;
 let cachedTokenExpiry = 0;
 let cachedCalendarEmail: string | null = null;
 
-type CalendarAuthListener = (state: { token: string | null; email: string | null }) => void;
+type CalendarAuthListener = (state: { token: string | null; email: string | null; expiresAt?: number }) => void;
 const calendarAuthListeners = new Set<CalendarAuthListener>();
 
 const notifyCalendarAuthListeners = () => {
-  const validToken = cachedAccessToken && cachedTokenExpiry > Date.now() ? cachedAccessToken : null;
-  calendarAuthListeners.forEach((cb) => cb({ token: validToken, email: cachedCalendarEmail }));
+  calendarAuthListeners.forEach((cb) =>
+    cb({ token: cachedAccessToken, email: cachedCalendarEmail, expiresAt: cachedTokenExpiry })
+  );
 };
 
 export const subscribeCalendarAuth = (listener: CalendarAuthListener): (() => void) => {
   calendarAuthListeners.add(listener);
-  const validToken = cachedAccessToken && cachedTokenExpiry > Date.now() ? cachedAccessToken : null;
-  listener({ token: validToken, email: cachedCalendarEmail });
+  listener({ token: cachedAccessToken, email: cachedCalendarEmail, expiresAt: cachedTokenExpiry });
   return () => {
     calendarAuthListeners.delete(listener);
   };
 };
+
+export const getCalendarTokenExpiry = (): number => cachedTokenExpiry;
 
 // IndexedDB helpers to persist Google Calendar session across browser refreshes
 const IDB_NAME = 'momentum_gcal_auth_db';
@@ -233,7 +235,7 @@ export const connectGoogleCalendar = async (forceSelectAccount: boolean = false)
     if (!credential?.accessToken) {
       throw new Error('Failed to obtain Google Calendar access token. Please try signing in again.');
     }
-    const expiresAt = Date.now() + 55 * 60 * 1000; // 55 minutes
+    const expiresAt = Date.now() + 60 * 60 * 1000; // 60 minutes (full Google OAuth session)
     cachedAccessToken = credential.accessToken;
     cachedTokenExpiry = expiresAt;
     cachedCalendarEmail = result.user.email || hintEmail || null;

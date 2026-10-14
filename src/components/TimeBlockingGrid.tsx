@@ -2767,15 +2767,33 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                       </span>
                     </button>
                     {calendarEmail && (
-                      <button
-                        type="button"
-                        onClick={() => handleConnectGoogleCalendar(true)}
-                        disabled={isConnectingCalendar}
-                        className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline"
-                      >
-                        Switch Google Account
-                      </button>
+                      <div className="flex items-center gap-3 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleConnectGoogleCalendar(true)}
+                          disabled={isConnectingCalendar}
+                          className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline"
+                        >
+                          Switch Google Account
+                        </button>
+                        <span className="text-zinc-300 dark:text-zinc-700">•</span>
+                        <button
+                          type="button"
+                          onClick={handleDisconnectGoogleCalendar}
+                          disabled={isDisconnectingCalendar}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:underline disabled:opacity-50"
+                          title="Disconnect and remove Google Calendar integration"
+                        >
+                          <Unlink className="w-3 h-3" />
+                          <span>{isDisconnectingCalendar ? 'Disconnecting...' : 'Disconnect Google Calendar'}</span>
+                        </button>
+                      </div>
                     )}
+                    <div className="pt-2">
+                      <p className="text-[10px] text-zinc-400 dark:text-zinc-500 max-w-sm mx-auto leading-relaxed">
+                        <strong>Why 1 hour?</strong> Google OAuth 2.0 enforces a standard 60-minute token security policy. Your schedule mappings and settings are completely preserved—reconnect anytime in 1 click or disconnect whenever you wish.
+                      </p>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -2792,6 +2810,16 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                       <span className="px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded text-[10px] font-mono font-bold">
                         BDT (GMT+6)
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => handleConnectGoogleCalendar(false)}
+                        disabled={isConnectingCalendar}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/40 border border-amber-200 dark:border-amber-800 rounded transition-colors ml-1 disabled:opacity-50"
+                        title="Extend your active Google Calendar sync session by 1 hour"
+                      >
+                        <RefreshCw className={`w-2.5 h-2.5 ${isConnectingCalendar ? 'animate-spin' : ''}`} />
+                        <span>{isConnectingCalendar ? 'Extending...' : 'Extend Sync (+1h)'}</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleConnectGoogleCalendar(true)}
