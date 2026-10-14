@@ -88,11 +88,12 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, signInWithGoogle, logout, loginWithEmail, registerWithEmail, loginAnonymously } from './firebase';
-import { Habit, HabitLog, TimeBlock, OverthinkingLog, DailyTask, JournalEntry, UrgeLog, Exam, BlockTask, QuickPreset, DEFAULT_PRESETS } from './types';
+import { Habit, HabitLog, TimeBlock, OverthinkingLog, DailyTask, JournalEntry, UrgeLog, Exam, BlockTask, QuickPreset, DEFAULT_PRESETS, StudyTodo } from './types';
 import { cn } from './lib/utils';
 import { BreathingGuide } from './components/BreathingGuide';
 import { TimeBlockingGrid, COLOR_OPTIONS, DEFAULT_SCHEDULE_TIMEZONE, getDateStrInTz, get24HourTimeInTz } from './components/TimeBlockingGrid';
 import { SketchCanvas } from './components/SketchCanvas';
+import { StudyTodos } from './components/StudyTodos';
 import { parseSketchPages } from './utils/sketchUtils';
 import { parseTimeInput, formatMinutesToTime, getCurrentTime } from './utils/timeHabitUtils';
 
@@ -550,13 +551,14 @@ export default function App() {
   const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([]);
   const [overthinkingLogs, setOverthinkingLogs] = useState<OverthinkingLog[]>([]);
   const [tasks, setTasks] = useState<DailyTask[]>([]);
+  const [studyTodos, setStudyTodos] = useState<StudyTodo[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [urgeLogs, setUrgeLogs] = useState<UrgeLog[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
-  const [activeTab, setActiveTab] = useState<'home' | 'habits' | 'tasks' | 'schedule' | 'overthinking' | 'journal' | 'urge'>(() => {
+  const [activeTab, setActiveTab] = useState<'home' | 'habits' | 'tasks' | 'study' | 'schedule' | 'overthinking' | 'journal' | 'urge'>(() => {
     if (typeof window !== 'undefined' && window.location.hash) {
       const hash = window.location.hash.replace('#', '') as any;
-      const validTabs = ['home', 'habits', 'tasks', 'schedule', 'overthinking', 'journal', 'urge'];
+      const validTabs = ['home', 'habits', 'tasks', 'study', 'schedule', 'overthinking', 'journal', 'urge'];
       if (validTabs.includes(hash)) return hash;
     }
     return 'home';
@@ -738,7 +740,7 @@ export default function App() {
   const [expandedMonths, setExpandedMonths] = useState<string[]>([format(new Date(), 'MMMM yyyy')]);
   const [zoom, setZoom] = useState(1);
   const [quickPresets, setQuickPresets] = useState<QuickPreset[]>(() => { try { const saved = localStorage.getItem("schedule_quick_presets"); if (saved) return JSON.parse(saved); } catch (e) { console.error(e); } return DEFAULT_PRESETS; });
-  const previousTabRef = useRef<'home' | 'habits' | 'tasks' | 'schedule' | 'overthinking' | 'journal' | 'urge'>(activeTab);
+  const previousTabRef = useRef<'home' | 'habits' | 'tasks' | 'study' | 'schedule' | 'overthinking' | 'journal' | 'urge'>(activeTab);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('momentum-app-theme');
@@ -765,7 +767,7 @@ export default function App() {
       } else {
         // Fallback to hash or home
         const hash = window.location.hash.replace('#', '') as any;
-        const validTabs = ['habits', 'tasks', 'schedule', 'overthinking', 'journal', 'urge'];
+        const validTabs = ['habits', 'tasks', 'study', 'schedule', 'overthinking', 'journal', 'urge'];
         if (validTabs.includes(hash)) {
           setActiveTab(hash);
         } else {
@@ -944,6 +946,13 @@ export default function App() {
       setTasks(data);
     }, (err) => console.warn('DailyTasks subscription error:', err));
 
+    const qStudyTodos = query(collection(db, 'studyTodos'), where('uid', '==', user.uid));
+    const unsubStudyTodos = onSnapshot(qStudyTodos, (snap) => {
+      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as StudyTodo[];
+      data.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      setStudyTodos(data);
+    }, (err) => console.warn('StudyTodos subscription error:', err));
+
     const qUrge = query(collection(db, 'urgeLogs'), where('uid', '==', user.uid));
     const unsubUrge = onSnapshot(qUrge, (snap) => {
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UrgeLog[];
@@ -966,6 +975,7 @@ export default function App() {
       unsubOverthinking();
       unsubJournal();
       unsubTasks();
+      unsubStudyTodos();
       unsubUrge();
       unsubExams();
     };
@@ -1454,6 +1464,52 @@ export default function App() {
     }
   };
 
+  const handleAddStudyTodo = async (data: { title: string; subject?: string; date: string; time?: string }) => {
+    if (!user) return;
+    try {
+      await addDoc(collection(db, 'studyTodos'), {
+        title: data.title,
+        subject: data.subject || '',
+        date: data.date || format(startOfToday(), 'yyyy-MM-dd'),
+        time: data.time || '',
+        completed: false,
+        uid: user.uid,
+        timestamp: Date.now()
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleUpdateStudyTodo = async (id: string, data: Partial<StudyTodo>) => {
+    try {
+      await updateDoc(doc(db, 'studyTodos', id), {
+        ...data,
+        timestamp: Date.now()
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteStudyTodo = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'studyTodos', id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleToggleStudyTodo = async (todo: StudyTodo) => {
+    try {
+      await updateDoc(doc(db, 'studyTodos', todo.id), {
+        completed: !todo.completed
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleSaveJournalEntry = async (data: { 
     title?: string, 
     content?: string, 
@@ -1620,6 +1676,7 @@ export default function App() {
 
   const navItems = [
     { id: 'tasks', icon: ListTodo, label: 'Tasks' },
+    { id: 'study', icon: GraduationCap, label: 'Study' },
     { id: 'schedule', icon: Clock, label: 'Schedule' },
     { id: 'overthinking', icon: Activity, label: 'Thinking' },
     { id: 'habits', icon: Flame, label: 'Habits' },
@@ -2183,7 +2240,8 @@ export default function App() {
                activeTab === 'schedule' ? 'Daily Schedule' : 
                activeTab === 'overthinking' ? 'Overthinking Tracker' : 
                activeTab === 'journal' ? 'Daily Journal' : 
-               activeTab === 'tasks' ? 'Daily Tasks' : 'The Circuit Breaker'}
+               activeTab === 'tasks' ? 'Daily Tasks' :
+               activeTab === 'study' ? 'Study Desk' : 'The Circuit Breaker'}
             </h1>
             {activeTab === 'habits' && (
               <span className="ml-2 px-1.5 py-0.5 bg-zinc-100 rounded text-[10px] font-mono font-bold text-zinc-400 dark:bg-zinc-900 dark:text-zinc-500">{habits.length}</span>
@@ -2881,7 +2939,15 @@ export default function App() {
                   )}
                 </motion.div>
               );
-            })() : activeTab === 'schedule' ? (
+            })() : activeTab === 'study' ? (
+              <StudyTodos
+                todos={studyTodos}
+                onAdd={handleAddStudyTodo}
+                onUpdate={handleUpdateStudyTodo}
+                onDelete={handleDeleteStudyTodo}
+                onToggle={handleToggleStudyTodo}
+              />
+            ) : activeTab === 'schedule' ? (
               <motion.div 
                 key="schedule-tab"
                 initial={{ opacity: 0, y: 10 }}
@@ -4372,6 +4438,18 @@ export default function App() {
                           )}
                         >
                           <ListTodo className="w-4 h-4 mr-4" /> Daily Tasks
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setActiveTab('study');
+                            setIsMenuOpen(false);
+                          }}
+                          className={cn(
+                            "w-full flex items-center px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-tight",
+                            activeTab === 'study' ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                          )}
+                        >
+                          <GraduationCap className="w-4 h-4 mr-4" /> Study
                         </button>
                         <button 
                           onClick={() => {

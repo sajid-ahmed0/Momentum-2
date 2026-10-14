@@ -89,6 +89,17 @@ export interface DailyTask {
   timestamp: number;
 }
 
+export interface StudyTodo {
+  id: string;
+  title: string;
+  completed: boolean;
+  subject?: string; // e.g. Math, English — extensible for future study features
+  date: string; // YYYY-MM-DD
+  time?: string; // HH:mm
+  uid: string;
+  timestamp: number;
+}
+
 export interface JournalEntry {
   id: string;
   date: string; // YYYY-MM-DD
