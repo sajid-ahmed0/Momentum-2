@@ -129,3 +129,37 @@ export interface Exam {
   uid: string;
   timestamp: number;
 }
+
+// --- StudyFlow Task Management Types ---
+export type Priority = 'low' | 'medium' | 'high';
+
+export interface SubTask {
+  id: string;
+  name: string;
+  completed: boolean;
+}
+
+export interface StudyTask {
+  id: string; // UUID / unique id
+  name: string;
+  category: string; // matches CategorySpec id
+  estMinutes: number;
+  actualMinutes: number;
+  completed: boolean;
+  priority: Priority;
+  createdAt: string; // ISO date string
+  notes?: string;
+  date: string; // format: YYYY-MM-DD
+  subTasks?: SubTask[];
+}
+
+export interface CategorySpec {
+  id: string;
+  name: string;
+  color: string; // Tailwind text class
+  bgLight: string; // Tailwind bg/text badge class
+  badge: string;
+  borderClass: string;
+  icon: string; // Lucide icon name
+}
+

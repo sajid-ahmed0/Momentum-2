@@ -92,6 +92,7 @@ import { Habit, HabitLog, TimeBlock, OverthinkingLog, DailyTask, JournalEntry, U
 import { cn } from './lib/utils';
 import { BreathingGuide } from './components/BreathingGuide';
 import { TimeBlockingGrid, COLOR_OPTIONS, DEFAULT_SCHEDULE_TIMEZONE, getDateStrInTz, get24HourTimeInTz } from './components/TimeBlockingGrid';
+import { StudyFlowSection } from './components/studyflow/StudyFlowSection';
 import { SketchCanvas } from './components/SketchCanvas';
 import { parseSketchPages } from './utils/sketchUtils';
 import { parseTimeInput, formatMinutesToTime, getCurrentTime } from './utils/timeHabitUtils';
@@ -553,10 +554,10 @@ export default function App() {
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [urgeLogs, setUrgeLogs] = useState<UrgeLog[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
-  const [activeTab, setActiveTab] = useState<'home' | 'habits' | 'tasks' | 'schedule' | 'overthinking' | 'journal' | 'urge'>(() => {
+  const [activeTab, setActiveTab] = useState<'home' | 'habits' | 'tasks' | 'study' | 'schedule' | 'overthinking' | 'journal' | 'urge'>(() => {
     if (typeof window !== 'undefined' && window.location.hash) {
       const hash = window.location.hash.replace('#', '') as any;
-      const validTabs = ['home', 'habits', 'tasks', 'schedule', 'overthinking', 'journal', 'urge'];
+      const validTabs = ['home', 'habits', 'tasks', 'study', 'schedule', 'overthinking', 'journal', 'urge'];
       if (validTabs.includes(hash)) return hash;
     }
     return 'home';
@@ -738,7 +739,7 @@ export default function App() {
   const [expandedMonths, setExpandedMonths] = useState<string[]>([format(new Date(), 'MMMM yyyy')]);
   const [zoom, setZoom] = useState(1);
   const [quickPresets, setQuickPresets] = useState<QuickPreset[]>(() => { try { const saved = localStorage.getItem("schedule_quick_presets"); if (saved) return JSON.parse(saved); } catch (e) { console.error(e); } return DEFAULT_PRESETS; });
-  const previousTabRef = useRef<'home' | 'habits' | 'tasks' | 'schedule' | 'overthinking' | 'journal' | 'urge'>(activeTab);
+  const previousTabRef = useRef<'home' | 'habits' | 'tasks' | 'study' | 'schedule' | 'overthinking' | 'journal' | 'urge'>(activeTab);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('momentum-app-theme');
@@ -765,7 +766,7 @@ export default function App() {
       } else {
         // Fallback to hash or home
         const hash = window.location.hash.replace('#', '') as any;
-        const validTabs = ['habits', 'tasks', 'schedule', 'overthinking', 'journal', 'urge'];
+        const validTabs = ['habits', 'tasks', 'study', 'schedule', 'overthinking', 'journal', 'urge'];
         if (validTabs.includes(hash)) {
           setActiveTab(hash);
         } else {
@@ -2001,6 +2002,17 @@ export default function App() {
                 <ListTodo className="w-4.5 h-4.5 mr-3 shrink-0" /> Daily Tasks
               </button>
               <button 
+                onClick={() => setActiveTab('study')}
+                className={cn(
+                  "w-full flex items-center px-4 py-2.5 rounded-xl transition-all text-xs font-black uppercase tracking-wider",
+                  activeTab === 'study' 
+                    ? "bg-zinc-900 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900" 
+                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/80 hover:text-zinc-900 dark:hover:text-zinc-100"
+                )}
+              >
+                <GraduationCap className="w-4.5 h-4.5 mr-3 shrink-0 text-amber-500" /> StudyFlow
+              </button>
+              <button 
                 onClick={() => setActiveTab('schedule')}
                 className={cn(
                   "w-full flex items-center px-4 py-2.5 rounded-xl transition-all text-xs font-black uppercase tracking-wider",
@@ -2143,6 +2155,7 @@ export default function App() {
             <ChevronDown className="lg:block hidden w-4 h-4 text-zinc-400" />
             <h1 className="text-xs lg:text-sm font-bold uppercase tracking-tighter leading-none pt-0.5 dark:text-white">
               {activeTab === 'home' ? 'Momentum Dashboard' :
+               activeTab === 'study' ? 'StudyFlow Task Manager' :
                activeTab === 'habits' ? 'Habit Database' : 
                activeTab === 'schedule' ? 'Daily Schedule' : 
                activeTab === 'overthinking' ? 'Overthinking Tracker' : 
@@ -2403,7 +2416,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
                   <div className="col-span-1 p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer" onClick={() => setActiveTab('schedule')}>
                     <Clock className="w-5 h-5 mb-4 text-zinc-400" />
                     <p className="text-sm font-bold uppercase tracking-tight mb-2 dark:text-zinc-200">Schedule</p>
@@ -2411,6 +2424,15 @@ export default function App() {
                        <span className="text-xs font-bold block truncate">{currentBlock ? currentBlock.activity : (nextBlock ? `Next: ${nextBlock.activity}` : 'Open Schedule')}</span>
                     </div>
                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Active Blocks</p>
+                  </div>
+
+                  <div className="col-span-1 p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-amber-400 dark:hover:border-amber-600 transition-all cursor-pointer" onClick={() => setActiveTab('study')}>
+                    <GraduationCap className="w-5 h-5 mb-4 text-amber-500" />
+                    <p className="text-sm font-bold uppercase tracking-tight mb-2 dark:text-zinc-200">StudyFlow</p>
+                    <div className="flex items-baseline gap-2">
+                       <span className="text-3xl font-mono font-black text-amber-500">Plan</span>
+                    </div>
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Study Missions</p>
                   </div>
 
                   <div className="col-span-1 p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer" onClick={() => setActiveTab('overthinking')}>
@@ -2845,7 +2867,17 @@ export default function App() {
                   )}
                 </motion.div>
               );
-            })() : activeTab === 'schedule' ? (
+            })() : activeTab === 'study' ? (
+              <motion.div
+                key="studyflow-tab"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="p-4 sm:p-8 max-w-7xl mx-auto"
+              >
+                <StudyFlowSection />
+              </motion.div>
+            ) : activeTab === 'schedule' ? (
               <motion.div 
                 key="schedule-tab"
                 initial={{ opacity: 0, y: 10 }}
@@ -4336,6 +4368,18 @@ export default function App() {
                           )}
                         >
                           <ListTodo className="w-4 h-4 mr-4" /> Daily Tasks
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setActiveTab('study');
+                            setIsMenuOpen(false);
+                          }}
+                          className={cn(
+                            "w-full flex items-center px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-tight",
+                            activeTab === 'study' ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                          )}
+                        >
+                          <GraduationCap className="w-4 h-4 mr-4 text-amber-500" /> StudyFlow
                         </button>
                         <button 
                           onClick={() => {
