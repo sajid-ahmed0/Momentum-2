@@ -2092,7 +2092,18 @@ export default function App() {
                 )}
               >
                 <ListTodo className="w-4.5 h-4.5 mr-3 shrink-0" /> Daily Tasks
-              </button>
+              </button><button 
+  onClick={() => setActiveTab('study')}
+  className={cn(
+    "w-full flex items-center px-4 py-2.5 rounded-xl transition-all text-xs font-black uppercase tracking-wider",
+    activeTab === 'study' 
+      ? "bg-emerald-600 text-white shadow-lg dark:bg-emerald-600 dark:text-white" 
+      : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/80 hover:text-zinc-900 dark:hover:text-zinc-100"
+  )}
+>
+  <GraduationCap className="w-4.5 h-4.5 mr-3 shrink-0" /> Study
+</button>
+
               <button 
                 onClick={() => setActiveTab('schedule')}
                 className={cn(
