@@ -35,19 +35,8 @@ export const SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
 ];
 
-// Dedicated secondary Firebase app for Google Calendar OAuth (provisioned on project-61d3edb4-a424-4742-ae0)
-// so that the user's primary Firestore database & Auth account stay on gen-lang-client-0011544447 with all existing data intact.
-const calendarOAuthApp = initializeApp(
-  {
-    projectId: 'project-61d3edb4-a424-4742-ae0',
-    appId: '1:792771806071:web:fd614f979e8f544e399772',
-    apiKey: 'AIzaSyDgeRP-9RAMQSNCzUYYQo5J406eAVjhOq0',
-    authDomain: 'project-61d3edb4-a424-4742-ae0.firebaseapp.com',
-    storageBucket: 'project-61d3edb4-a424-4742-ae0.firebasestorage.app',
-    messagingSenderId: '792771806071',
-  },
-  'google-calendar-oauth'
-);
+// Dedicated secondary Firebase app instance using this site's own Firebase configuration (gen-lang-client-0011544447)
+const calendarOAuthApp = initializeApp(firebaseConfig, 'google-calendar-oauth');
 const calendarOAuthAuth = getAuth(calendarOAuthApp);
 const calendarGoogleProvider = new GoogleAuthProvider();
 SCOPES.forEach((scope) => {
