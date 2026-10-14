@@ -35,7 +35,7 @@ export const SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
 ];
 
-// Dedicated secondary Firebase app instance using this site's own Firebase configuration (gen-lang-client-0011544447)
+// Dedicated secondary Firebase app instance using this site's configured OAuth project
 const calendarOAuthApp = initializeApp(firebaseConfig, 'google-calendar-oauth');
 const calendarOAuthAuth = getAuth(calendarOAuthApp);
 const calendarGoogleProvider = new GoogleAuthProvider();
@@ -99,7 +99,7 @@ const saveCalendarSessionToIdb = async (token: string, expiresAt: number, email:
   return new Promise<void>((resolve) => {
     try {
       const tx = dbInstance.transaction(IDB_STORE, 'readwrite');
-      tx.objectStore(IDB_STORE).put({ token, expiresAt, email }, IDB_KEY);
+      tx.objectStore(IDB_STORE).put({ token, expiresAt, email, projectId: firebaseConfig.projectId }, IDB_KEY);
       tx.oncomplete = () => resolve();
       tx.onerror = () => resolve();
     } catch {
@@ -108,7 +108,7 @@ const saveCalendarSessionToIdb = async (token: string, expiresAt: number, email:
   });
 };
 
-const loadCalendarSessionFromIdb = async (): Promise<{ token: string; expiresAt: number; email: string | null } | null> => {
+const loadCalendarSessionFromIdb = async (): Promise<{ token: string; expiresAt: number; email: string | null; projectId?: string } | null> => {
   const dbInstance = await openCalendarIdb();
   if (!dbInstance) return null;
   return new Promise((resolve) => {
@@ -160,6 +160,15 @@ export const trySilentCalendarTokenRefresh = async (_hintEmail?: string | null):
 if (typeof window !== 'undefined') {
   loadCalendarSessionFromIdb().then(async (saved) => {
     if (saved) {
+      // Invalidate if token was from an old/different project to avoid 403 disabled API errors
+      if (saved.projectId && saved.projectId !== firebaseConfig.projectId) {
+        await clearCalendarSessionFromIdb();
+        cachedAccessToken = null;
+        cachedTokenExpiry = 0;
+        cachedCalendarEmail = saved.email || null;
+        notifyCalendarAuthListeners();
+        return;
+      }
       cachedCalendarEmail = saved.email || calendarOAuthAuth.currentUser?.email || null;
       if (saved.token) {
         cachedAccessToken = saved.token;

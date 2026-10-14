@@ -48,7 +48,8 @@ import {
   AlertCircle,
   ExternalLink,
   Globe,
-  Unlink
+  Unlink,
+  ArrowRight
 } from 'lucide-react';
 import { TimeBlock, BlockTask, QuickPreset, DEFAULT_PRESETS } from '../types';
 import {
@@ -245,7 +246,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
   // Google Calendar Sync State
   const [showCalendarSyncModal, setShowCalendarSyncModal] = useState<boolean>(false);
   const [calendarSyncTab, setCalendarSyncTab] = useState<'import' | 'export'>('import');
-  const [calendarSyncRange, setCalendarSyncRange] = useState<'day' | 'week'>('day');
+  const [calendarSyncRange, setCalendarSyncRange] = useState<'day' | 'week'>('week');
   const [calendarToken, setCalendarToken] = useState<string | null>(() => getGoogleAccessToken());
   const [calendarEmail, setCalendarEmail] = useState<string | null>(() => getConnectedCalendarEmail());
   const [isConnectingCalendar, setIsConnectingCalendar] = useState<boolean>(false);
@@ -537,6 +538,32 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
       }
     }
 
+    // Also overlay active Google Calendar events fetched from calendar so they are instantly visible on schedule
+    for (const gcalEv of gcalEvents) {
+      if (deletedOrGhostBlockIdsRef.current.has(`gcal-${gcalEv.id}`)) continue;
+      const slotKey = `${gcalEv.date}|${gcalEv.startTime}|${gcalEv.endTime}|${normalizeActivityName(gcalEv.summary)}`;
+      const existing = bySlotKey.get(slotKey);
+      const isAlreadyRepresented = visible.some(
+        (b) => getLinkedGCalId(b) === gcalEv.id || (b.date === gcalEv.date && b.startTime === gcalEv.startTime && normalizeActivityName(b.activity, b.emoji) === normalizeActivityName(gcalEv.summary))
+      );
+      if (!existing && !isAlreadyRepresented) {
+        bySlotKey.set(`gcal-${gcalEv.id}`, {
+          id: `gcal-${gcalEv.id}`,
+          activity: gcalEv.summary,
+          emoji: '📅',
+          startTime: gcalEv.startTime,
+          endTime: gcalEv.endTime,
+          date: gcalEv.date,
+          color: gcalEv.color || 'sky',
+          subtasks: [],
+          showCountdown: false,
+          googleCalendarEventId: gcalEv.id,
+          uid: 'gcal',
+          timestamp: Date.now(),
+        });
+      }
+    }
+
     if (duplicatesToRemove.length > 0) {
       setTimeout(() => {
         duplicatesToRemove.forEach((dup) => {
@@ -549,7 +576,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     }
 
     return Array.from(bySlotKey.values());
-  }, [timeBlocks]);
+  }, [timeBlocks, gcalEvents]);
 
   // Schedule blocks within the selected sync range
   const syncRangeDateStrings = getSyncRangeBounds(calendarSyncRange).days.map(d => format(d, 'yyyy-MM-dd'));
@@ -853,6 +880,19 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
       }
 
       if (res.status === 403) {
+        const errData = await res.json().catch(() => ({}));
+        const errMsg = errData?.error?.message || '';
+        if (errMsg.includes('Google Calendar API') || errMsg.includes('disabled') || errMsg.includes('SERVICE_DISABLED') || errMsg.includes('calendar-json')) {
+          await clearExpiredCalendarToken();
+          setCalendarToken(null);
+          if (!isBackgroundSync) {
+            setCalendarSyncStatus({
+              type: 'error',
+              message: 'Google Calendar integration is ready! Please click "Sign in with Google" below to authenticate with the active project.',
+            });
+          }
+          return;
+        }
         console.warn('Google Calendar API rate limit or permission warning (HTTP 403). Retaining session.');
         if (!isBackgroundSync) {
           setCalendarSyncStatus({
@@ -1059,8 +1099,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
 
           const alreadyImported =
             Boolean(existingLinkedBlock) ||
-            Boolean(matchingUnlinkedBlock) ||
-            autoImportedEventIdsRef.current.has(item.id);
+            Boolean(matchingUnlinkedBlock);
 
           return {
             id: item.id as string,
@@ -1073,7 +1112,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
             alreadyImported,
           };
         })
-        .filter((ev): ev is NonNullable<typeof ev> => Boolean(ev) && rangeDatesSet.has(ev.date));
+        .filter((ev): ev is NonNullable<typeof ev> => Boolean(ev));
 
       const activeGCalEventIds = new Set(parsedEvents.map((ev) => ev.id));
 
@@ -1113,15 +1152,10 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         }
 
         const eventsToAutoImport = parsedEvents.filter(
-          (ev) => !ev.alreadyImported && !dismissedIds.has(ev.id) && !autoImportedEventIdsRef.current.has(ev.id)
+          (ev) => !ev.alreadyImported && !dismissedIds.has(ev.id)
         );
 
         if (eventsToAutoImport.length > 0) {
-          eventsToAutoImport.forEach((ev) => {
-            autoImportedEventIdsRef.current.add(ev.id);
-            ev.alreadyImported = true;
-          });
-
           const blocksPayload = eventsToAutoImport.map((ev) => ({
             activity: ev.summary.slice(0, 190),
             emoji: '📅',
@@ -1133,6 +1167,11 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
             showCountdown: false,
             googleCalendarEventId: ev.id,
           }));
+
+          eventsToAutoImport.forEach((ev) => {
+            autoImportedEventIdsRef.current.add(ev.id);
+            ev.alreadyImported = true;
+          });
 
           if (onAddBatchTimeBlocks) {
             await onAddBatchTimeBlocks(blocksPayload);
@@ -1275,9 +1314,11 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
     }
   };
 
-  // Import selected Google Calendar events into Schedule
-  const handleImportSelectedFromGCal = async () => {
-    const toImport = gcalEvents.filter((ev) => selectedImportIds.includes(ev.id) && !ev.alreadyImported);
+  // Import selected or all Google Calendar events into Schedule
+  const handleImportSelectedFromGCal = async (importAll: boolean = false) => {
+    const toImport = importAll
+      ? gcalEvents
+      : gcalEvents.filter((ev) => selectedImportIds.includes(ev.id));
     if (toImport.length === 0) return;
 
     try {
@@ -1293,6 +1334,10 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         googleCalendarEventId: ev.id,
       }));
 
+      toImport.forEach((ev) => {
+        autoImportedEventIdsRef.current.add(ev.id);
+      });
+
       if (onAddBatchTimeBlocks) {
         await onAddBatchTimeBlocks(blocksPayload);
       } else {
@@ -1301,8 +1346,9 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         }
       }
 
+      const importedIds = new Set(toImport.map((e) => e.id));
       setGcalEvents((prev) =>
-        prev.map((ev) => (selectedImportIds.includes(ev.id) ? { ...ev, alreadyImported: true } : ev))
+        prev.map((ev) => (importedIds.has(ev.id) ? { ...ev, alreadyImported: true } : ev))
       );
       setSelectedImportIds([]);
       setCalendarSyncStatus({
@@ -1494,7 +1540,7 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
         setCalendarToken(null);
         return;
       }
-      const bgRange: 'day' | 'week' = viewMode === 'day' ? 'day' : 'week';
+      const bgRange: 'day' | 'week' = 'week';
       fetchGoogleCalendarEvents(currentValidToken, bgRange, true);
     };
 
@@ -2698,37 +2744,80 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
               </div>
 
               {/* Status Banner */}
-              {calendarSyncStatus && (
-                <div
-                  className={`p-3 rounded-xl border text-xs font-semibold flex items-start justify-between gap-2.5 ${
-                    calendarSyncStatus.type === 'success'
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-                      : calendarSyncStatus.type === 'error'
-                        ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
-                        : 'bg-sky-500/10 border-sky-500/30 text-sky-600 dark:text-sky-400'
-                  }`}
-                >
-                  <div className="flex items-start gap-2.5 flex-1">
-                    {calendarSyncStatus.type === 'success' ? (
-                      <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              {calendarSyncStatus && (() => {
+                const isApiDisabledError = calendarSyncStatus.type === 'error' && (
+                  calendarSyncStatus.message.includes('calendar-json.googleapis.com') ||
+                  calendarSyncStatus.message.includes('Google Calendar API has not been used') ||
+                  calendarSyncStatus.message.includes('is disabled') ||
+                  calendarSyncStatus.message.includes('SERVICE_DISABLED')
+                );
+
+                if (isApiDisabledError) {
+                  return (
+                    <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
+                          <AlertCircle className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-100">
+                            Google Calendar Ready
+                          </h4>
+                          <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed font-normal">
+                            Google Calendar API is configured. Please sign in below to grant calendar permissions and start syncing your schedule.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pl-10 space-y-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleConnectGoogleCalendar(true)}
+                            disabled={isConnectingCalendar}
+                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${isConnectingCalendar ? 'animate-spin' : ''}`} />
+                            <span>Sign in with Google</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    className={`p-3 rounded-xl border text-xs font-semibold flex items-start justify-between gap-2.5 ${
+                      calendarSyncStatus.type === 'success'
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                        : calendarSyncStatus.type === 'error'
+                          ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
+                          : 'bg-sky-500/10 border-sky-500/30 text-sky-600 dark:text-sky-400'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5 flex-1">
+                      {calendarSyncStatus.type === 'success' ? (
+                        <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      )}
+                      <span className="flex-1">{calendarSyncStatus.message}</span>
+                    </div>
+                    {calendarSyncStatus.calendarLink && (
+                      <a
+                        href={calendarSyncStatus.calendarLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 shrink-0 transition-colors"
+                      >
+                        <span>Open Google Calendar</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
                     )}
-                    <span className="flex-1">{calendarSyncStatus.message}</span>
                   </div>
-                  {calendarSyncStatus.calendarLink && (
-                    <a
-                      href={calendarSyncStatus.calendarLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 shrink-0 transition-colors"
-                    >
-                      <span>Open Google Calendar</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
-                </div>
-              )}
+                );
+              })()}
 
               {/* Connection Card / Sign in with Google */}
               {!calendarToken ? (
@@ -2966,24 +3055,23 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                               <div
                                 key={ev.id}
                                 onClick={() => {
-                                  if (ev.alreadyImported) return;
                                   setSelectedImportIds((prev) =>
                                     prev.includes(ev.id) ? prev.filter((id) => id !== ev.id) : [...prev, ev.id]
                                   );
                                 }}
-                                className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs transition-all ${
-                                  ev.alreadyImported
-                                    ? 'bg-zinc-50/60 dark:bg-zinc-900/40 border-zinc-200/70 dark:border-zinc-800/70 opacity-60 cursor-default'
-                                    : isSelected
-                                      ? 'bg-amber-500/10 border-amber-500/40 cursor-pointer'
-                                      : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 cursor-pointer'
+                                className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-amber-500/10 border-amber-500/40'
+                                    : ev.alreadyImported
+                                      ? 'bg-zinc-50/70 dark:bg-zinc-900/60 border-zinc-200/80 dark:border-zinc-800/80'
+                                      : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300'
                                 }`}
                               >
                                 <div className="flex items-center gap-3 min-w-0">
-                                  {ev.alreadyImported ? (
-                                    <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                                  ) : isSelected ? (
+                                  {isSelected ? (
                                     <CheckSquare className="w-4 h-4 text-amber-500 shrink-0" />
+                                  ) : ev.alreadyImported ? (
+                                    <Check className="w-4 h-4 text-emerald-500 shrink-0" />
                                   ) : (
                                     <Square className="w-4 h-4 text-zinc-400 shrink-0" />
                                   )}
@@ -3012,6 +3100,23 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                                       New
                                     </span>
                                   )}
+
+                                  {/* Quick Jump to this date on Schedule */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const [y, m, d] = ev.date.split('-').map(Number);
+                                      setSelectedDate(new Date(y, m - 1, d));
+                                      setShowCalendarSyncModal(false);
+                                    }}
+                                    className="px-2 py-1 rounded-md bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-bold text-[10px] flex items-center gap-1 transition-all"
+                                    title={`View ${ev.date} on Momentum Schedule`}
+                                  >
+                                    <span>View</span>
+                                    <ArrowRight className="w-3 h-3" />
+                                  </button>
+
                                   {ev.htmlLink && (
                                     <a
                                       href={ev.htmlLink}
@@ -3031,17 +3136,31 @@ export const TimeBlockingGrid = React.memo<TimeBlockingGridProps>(({
                         </div>
                       )}
 
-                      <button
-                        type="button"
-                        onClick={handleImportSelectedFromGCal}
-                        disabled={selectedImportIds.length === 0}
-                        className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
-                      >
-                        <Download className="w-4 h-4" />
-                        <span>
-                          Import Selected to Schedule ({selectedImportIds.length})
-                        </span>
-                      </button>
+                      <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                        {selectedImportIds.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleImportSelectedFromGCal(false)}
+                            className="w-full sm:flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
+                          >
+                            <Download className="w-4 h-4" />
+                            <span>
+                              Import Selected ({selectedImportIds.length})
+                            </span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleImportSelectedFromGCal(true)}
+                          disabled={gcalEvents.length === 0}
+                          className="w-full sm:flex-1 py-2.5 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-900 disabled:opacity-40 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+                        >
+                          <Download className="w-4 h-4" />
+                          <span>
+                            Import All ({gcalEvents.length}) to Schedule
+                          </span>
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     /* EXPORT TAB: Schedule -> Google Calendar */

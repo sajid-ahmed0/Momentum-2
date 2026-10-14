@@ -895,11 +895,12 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
 
-    const qHabits = query(collection(db, 'habits'), where('uid', '==', user.uid), orderBy('createdAt', 'asc'));
+    const qHabits = query(collection(db, 'habits'), where('uid', '==', user.uid));
     const unsubHabits = onSnapshot(qHabits, (snap) => {
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Habit[];
+      data.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setHabits(data);
-    });
+    }, (err) => console.warn('Habits subscription error:', err));
 
     const unsubUserSettings = onSnapshot(doc(db, 'userSettings', user.uid), (doc) => {
       if (doc.exists() && doc.data().quickPresets) {
@@ -907,49 +908,55 @@ export default function App() {
       } else {
         setQuickPresets(DEFAULT_PRESETS);
       }
-    });
+    }, (err) => console.warn('UserSettings subscription error:', err));
 
     const qLogs = query(collection(db, 'habitLogs'), where('uid', '==', user.uid));
     const unsubLogs = onSnapshot(qLogs, (snap) => {
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as HabitLog[];
       setLogs(data);
-    });
+    }, (err) => console.warn('HabitLogs subscription error:', err));
 
-    const qBlocks = query(collection(db, 'timeBlocks'), where('uid', '==', user.uid), orderBy('startTime', 'asc'));
+    const qBlocks = query(collection(db, 'timeBlocks'), where('uid', '==', user.uid));
     const unsubBlocks = onSnapshot(qBlocks, (snap) => {
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as TimeBlock[];
+      data.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
       setTimeBlocks(data);
-    });
+    }, (err) => console.warn('TimeBlocks subscription error:', err));
 
-    const qOverthinking = query(collection(db, 'overthinkingLogs'), where('uid', '==', user.uid), orderBy('timestamp', 'desc'));
+    const qOverthinking = query(collection(db, 'overthinkingLogs'), where('uid', '==', user.uid));
     const unsubOverthinking = onSnapshot(qOverthinking, (snap) => {
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as OverthinkingLog[];
+      data.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
       setOverthinkingLogs(data);
-    });
+    }, (err) => console.warn('Overthinking subscription error:', err));
 
-    const qJournal = query(collection(db, 'journalEntries'), where('uid', '==', user.uid), orderBy('timestamp', 'desc'));
+    const qJournal = query(collection(db, 'journalEntries'), where('uid', '==', user.uid));
     const unsubJournal = onSnapshot(qJournal, (snap) => {
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as JournalEntry[];
+      data.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
       setJournalEntries(data);
-    });
+    }, (err) => console.warn('Journal subscription error:', err));
 
-    const qTasks = query(collection(db, 'dailyTasks'), where('uid', '==', user.uid), orderBy('timestamp', 'desc'));
+    const qTasks = query(collection(db, 'dailyTasks'), where('uid', '==', user.uid));
     const unsubTasks = onSnapshot(qTasks, (snap) => {
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as DailyTask[];
+      data.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
       setTasks(data);
-    });
+    }, (err) => console.warn('DailyTasks subscription error:', err));
 
-    const qUrge = query(collection(db, 'urgeLogs'), where('uid', '==', user.uid), orderBy('timestamp', 'desc'));
+    const qUrge = query(collection(db, 'urgeLogs'), where('uid', '==', user.uid));
     const unsubUrge = onSnapshot(qUrge, (snap) => {
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UrgeLog[];
+      data.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
       setUrgeLogs(data);
-    });
+    }, (err) => console.warn('UrgeLogs subscription error:', err));
 
-    const qExams = query(collection(db, 'exams'), where('uid', '==', user.uid), orderBy('date', 'asc'));
+    const qExams = query(collection(db, 'exams'), where('uid', '==', user.uid));
     const unsubExams = onSnapshot(qExams, (snap) => {
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Exam[];
+      data.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
       setExams(data);
-    });
+    }, (err) => console.warn('Exams subscription error:', err));
 
     return () => {
       unsubHabits();
@@ -1212,15 +1219,43 @@ export default function App() {
   };
 
   const handleAddBatchTimeBlocks = async (blocks: Array<{ startTime: string; endTime: string; activity: string; date: string; color?: string; emoji?: string; subtasks?: BlockTask[]; showCountdown?: boolean; googleCalendarEventId?: string }>) => {
+    if (!blocks || blocks.length === 0) return;
+
+    // Optimistically insert into timeBlocks state immediately so schedule updates without delay
+    const optimisticBlocks: TimeBlock[] = blocks.map((b) => ({
+      id: `gcal-${b.googleCalendarEventId || Math.random().toString(36).substring(2, 9)}`,
+      activity: b.activity,
+      emoji: b.emoji || '📅',
+      startTime: b.startTime,
+      endTime: b.endTime,
+      color: b.color || 'sky',
+      subtasks: b.subtasks || [],
+      showCountdown: Boolean(b.showCountdown),
+      googleCalendarEventId: b.googleCalendarEventId,
+      date: b.date || getDateStrInTz(new Date(), DEFAULT_SCHEDULE_TIMEZONE),
+      uid: user?.uid || 'guest',
+      timestamp: Date.now()
+    }));
+
+    setTimeBlocks((prev) => {
+      const existingGcalIds = new Set(prev.map((p) => p.googleCalendarEventId).filter(Boolean));
+      const newItemsToAdd = optimisticBlocks.filter(
+        (ob) => !ob.googleCalendarEventId || !existingGcalIds.has(ob.googleCalendarEventId)
+      );
+      return [...prev, ...newItemsToAdd];
+    });
+
     if (!user) return;
     try {
+      const batch = writeBatch(db);
       for (const b of blocks) {
-        await addDoc(collection(db, 'timeBlocks'), cleanFirestoreData({
+        const docRef = doc(collection(db, 'timeBlocks'));
+        batch.set(docRef, cleanFirestoreData({
           activity: b.activity,
           emoji: b.emoji || '📅',
           startTime: b.startTime,
           endTime: b.endTime,
-          color: b.color || 'indigo',
+          color: b.color || 'sky',
           subtasks: b.subtasks || [],
           showCountdown: Boolean(b.showCountdown),
           googleCalendarEventId: b.googleCalendarEventId,
@@ -1229,8 +1264,9 @@ export default function App() {
           timestamp: Date.now()
         }));
       }
+      await batch.commit();
     } catch (err) {
-      console.error("Failed to add batch time blocks:", err);
+      console.error("Failed to commit batch time blocks:", err);
     }
   };
 
@@ -1918,7 +1954,7 @@ export default function App() {
         setAuthError('Sign-in window was closed');
       } else if (err.code === 'auth/unauthorized-domain') {
         const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'current domain';
-        setAuthError(`The domain "${currentHost}" is not yet authorized in Firebase Auth. Please add "${currentHost}" to Firebase Console > Authentication > Settings > Authorized domains (Project: Default Gemini Project / gen-lang-client-0011544447).`);
+        setAuthError(`The domain "${currentHost}" is not yet authorized in Firebase Auth. Please add "${currentHost}" to Firebase Console > Authentication > Settings > Authorized domains.`);
       } else if (err.code === 'auth/popup-blocked') {
         setAuthError('Sign-in popup was blocked. Please enable popups for this site in your browser settings (look for a popup blocker icon in your address bar), or click "Open in New Tab" at the top right of your preview window to run in a standalone tab.');
       } else {
